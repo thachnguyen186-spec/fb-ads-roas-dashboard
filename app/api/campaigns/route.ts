@@ -1,9 +1,10 @@
 /**
- * GET /api/campaigns?accountId=act_XXXXX[&viewAs=userId]
- * Fetches today's Facebook campaign data for a specific ad account.
+ * GET /api/campaigns[?viewAs=userId]
+ * Fetches today's active Facebook campaigns across ALL of the user's selected
+ * ad accounts in parallel. Each campaign row includes account_id + account_name.
  *
  * viewAs: optional — leader/admin can pass a staff user's ID to load
- * campaigns using that staff member's token. Token never leaves the server.
+ * that user's campaigns using their token. Token never leaves the server.
  */
 
 import { NextRequest } from 'next/server';
@@ -17,14 +18,9 @@ export async function GET(request: NextRequest) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  const accountId = request.nextUrl.searchParams.get('accountId');
-  if (!accountId) return errorResponse('accountId query param required', 400);
-
   const viewAs = request.nextUrl.searchParams.get('viewAs');
-  // The effective user whose token and accounts we use
   const targetUserId = viewAs ?? user.id;
 
-  // If viewAs is set, verify the requester has permission to view that user
   if (viewAs && viewAs !== user.id) {
     const denied = await canViewAs(user.id, viewAs);
     if (denied) return denied;
@@ -32,35 +28,29 @@ export async function GET(request: NextRequest) {
 
   const service = createServiceClient();
 
-  // Load token from the target user's profile
-  const { data: profile, error: profileError } = await service
-    .from('profiles')
-    .select('fb_access_token')
-    .eq('id', targetUserId)
-    .single();
+  // Load token + selected accounts for the target user in parallel
+  const [profileRes, accountsRes] = await Promise.all([
+    service.from('profiles').select('fb_access_token').eq('id', targetUserId).single(),
+    service
+      .from('fb_ad_accounts')
+      .select('account_id, name')
+      .eq('user_id', targetUserId)
+      .eq('is_selected', true),
+  ]);
 
-  if (profileError || !profile) return errorResponse('Profile not found', 404);
+  if (!profileRes.data) return errorResponse('Profile not found', 404);
+  const { fb_access_token } = profileRes.data as { fb_access_token: string | null };
+  if (!fb_access_token) return errorResponse('Facebook access token not configured.', 400);
 
-  const { fb_access_token } = profile as { fb_access_token: string | null };
-  if (!fb_access_token) {
-    return errorResponse(
-      'Facebook access token not configured for this user.',
-      400,
-    );
-  }
-
-  // Verify the account belongs to the target user
-  const { data: account } = await service
-    .from('fb_ad_accounts')
-    .select('account_id')
-    .eq('account_id', accountId)
-    .eq('user_id', targetUserId)
-    .single();
-
-  if (!account) return errorResponse('Ad account not found', 404);
+  const accounts = (accountsRes.data ?? []) as { account_id: string; name: string }[];
+  if (accounts.length === 0) return errorResponse('No ad accounts selected. Go to Settings.', 400);
 
   try {
-    const campaigns = await fetchCampaigns(fb_access_token, accountId);
+    // Fetch all accounts in parallel
+    const results = await Promise.all(
+      accounts.map((a) => fetchCampaigns(fb_access_token, a.account_id, a.name)),
+    );
+    const campaigns = results.flat();
     return Response.json({ campaigns });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch campaigns';

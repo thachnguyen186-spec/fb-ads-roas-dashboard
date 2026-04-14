@@ -61,11 +61,13 @@ function resolveBudgetType(raw: RawCampaign): 'daily' | 'lifetime' | 'unknown' {
   return 'unknown';
 }
 
-function mapCampaign(raw: RawCampaign): CampaignRow {
+function mapCampaign(raw: RawCampaign, accountId: string, accountName: string): CampaignRow {
   const ins = raw.insights?.data?.[0];
   return {
     campaign_id: raw.id,
     campaign_name: raw.name,
+    account_id: accountId,
+    account_name: accountName,
     status: raw.status,
     effective_status: raw.effective_status,
     daily_budget: centsToUsd(raw.daily_budget),
@@ -87,6 +89,7 @@ function mapCampaign(raw: RawCampaign): CampaignRow {
 export async function fetchCampaigns(
   token: string,
   adAccountId: string,
+  accountName: string,
 ): Promise<CampaignRow[]> {
   const campaigns: CampaignRow[] = [];
   // Inline insights sub-request using today date preset
@@ -104,7 +107,7 @@ export async function fetchCampaigns(
 
     const page = await fbGet(`/${adAccountId}/campaigns`, params, token) as RawPageResponse;
     for (const raw of page.data ?? []) {
-      campaigns.push(mapCampaign(raw));
+      campaigns.push(mapCampaign(raw, adAccountId, accountName));
     }
 
     after = page.paging?.cursors?.after;

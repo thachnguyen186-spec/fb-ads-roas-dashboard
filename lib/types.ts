@@ -39,6 +39,9 @@ export interface FbAdAccount {
 export interface CampaignRow {
   campaign_id: string;
   campaign_name: string;
+  /** Which ad account this campaign belongs to */
+  account_id: string;
+  account_name: string;
   status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' | 'DELETED' | string;
   effective_status: string;
   /** Daily budget in USD (null if lifetime budget campaign) */
