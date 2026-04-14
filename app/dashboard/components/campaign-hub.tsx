@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { parseAdjustCsv, aggregateByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns } from '@/lib/adjust/merge';
-import type { CampaignRow, FbAdAccount, MergedCampaign } from '@/lib/types';
+import type { CampaignRow, FbAdAccount, MergedCampaign, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
 import CampaignTable from './campaign-table';
 import RoasFilter from './roas-filter';
@@ -17,10 +17,20 @@ type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
 interface Props {
   hasToken: boolean;
   selectedAccounts: FbAdAccount[];
+  userRole: UserRole;
+  staffList: StaffMember[];
 }
 
-export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
+export default function CampaignHub({ hasToken, selectedAccounts, userRole, staffList }: Props) {
   const router = useRouter();
+
+  // Who we're viewing: null = self, string = staffId
+  const [viewingStaffId, setViewingStaffId] = useState<string | null>(null);
+
+  const viewingStaff = staffList.find((s) => s.id === viewingStaffId) ?? null;
+  // Accounts shown in the account dropdown (own or staff's)
+  const activeAccounts = viewingStaff ? viewingStaff.accounts : selectedAccounts;
+
   const [phase, setPhase] = useState<Phase>('idle');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [appFilter, setAppFilter] = useState<string | undefined>(undefined);
@@ -31,11 +41,26 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
   const [sortCol, setSortCol] = useState<keyof MergedCampaign>('spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [activeAccountId, setActiveAccountId] = useState<string>(
-    selectedAccounts[0]?.account_id ?? '',
-  );
+  const [activeAccountId, setActiveAccountId] = useState<string>(activeAccounts[0]?.account_id ?? '');
 
-  const hasFbConfig = hasToken && selectedAccounts.length > 0;
+  const isLeaderOrAdmin = userRole === 'leader' || userRole === 'admin';
+  const hasFbConfig = hasToken && activeAccounts.length > 0 && !!activeAccountId;
+
+  function handleStartOver() {
+    setPhase('idle');
+    setCsvFile(null);
+    setMergedCampaigns([]);
+    setSelectedIds(new Set());
+  }
+
+  function switchToStaff(staffId: string | null) {
+    setViewingStaffId(staffId);
+    handleStartOver();
+    const newAccounts = staffId
+      ? (staffList.find((s) => s.id === staffId)?.accounts ?? [])
+      : selectedAccounts;
+    setActiveAccountId(newAccounts[0]?.account_id ?? '');
+  }
 
   function handleCsvReady(file: File, filter: string | undefined) {
     setCsvFile(file);
@@ -50,15 +75,16 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
     setSelectedIds(new Set());
 
     try {
+      const url = new URL('/api/campaigns', window.location.origin);
+      url.searchParams.set('accountId', activeAccountId);
+      if (viewingStaffId) url.searchParams.set('viewAs', viewingStaffId);
+
       const [fbRes, adjustRows] = await Promise.all([
-        fetch(`/api/campaigns?accountId=${encodeURIComponent(activeAccountId)}`).then((r) =>
-          r.json(),
-        ),
+        fetch(url.toString()).then((r) => r.json()),
         parseAdjustCsv(csvFile, appFilter),
       ]);
 
       if (fbRes.error) throw new Error(fbRes.error);
-
       const adjustMap = aggregateByCampaignId(adjustRows);
       const merged = mergeCampaigns(fbRes.campaigns as CampaignRow[], adjustMap);
       setMergedCampaigns(merged);
@@ -70,12 +96,8 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
   }
 
   function handleSort(col: keyof MergedCampaign) {
-    if (col === sortCol) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortCol(col);
-      setSortDir('desc');
-    }
+    if (col === sortCol) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortCol(col); setSortDir('desc'); }
   }
 
   const displayedCampaigns = useMemo(() => {
@@ -92,6 +114,11 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
     return list;
   }, [mergedCampaigns, roasMin, roasMax, sortCol, sortDir]);
 
+  const selectedCampaigns = useMemo(
+    () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
+    [displayedCampaigns, selectedIds],
+  );
+
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -99,68 +126,73 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
     router.refresh();
   }
 
-  const selectedCampaigns = useMemo(
-    () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
-    [displayedCampaigns, selectedIds],
-  );
-
-  function handleStartOver() {
-    setPhase('idle');
-    setCsvFile(null);
-    setMergedCampaigns([]);
-    setSelectedIds(new Set());
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold text-gray-900">FB Ads ROAS Dashboard</h1>
-          {/* Account selector */}
-          {selectedAccounts.length > 1 && (
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-sm font-semibold text-gray-900 whitespace-nowrap">FB Ads ROAS</h1>
+
+          {/* Leader: staff switcher */}
+          {isLeaderOrAdmin && staffList.length > 0 && (
             <select
-              value={activeAccountId}
-              onChange={(e) => {
-                setActiveAccountId(e.target.value);
-                handleStartOver();
-              }}
+              value={viewingStaffId ?? ''}
+              onChange={(e) => switchToStaff(e.target.value || null)}
               className="text-xs border border-gray-300 rounded-lg px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {selectedAccounts.map((a) => (
-                <option key={a.account_id} value={a.account_id}>
-                  {a.name} ({a.account_id})
-                </option>
+              <option value="">My dashboard</option>
+              {staffList.map((s) => (
+                <option key={s.id} value={s.id}>{s.email}</option>
               ))}
             </select>
           )}
-          {selectedAccounts.length === 1 && (
-            <span className="text-xs text-gray-500 font-mono">
-              {selectedAccounts[0].name} · {selectedAccounts[0].account_id}
+
+          {/* Account selector */}
+          {activeAccounts.length > 1 ? (
+            <select
+              value={activeAccountId}
+              onChange={(e) => { setActiveAccountId(e.target.value); handleStartOver(); }}
+              className="text-xs border border-gray-300 rounded-lg px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {activeAccounts.map((a) => (
+                <option key={a.account_id} value={a.account_id}>{a.name}</option>
+              ))}
+            </select>
+          ) : activeAccounts.length === 1 ? (
+            <span className="text-xs text-gray-500 truncate hidden sm:block">
+              {activeAccounts[0].name} · {activeAccounts[0].account_id}
+            </span>
+          ) : null}
+
+          {viewingStaff && (
+            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+              Viewing: {viewingStaff.email}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-4">
+
+        <div className="flex items-center gap-4 flex-shrink-0">
+          {userRole === 'admin' && (
+            <Link href="/admin" className="text-sm text-purple-600 hover:text-purple-800 font-medium">Admin</Link>
+          )}
           <Link href="/settings" className="text-sm text-gray-500 hover:text-gray-700">Settings</Link>
           <button onClick={handleSignOut} className="text-sm text-gray-500 hover:text-gray-700">Sign out</button>
         </div>
       </header>
 
       <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-6 space-y-5">
-        {/* No credentials callout */}
         {!hasFbConfig && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-            {!hasToken
+            {viewingStaff
+              ? `${viewingStaff.email} has no FB token or selected accounts configured.`
+              : !hasToken
               ? 'Facebook access token not configured.'
               : 'No ad accounts selected.'}{' '}
-            <Link href="/settings" className="font-medium underline">Go to Settings</Link>{' '}
-            {!hasToken
-              ? 'to add your access token and fetch ad accounts.'
-              : 'to select ad accounts to use.'}
+            {!viewingStaff && (
+              <Link href="/settings" className="font-medium underline">Go to Settings</Link>
+            )}
           </div>
         )}
 
-        {/* Upload + Analyze section */}
         {phase !== 'results' && (
           <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4 max-w-lg">
             <div>
@@ -168,7 +200,6 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
               <p className="text-xs text-gray-500">Export from Adjust → Analytics → Campaign report</p>
             </div>
             <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
-
             {phase === 'csv_ready' && (
               <button
                 onClick={handleAnalyze}
@@ -177,7 +208,6 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
                 Step 2 — Analyze (fetch today&apos;s FB data)
               </button>
             )}
-
             {phase === 'analyzing' && (
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <svg className="animate-spin w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24">
@@ -187,46 +217,23 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
                 Fetching today&apos;s Facebook data…
               </div>
             )}
-
             {phase === 'error' && (
               <div className="space-y-2">
                 <p className="text-sm text-red-600">{errorMsg}</p>
-                <button onClick={() => setPhase('csv_ready')} className="text-xs text-blue-600 hover:underline">
-                  Try again
-                </button>
+                <button onClick={() => setPhase('csv_ready')} className="text-xs text-blue-600 hover:underline">Try again</button>
               </div>
             )}
           </div>
         )}
 
-        {/* Results */}
         {phase === 'results' && (
           <div className="space-y-4">
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
               <span>⚠ Today&apos;s FB spend data may be incomplete — insights are delayed 6–48h.</span>
-              <button
-                onClick={handleStartOver}
-                className="ml-4 text-xs text-amber-800 underline hover:no-underline whitespace-nowrap"
-              >
-                Start over
-              </button>
+              <button onClick={handleStartOver} className="ml-4 text-xs text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
             </div>
-            <RoasFilter
-              roasMin={roasMin}
-              roasMax={roasMax}
-              onMinChange={setRoasMin}
-              onMaxChange={setRoasMax}
-              totalCount={mergedCampaigns.length}
-              filteredCount={displayedCampaigns.length}
-            />
-            <CampaignTable
-              campaigns={displayedCampaigns}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-              sortCol={sortCol}
-              sortDir={sortDir}
-              onSort={handleSort}
-            />
+            <RoasFilter roasMin={roasMin} roasMax={roasMax} onMinChange={setRoasMin} onMaxChange={setRoasMax} totalCount={mergedCampaigns.length} filteredCount={displayedCampaigns.length} />
+            <CampaignTable campaigns={displayedCampaigns} selectedIds={selectedIds} onSelectionChange={setSelectedIds} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
           </div>
         )}
       </main>
@@ -234,12 +241,7 @@ export default function CampaignHub({ hasToken, selectedAccounts }: Props) {
       {phase === 'results' && selectedCampaigns.length > 0 && (
         <ActionBar
           selectedCampaigns={selectedCampaigns}
-          onActionComplete={() => {
-            if (csvFile) {
-              setPhase('analyzing');
-              handleAnalyze();
-            }
-          }}
+          onActionComplete={() => { if (csvFile) { setPhase('analyzing'); handleAnalyze(); } }}
           onDeselect={() => setSelectedIds(new Set())}
         />
       )}

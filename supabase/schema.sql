@@ -57,3 +57,35 @@ create policy "Users manage own fb ad accounts"
   on public.fb_ad_accounts for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- ─── RBAC: role column on profiles ────────────────────────────────────────────
+alter table public.profiles
+  add column if not exists role text not null default 'staff'
+  check (role in ('admin', 'leader', 'staff'));
+
+-- Update handle_new_user to preserve role default
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, role)
+  values (new.id, 'staff')
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+-- ─── team_members: leader → staff assignments ─────────────────────────────────
+create table if not exists public.team_members (
+  id uuid primary key default gen_random_uuid(),
+  leader_id uuid not null references auth.users(id) on delete cascade,
+  staff_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz default now(),
+  unique (leader_id, staff_id)
+);
+
+alter table public.team_members enable row level security;
+
+-- Leaders and staff can see their own team rows (writes done via service client in admin routes)
+create policy "Team members can read own rows"
+  on public.team_members for select
+  using (auth.uid() = leader_id or auth.uid() = staff_id);

@@ -1,11 +1,14 @@
 /**
- * GET /api/campaigns?accountId=act_XXXXX
+ * GET /api/campaigns?accountId=act_XXXXX[&viewAs=userId]
  * Fetches today's Facebook campaign data for a specific ad account.
- * Requires fb_access_token in user's profile and accountId in fb_ad_accounts.
+ *
+ * viewAs: optional — leader/admin can pass a staff user's ID to load
+ * campaigns using that staff member's token. Token never leaves the server.
  */
 
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { canViewAs } from '@/lib/auth-guards';
 import { errorResponse } from '@/lib/utils';
 import { fetchCampaigns } from '@/lib/facebook/campaigns';
 
@@ -17,13 +20,23 @@ export async function GET(request: NextRequest) {
   const accountId = request.nextUrl.searchParams.get('accountId');
   if (!accountId) return errorResponse('accountId query param required', 400);
 
+  const viewAs = request.nextUrl.searchParams.get('viewAs');
+  // The effective user whose token and accounts we use
+  const targetUserId = viewAs ?? user.id;
+
+  // If viewAs is set, verify the requester has permission to view that user
+  if (viewAs && viewAs !== user.id) {
+    const denied = await canViewAs(user.id, viewAs);
+    if (denied) return denied;
+  }
+
   const service = createServiceClient();
 
-  // Load token from profiles
+  // Load token from the target user's profile
   const { data: profile, error: profileError } = await service
     .from('profiles')
     .select('fb_access_token')
-    .eq('id', user.id)
+    .eq('id', targetUserId)
     .single();
 
   if (profileError || !profile) return errorResponse('Profile not found', 404);
@@ -31,17 +44,17 @@ export async function GET(request: NextRequest) {
   const { fb_access_token } = profile as { fb_access_token: string | null };
   if (!fb_access_token) {
     return errorResponse(
-      'Facebook access token not configured. Go to Settings to add your token.',
+      'Facebook access token not configured for this user.',
       400,
     );
   }
 
-  // Verify this account belongs to the user
+  // Verify the account belongs to the target user
   const { data: account } = await service
     .from('fb_ad_accounts')
     .select('account_id')
     .eq('account_id', accountId)
-    .eq('user_id', user.id)
+    .eq('user_id', targetUserId)
     .single();
 
   if (!account) return errorResponse('Ad account not found', 404);

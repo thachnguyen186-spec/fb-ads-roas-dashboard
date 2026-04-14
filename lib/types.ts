@@ -1,10 +1,28 @@
 // ─── User / Auth ───────────────────────────────────────────────────────────────
 
+export type UserRole = 'admin' | 'leader' | 'staff';
+
 /** User profile row stored in Supabase (extends auth.users) */
 export interface UserProfile {
   id: string;
   fb_access_token: string | null;
+  role: UserRole;
   created_at: string;
+}
+
+/** A user entry for admin management (profile + auth.users data joined) */
+export interface ManagedUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  created_at: string;
+}
+
+/** A staff member assigned to a leader, including their FB accounts */
+export interface StaffMember {
+  id: string;
+  email: string;
+  accounts: FbAdAccount[];
 }
 
 /** A Facebook Ad Account discovered via /me/adaccounts and saved per user */

@@ -15,12 +15,14 @@ export async function GET() {
   const service = createServiceClient();
 
   const [profileRes, accountsRes] = await Promise.all([
-    service.from('profiles').select('fb_access_token').eq('id', user.id).single(),
+    service.from('profiles').select('fb_access_token, role').eq('id', user.id).single(),
     service.from('fb_ad_accounts').select('account_id,name,is_selected,account_status').eq('user_id', user.id),
   ]);
 
+  const profile = profileRes.data as { fb_access_token?: string | null; role?: string } | null;
   return Response.json({
-    fb_access_token: (profileRes.data as { fb_access_token?: string | null } | null)?.fb_access_token ?? null,
+    fb_access_token: profile?.fb_access_token ?? null,
+    role: profile?.role ?? 'staff',
     accounts: accountsRes.data ?? [],
   });
 }
