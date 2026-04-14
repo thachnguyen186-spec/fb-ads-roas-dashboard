@@ -1,12 +1,12 @@
 /**
- * Supabase auth session refresh middleware.
+ * Supabase auth session refresh proxy (Next.js 16 replacement for middleware).
  * Required to keep the user's session alive across server-rendered pages.
  */
 
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Skip if env vars not configured (prevents crash during Vercel cold start)
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
     return NextResponse.next({ request });
