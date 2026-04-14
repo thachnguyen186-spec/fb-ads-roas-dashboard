@@ -25,6 +25,13 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Ensure all inputs, selects, and textareas use dark text by default */
+input,
+select,
+textarea {
+  color: #111827;
+}
+
 /* Fix browser autofill background + text color override */
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
