@@ -4,8 +4,15 @@
 export interface UserProfile {
   id: string;
   fb_access_token: string | null;
-  fb_ad_account_id: string | null;
   created_at: string;
+}
+
+/** A Facebook Ad Account discovered via /me/adaccounts and saved per user */
+export interface FbAdAccount {
+  account_id: string;  // "act_XXXXX"
+  name: string;
+  is_selected: boolean;
+  account_status: number | null; // 1=Active, 2=Disabled
 }
 
 // ─── Campaigns / ROAS Dashboard ───────────────────────────────────────────────

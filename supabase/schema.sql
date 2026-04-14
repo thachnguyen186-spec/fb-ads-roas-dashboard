@@ -38,3 +38,22 @@ create policy "Users can update own profile"
 create policy "Users can insert own profile"
   on public.profiles for insert
   with check (auth.uid() = id);
+
+-- ─── fb_ad_accounts: discovered FB ad accounts per user ──────────────────────
+-- Run this block separately in Supabase SQL editor if profiles already exists.
+
+create table if not exists public.fb_ad_accounts (
+  account_id text not null,           -- "act_XXXXX" format
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  is_selected boolean not null default true,
+  account_status int,                  -- 1=Active, 2=Disabled etc
+  primary key (account_id, user_id)
+);
+
+alter table public.fb_ad_accounts enable row level security;
+
+create policy "Users manage own fb ad accounts"
+  on public.fb_ad_accounts for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

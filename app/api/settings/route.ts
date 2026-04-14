@@ -1,6 +1,6 @@
 /**
- * PATCH /api/settings
- * Updates the authenticated user's FB credentials in the profiles table.
+ * GET  /api/settings       → returns token + saved ad accounts
+ * PATCH /api/settings      → saves token + upserts ad accounts with is_selected state
  */
 
 import { NextRequest } from 'next/server';
@@ -13,14 +13,23 @@ export async function GET() {
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
   const service = createServiceClient();
-  const { data, error } = await service
-    .from('profiles')
-    .select('fb_access_token, fb_ad_account_id')
-    .eq('id', user.id)
-    .single();
 
-  if (error) return errorResponse(error.message, 500);
-  return Response.json(data);
+  const [profileRes, accountsRes] = await Promise.all([
+    service.from('profiles').select('fb_access_token').eq('id', user.id).single(),
+    service.from('fb_ad_accounts').select('account_id,name,is_selected,account_status').eq('user_id', user.id),
+  ]);
+
+  return Response.json({
+    fb_access_token: (profileRes.data as { fb_access_token?: string | null } | null)?.fb_access_token ?? null,
+    accounts: accountsRes.data ?? [],
+  });
+}
+
+interface AccountInput {
+  account_id: string;
+  name: string;
+  is_selected: boolean;
+  account_status?: number | null;
 }
 
 export async function PATCH(request: NextRequest) {
@@ -28,29 +37,40 @@ export async function PATCH(request: NextRequest) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  let body: Record<string, unknown>;
+  let body: { fb_access_token?: string | null; accounts?: AccountInput[] };
   try {
     body = await request.json();
   } catch {
-    return errorResponse('Invalid JSON body');
-  }
-
-  const allowed = ['fb_access_token', 'fb_ad_account_id'];
-  const updates: Record<string, unknown> = {};
-  for (const key of allowed) {
-    if (key in body) updates[key] = body[key];
-  }
-
-  if (Object.keys(updates).length === 0) {
-    return errorResponse('No valid fields to update');
+    return errorResponse('Invalid JSON body', 400);
   }
 
   const service = createServiceClient();
-  const { error } = await service
-    .from('profiles')
-    .update(updates)
-    .eq('id', user.id);
 
-  if (error) return errorResponse(error.message, 500);
+  // Update token in profiles
+  if ('fb_access_token' in body) {
+    const { error } = await service
+      .from('profiles')
+      .update({ fb_access_token: body.fb_access_token ?? null })
+      .eq('id', user.id);
+    if (error) return errorResponse(error.message, 500);
+  }
+
+  // Upsert ad accounts
+  if (Array.isArray(body.accounts) && body.accounts.length > 0) {
+    const rows = body.accounts.map((a) => ({
+      account_id: a.account_id,
+      user_id: user.id,
+      name: a.name,
+      is_selected: a.is_selected,
+      account_status: a.account_status ?? null,
+    }));
+
+    const { error } = await service
+      .from('fb_ad_accounts')
+      .upsert(rows, { onConflict: 'account_id,user_id' });
+
+    if (error) return errorResponse(error.message, 500);
+  }
+
   return Response.json({ success: true });
 }

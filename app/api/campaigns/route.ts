@@ -1,41 +1,53 @@
 /**
- * GET /api/campaigns
- * Fetches today's Facebook campaign data for the authenticated user.
- * Requires fb_access_token and fb_ad_account_id in the user's profile.
+ * GET /api/campaigns?accountId=act_XXXXX
+ * Fetches today's Facebook campaign data for a specific ad account.
+ * Requires fb_access_token in user's profile and accountId in fb_ad_accounts.
  */
 
+import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
 import { fetchCampaigns } from '@/lib/facebook/campaigns';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
+  const accountId = request.nextUrl.searchParams.get('accountId');
+  if (!accountId) return errorResponse('accountId query param required', 400);
+
   const service = createServiceClient();
+
+  // Load token from profiles
   const { data: profile, error: profileError } = await service
     .from('profiles')
-    .select('fb_access_token, fb_ad_account_id')
+    .select('fb_access_token')
     .eq('id', user.id)
     .single();
 
   if (profileError || !profile) return errorResponse('Profile not found', 404);
 
-  const { fb_access_token, fb_ad_account_id } = profile as {
-    fb_access_token: string | null;
-    fb_ad_account_id: string | null;
-  };
-
-  if (!fb_access_token || !fb_ad_account_id) {
+  const { fb_access_token } = profile as { fb_access_token: string | null };
+  if (!fb_access_token) {
     return errorResponse(
-      'Facebook credentials not configured. Go to Settings to add your Access Token and Ad Account ID.',
+      'Facebook access token not configured. Go to Settings to add your token.',
       400,
     );
   }
 
+  // Verify this account belongs to the user
+  const { data: account } = await service
+    .from('fb_ad_accounts')
+    .select('account_id')
+    .eq('account_id', accountId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!account) return errorResponse('Ad account not found', 404);
+
   try {
-    const campaigns = await fetchCampaigns(fb_access_token, fb_ad_account_id);
+    const campaigns = await fetchCampaigns(fb_access_token, accountId);
     return Response.json({ campaigns });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch campaigns';
