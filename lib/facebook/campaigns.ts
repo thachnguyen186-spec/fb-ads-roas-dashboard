@@ -96,6 +96,8 @@ export async function fetchCampaigns(
   do {
     const params: Record<string, string> = {
       fields: `${CAMPAIGN_FIELDS},${insightFields}`,
+      // Only fetch campaigns that are currently running
+      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }]),
       limit: '100',
     };
     if (after) params.after = after;

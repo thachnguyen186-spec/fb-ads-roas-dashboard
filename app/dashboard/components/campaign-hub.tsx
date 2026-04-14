@@ -26,9 +26,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
   // Who we're viewing: null = self, string = staffId
   const [viewingStaffId, setViewingStaffId] = useState<string | null>(null);
-
   const viewingStaff = staffList.find((s) => s.id === viewingStaffId) ?? null;
-  // Accounts shown in the account dropdown (own or staff's)
   const activeAccounts = viewingStaff ? viewingStaff.accounts : selectedAccounts;
 
   const [phase, setPhase] = useState<Phase>('idle');
@@ -60,6 +58,11 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       ? (staffList.find((s) => s.id === staffId)?.accounts ?? [])
       : selectedAccounts;
     setActiveAccountId(newAccounts[0]?.account_id ?? '');
+  }
+
+  function handleAccountChange(accountId: string) {
+    setActiveAccountId(accountId);
+    handleStartOver();
   }
 
   function handleCsvReady(file: File, filter: string | undefined) {
@@ -126,18 +129,20 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     router.refresh();
   }
 
+  const activeAccount = activeAccounts.find((a) => a.account_id === activeAccountId);
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header — no account dropdown here, kept clean */}
       <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-sm font-semibold text-gray-900 whitespace-nowrap">FB Ads ROAS</h1>
-
+        <div className="flex items-center gap-3">
+          <h1 className="text-sm font-semibold text-gray-900">FB Ads ROAS</h1>
           {/* Leader: staff switcher */}
           {isLeaderOrAdmin && staffList.length > 0 && (
             <select
               value={viewingStaffId ?? ''}
               onChange={(e) => switchToStaff(e.target.value || null)}
-              className="text-xs border border-gray-300 rounded-lg px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="text-xs border border-gray-300 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">My dashboard</option>
               {staffList.map((s) => (
@@ -145,32 +150,13 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               ))}
             </select>
           )}
-
-          {/* Account selector */}
-          {activeAccounts.length > 1 ? (
-            <select
-              value={activeAccountId}
-              onChange={(e) => { setActiveAccountId(e.target.value); handleStartOver(); }}
-              className="text-xs border border-gray-300 rounded-lg px-2 py-1 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {activeAccounts.map((a) => (
-                <option key={a.account_id} value={a.account_id}>{a.name}</option>
-              ))}
-            </select>
-          ) : activeAccounts.length === 1 ? (
-            <span className="text-xs text-gray-500 truncate hidden sm:block">
-              {activeAccounts[0].name} · {activeAccounts[0].account_id}
-            </span>
-          ) : null}
-
           {viewingStaff && (
-            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
               Viewing: {viewingStaff.email}
             </span>
           )}
         </div>
-
-        <div className="flex items-center gap-4 flex-shrink-0">
+        <div className="flex items-center gap-4">
           {userRole === 'admin' && (
             <Link href="/admin" className="text-sm text-purple-600 hover:text-purple-800 font-medium">Admin</Link>
           )}
@@ -180,43 +166,91 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       </header>
 
       <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-6 space-y-5">
-        {!hasFbConfig && (
+
+        {/* No credentials banner */}
+        {!hasToken && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-            {viewingStaff
-              ? `${viewingStaff.email} has no FB token or selected accounts configured.`
-              : !hasToken
-              ? 'Facebook access token not configured.'
-              : 'No ad accounts selected.'}{' '}
-            {!viewingStaff && (
-              <Link href="/settings" className="font-medium underline">Go to Settings</Link>
-            )}
+            Facebook access token not configured.{' '}
+            <Link href="/settings" className="font-medium underline">Go to Settings</Link> to add it.
           </div>
         )}
 
+        {/* Step card: account selection + CSV upload */}
         {phase !== 'results' && (
-          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4 max-w-lg">
-            <div>
-              <h2 className="font-medium text-gray-900 mb-0.5">Step 1 — Upload Adjust CSV</h2>
-              <p className="text-xs text-gray-500">Export from Adjust → Analytics → Campaign report</p>
+          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5 max-w-lg">
+
+            {/* Step 1: Select Ad Account */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-semibold">1</span>
+                <h2 className="font-medium text-gray-900">Select Facebook Ad Account</h2>
+              </div>
+              {activeAccounts.length === 0 ? (
+                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  No ad accounts configured.{' '}
+                  <Link href="/settings" className="underline font-medium">Go to Settings</Link> to fetch and select accounts.
+                </p>
+              ) : (
+                <select
+                  value={activeAccountId}
+                  onChange={(e) => handleAccountChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {activeAccounts.map((a) => (
+                    <option key={a.account_id} value={a.account_id}>
+                      {a.name} — {a.account_id}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {activeAccount && (
+                <p className="text-xs text-gray-400">
+                  Only <strong>active</strong> campaigns from this account will be loaded.
+                </p>
+              )}
             </div>
-            <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
+
+            <hr className="border-gray-100" />
+
+            {/* Step 2: Upload Adjust CSV */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-semibold">2</span>
+                <h2 className="font-medium text-gray-900">Upload Adjust CSV</h2>
+              </div>
+              <p className="text-xs text-gray-500">Export from Adjust → Analytics → Campaign report</p>
+              <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
+            </div>
+
+            {/* Analyze button */}
             {phase === 'csv_ready' && (
-              <button
-                onClick={handleAnalyze}
-                className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Step 2 — Analyze (fetch today&apos;s FB data)
-              </button>
+              <>
+                <hr className="border-gray-100" />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-semibold">3</span>
+                    <h2 className="font-medium text-gray-900">Fetch &amp; Analyze</h2>
+                  </div>
+                  <button
+                    onClick={handleAnalyze}
+                    className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Fetch active FB campaigns &amp; match with CSV
+                  </button>
+                </div>
+              </>
             )}
+
             {phase === 'analyzing' && (
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <svg className="animate-spin w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
-                Fetching today&apos;s Facebook data…
+                Fetching active campaigns from Facebook…
               </div>
             )}
+
             {phase === 'error' && (
               <div className="space-y-2">
                 <p className="text-sm text-red-600">{errorMsg}</p>
@@ -226,14 +260,22 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
           </div>
         )}
 
+        {/* Results */}
         {phase === 'results' && (
           <div className="space-y-4">
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
-              <span>⚠ Today&apos;s FB spend data may be incomplete — insights are delayed 6–48h.</span>
+              <span>⚠ Today&apos;s FB spend may be incomplete — insights are delayed 6–48h. Showing active campaigns only.</span>
               <button onClick={handleStartOver} className="ml-4 text-xs text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
             </div>
             <RoasFilter roasMin={roasMin} roasMax={roasMax} onMinChange={setRoasMin} onMaxChange={setRoasMax} totalCount={mergedCampaigns.length} filteredCount={displayedCampaigns.length} />
-            <CampaignTable campaigns={displayedCampaigns} selectedIds={selectedIds} onSelectionChange={setSelectedIds} sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <CampaignTable
+              campaigns={displayedCampaigns}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              sortCol={sortCol}
+              sortDir={sortDir}
+              onSort={handleSort}
+            />
           </div>
         )}
       </main>
