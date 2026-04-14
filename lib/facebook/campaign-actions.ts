@@ -15,15 +15,20 @@ export async function pauseCampaign(token: string, campaignId: string): Promise<
 
 /**
  * Updates the daily or lifetime budget for a campaign.
- * @param amountUsd - New budget in USD (converted to cents internally)
+ * FB API expects budgets in the account's smallest currency unit:
+ *   - USD → cents (multiply × 100)
+ *   - VND → VND (no sub-unit, send as-is)
+ * @param amount   - New budget in the account's native currency
+ * @param currency - ISO currency code, e.g. 'USD' or 'VND'
  */
 export async function updateBudget(
   token: string,
   campaignId: string,
   budgetType: 'daily' | 'lifetime',
-  amountUsd: number,
+  amount: number,
+  currency: string,
 ): Promise<void> {
-  const cents = Math.round(amountUsd * 100);
+  const fbValue = currency === 'VND' ? Math.round(amount) : Math.round(amount * 100);
   const field = budgetType === 'daily' ? 'daily_budget' : 'lifetime_budget';
-  await fbPatch(`/${campaignId}`, { [field]: String(cents) }, token);
+  await fbPatch(`/${campaignId}`, { [field]: String(fbValue) }, token);
 }

@@ -13,7 +13,7 @@ type Params = { params: Promise<{ campaignId: string }> };
 
 type ActionBody =
   | { action: 'pause' }
-  | { action: 'budget'; budget_type: 'daily' | 'lifetime'; amount_usd: number };
+  | { action: 'budget'; budget_type: 'daily' | 'lifetime'; amount: number; currency: string };
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { campaignId } = await params;
@@ -46,11 +46,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
 
     if (body.action === 'budget') {
-      const { budget_type, amount_usd } = body;
-      if (!budget_type || !amount_usd || amount_usd <= 0 || amount_usd > 1_000_000) {
-        return errorResponse('Invalid budget: must be > 0 and ≤ 1,000,000 USD');
+      const { budget_type, amount, currency } = body;
+      if (!budget_type || !amount || amount <= 0) {
+        return errorResponse('Invalid budget: amount must be > 0');
       }
-      await updateBudget(token, campaignId, budget_type, amount_usd);
+      await updateBudget(token, campaignId, budget_type, amount, currency);
       return Response.json({ success: true });
     }
 

@@ -8,11 +8,12 @@ interface Props {
   selectedCampaigns: MergedCampaign[];
   onActionComplete: () => void;
   onDeselect: () => void;
+  vndRate: number;
 }
 
 type ActionState = 'idle' | 'loading' | 'done' | 'error';
 
-export default function ActionBar({ selectedCampaigns, onActionComplete, onDeselect }: Props) {
+export default function ActionBar({ selectedCampaigns, onActionComplete, onDeselect, vndRate }: Props) {
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
@@ -56,7 +57,7 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
     });
   }
 
-  async function handleBudgetConfirm(amountUsd: number) {
+  async function handleBudgetConfirm(amount: number, currency: string) {
     if (!budgetTarget) return;
     setBudgetTarget(null);
     await runAction(async () => {
@@ -66,7 +67,8 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
         body: JSON.stringify({
           action: 'budget',
           budget_type: budgetTarget.budget_type,
-          amount_usd: amountUsd,
+          amount,
+          currency,
         }),
       });
       const data = await res.json();
@@ -101,6 +103,8 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
               daily_budget: singleCampaign.daily_budget,
               lifetime_budget: singleCampaign.lifetime_budget,
               entity_type: 'campaign',
+              currency: singleCampaign.currency,
+              vndRate,
             })}
               disabled={actionState === 'loading'}
               className="px-4 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"

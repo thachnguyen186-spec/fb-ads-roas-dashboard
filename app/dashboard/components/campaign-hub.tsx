@@ -338,6 +338,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
           selectedCampaigns={selectedCampaigns}
           onActionComplete={() => { if (csvFile) { setPhase('analyzing'); handleAnalyze(); } }}
           onDeselect={() => setSelectedIds(new Set())}
+          vndRate={vndRate}
         />
       )}
     </div>

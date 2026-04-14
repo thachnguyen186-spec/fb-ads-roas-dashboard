@@ -11,7 +11,7 @@ import { updateAdSetBudget } from '@/lib/facebook/adset-actions';
 
 type Params = { params: Promise<{ adsetId: string }> };
 
-type ActionBody = { action: 'budget'; budget_type: 'daily' | 'lifetime'; amount_usd: number };
+type ActionBody = { action: 'budget'; budget_type: 'daily' | 'lifetime'; amount: number; currency: string };
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { adsetId } = await params;
@@ -32,9 +32,9 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.budget_type !== 'daily' && body.budget_type !== 'lifetime') {
     return errorResponse('Invalid budget_type', 400);
   }
-  const amount = body.amount_usd;
-  if (typeof amount !== 'number' || amount <= 0 || amount > 1_000_000) {
-    return errorResponse('Invalid amount_usd: must be > 0 and ≤ 1,000,000 USD', 400);
+  const { amount, currency } = body;
+  if (typeof amount !== 'number' || amount <= 0) {
+    return errorResponse('Invalid amount: must be > 0', 400);
   }
 
   const service = createServiceClient();
@@ -48,7 +48,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (!token) return errorResponse('Facebook token not configured', 400);
 
   try {
-    await updateAdSetBudget(token, adsetId, body.budget_type, amount);
+    await updateAdSetBudget(token, adsetId, body.budget_type, amount, currency);
     return Response.json({ success: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Budget update failed';

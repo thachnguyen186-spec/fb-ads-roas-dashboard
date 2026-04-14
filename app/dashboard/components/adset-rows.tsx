@@ -23,14 +23,16 @@ interface Props {
   colCount: number;
   /** Called after a successful ad set budget update so parent can invalidate cache */
   onBudgetUpdate: () => void;
+  /** VND→USD rate from parent, needed for original-currency budget display */
+  vndRate: number;
 }
 
-export default function AdSetRows({ adsets, loading, error, showAccountColumn, colCount, onBudgetUpdate }: Props) {
+export default function AdSetRows({ adsets, loading, error, showAccountColumn, colCount, onBudgetUpdate, vndRate }: Props) {
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
-  async function handleBudgetConfirm(amountUsd: number) {
+  async function handleBudgetConfirm(amount: number, currency: string) {
     if (!budgetTarget) return;
     const target = budgetTarget; // capture before clearing
     setBudgetTarget(null);       // close modal immediately for snappy UX
@@ -40,7 +42,7 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
       const res = await fetch(`/api/adsets/${target.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'budget', budget_type: target.budget_type, amount_usd: amountUsd }),
+        body: JSON.stringify({ action: 'budget', budget_type: target.budget_type, amount, currency }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Budget update failed');
@@ -137,6 +139,8 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
                           daily_budget: adset.daily_budget,
                           lifetime_budget: adset.lifetime_budget,
                           entity_type: 'adset',
+                          currency: adset.currency,
+                          vndRate,
                         })}
                         className="text-blue-400 hover:text-blue-600 transition-colors"
                         title="Edit budget"

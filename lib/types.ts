@@ -115,7 +115,12 @@ export interface BudgetTarget {
   id: string;
   name: string;
   budget_type: 'daily' | 'lifetime' | 'cbo' | 'unknown';
+  /** Budget values are in USD (after VND conversion in merge layer) */
   daily_budget: number | null;
   lifetime_budget: number | null;
   entity_type: 'campaign' | 'adset';
+  /** Account-level currency code — used to display/accept in original currency */
+  currency: string;
+  /** VND→USD rate used during merge — needed to convert display back to original */
+  vndRate: number;
 }

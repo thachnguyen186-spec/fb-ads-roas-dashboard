@@ -89,7 +89,7 @@ export default function CampaignTable({
     }
   }
 
-  async function handleCampaignBudgetConfirm(amountUsd: number) {
+  async function handleCampaignBudgetConfirm(amount: number, currency: string) {
     if (!campaignBudgetTarget) return;
     const target = campaignBudgetTarget;
     setCampaignBudgetTarget(null);
@@ -98,7 +98,7 @@ export default function CampaignTable({
       const res = await fetch(`/api/campaigns/${target.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'budget', budget_type: target.budget_type, amount_usd: amountUsd }),
+        body: JSON.stringify({ action: 'budget', budget_type: target.budget_type, amount, currency }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? 'Budget update failed');
@@ -204,7 +204,7 @@ export default function CampaignTable({
                           <span>{fmtUsd(budgetVal)}</span>
                           <span className="text-gray-400 text-xs">{c.budget_type === 'daily' ? '/d' : ' lt'}</span>
                           <button
-                            onClick={() => setCampaignBudgetTarget({ id: c.campaign_id, name: c.campaign_name, budget_type: c.budget_type, daily_budget: c.daily_budget, lifetime_budget: c.lifetime_budget, entity_type: 'campaign' })}
+                            onClick={() => setCampaignBudgetTarget({ id: c.campaign_id, name: c.campaign_name, budget_type: c.budget_type, daily_budget: c.daily_budget, lifetime_budget: c.lifetime_budget, entity_type: 'campaign', currency: c.currency, vndRate })}
                             className="text-blue-400 hover:text-blue-600 transition-colors text-xs"
                             title="Edit budget"
                           >✎</button>
@@ -233,6 +233,7 @@ export default function CampaignTable({
                       showAccountColumn={showAccountColumn}
                       colCount={colCount}
                       onBudgetUpdate={() => invalidateAdSetCache(c.campaign_id)}
+                      vndRate={vndRate}
                     />
                   )}
                 </Fragment>
