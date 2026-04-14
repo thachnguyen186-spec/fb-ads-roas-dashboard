@@ -10,6 +10,7 @@ interface RawAdAccount {
   id: string;            // "act_XXXXX"
   name: string;
   account_status: number;
+  currency?: string;
 }
 
 interface RawPageResponse {
@@ -23,7 +24,7 @@ export async function fetchAdAccounts(token: string): Promise<FbAdAccount[]> {
 
   do {
     const params: Record<string, string> = {
-      fields: 'id,name,account_status',
+      fields: 'id,name,account_status,currency',
       limit: '100',
     };
     if (after) params.after = after;
@@ -35,6 +36,7 @@ export async function fetchAdAccounts(token: string): Promise<FbAdAccount[]> {
         name: raw.name,
         is_selected: true,
         account_status: raw.account_status,
+        currency: raw.currency ?? 'USD',
       });
     }
 

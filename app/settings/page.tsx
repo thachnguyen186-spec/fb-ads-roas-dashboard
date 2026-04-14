@@ -169,6 +169,11 @@ export default function SettingsPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>
                           {badge.text}
                         </span>
+                        {a.currency && a.currency !== 'USD' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700">
+                            {a.currency}
+                          </span>
+                        )}
                         <button
                           onClick={() => handleRemoveAccount(a.account_id)}
                           className="text-gray-400 hover:text-red-500 transition-colors text-sm ml-1"

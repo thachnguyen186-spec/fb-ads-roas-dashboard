@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { parseAdjustCsv, aggregateByCampaignId } from '@/lib/adjust/csv-parser';
+import { parseAdjustCsv, aggregateByCampaignId, aggregateByAdSetId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns } from '@/lib/adjust/merge';
 import type { CampaignRow, FbAdAccount, MergedCampaign, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
@@ -31,6 +31,9 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [phase, setPhase] = useState<Phase>('idle');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [appFilter, setAppFilter] = useState<string | undefined>(undefined);
+  const [rawFbCampaigns, setRawFbCampaigns] = useState<CampaignRow[]>([]);
+  const [adjustMapState, setAdjustMapState] = useState<Map<string, number>>(new Map());
+  const [adjustAdSetMapState, setAdjustAdSetMapState] = useState<Map<string, number>>(new Map());
   const [mergedCampaigns, setMergedCampaigns] = useState<MergedCampaign[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [roasMin, setRoasMin] = useState('');
@@ -39,17 +42,35 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [sortCol, setSortCol] = useState<keyof MergedCampaign>('spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [vndRate, setVndRate] = useState(26000);
+  const [rateInput, setRateInput] = useState('26000');
 
   // Determine if the current view has FB credentials configured
   const viewingAccounts = viewingStaff ? viewingStaff.accounts : selectedAccounts;
   const hasFbConfig = hasToken && viewingAccounts.length > 0;
 
+  // Whether any loaded campaign is in VND
+  const hasVndAccounts = useMemo(
+    () => rawFbCampaigns.some((c) => c.currency === 'VND'),
+    [rawFbCampaigns],
+  );
+
   function handleStartOver() {
     setPhase('idle');
     setCsvFile(null);
+    setRawFbCampaigns([]);
+    setAdjustMapState(new Map());
+    setAdjustAdSetMapState(new Map());
     setMergedCampaigns([]);
     setSelectedIds(new Set());
     setAccountFilter('');
+  }
+
+  function handleRecalculate() {
+    const rate = parseFloat(rateInput);
+    if (isNaN(rate) || rate <= 0) return;
+    setVndRate(rate);
+    setMergedCampaigns(mergeCampaigns(rawFbCampaigns, adjustMapState, rate));
   }
 
   function switchToStaff(staffId: string | null) {
@@ -81,7 +102,12 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
       if (fbRes.error) throw new Error(fbRes.error);
       const adjustMap = aggregateByCampaignId(adjustRows);
-      const merged = mergeCampaigns(fbRes.campaigns as CampaignRow[], adjustMap);
+      const adjustAdSetMap = aggregateByAdSetId(adjustRows);
+      const fbCampaigns = fbRes.campaigns as CampaignRow[];
+      setRawFbCampaigns(fbCampaigns);
+      setAdjustMapState(adjustMap);
+      setAdjustAdSetMapState(adjustAdSetMap);
+      const merged = mergeCampaigns(fbCampaigns, adjustMap, vndRate);
       setMergedCampaigns(merged);
       setPhase('results');
     } catch (err) {
@@ -246,6 +272,28 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               <button onClick={handleStartOver} className="ml-4 text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
             </div>
 
+            {/* VND/USD rate control — only shown when VND accounts are present */}
+            {hasVndAccounts && (
+              <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
+                <span className="text-orange-800 font-medium whitespace-nowrap">VND → USD rate:</span>
+                <input
+                  type="number"
+                  value={rateInput}
+                  onChange={(e) => setRateInput(e.target.value)}
+                  min="1"
+                  className="w-28 px-2 py-1 border border-orange-300 rounded text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  placeholder="26000"
+                />
+                <button
+                  onClick={handleRecalculate}
+                  className="px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded hover:bg-orange-600 transition-colors whitespace-nowrap"
+                >
+                  Recalculate
+                </button>
+                <span className="text-xs text-orange-600">Current: 1 USD = {vndRate.toLocaleString()} VND</span>
+              </div>
+            )}
+
             {/* Filter bar: ROAS filter + account filter */}
             <div className="flex flex-wrap items-center gap-3">
               <RoasFilter
@@ -278,6 +326,8 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               sortDir={sortDir}
               onSort={handleSort}
               showAccountColumn={accountOptions.length > 1}
+              adjustAdSetMap={adjustAdSetMapState}
+              vndRate={vndRate}
             />
           </div>
         )}

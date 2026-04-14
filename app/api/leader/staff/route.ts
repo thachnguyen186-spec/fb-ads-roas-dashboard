@@ -36,7 +36,7 @@ export async function GET() {
     service.auth.admin.listUsers({ perPage: 200 }),
     service
       .from('fb_ad_accounts')
-      .select('user_id, account_id, name, is_selected, account_status')
+      .select('user_id, account_id, name, is_selected, account_status, currency')
       .in('user_id', staffIds)
       .eq('is_selected', true),
   ]);
@@ -54,6 +54,7 @@ export async function GET() {
       name: row.name,
       is_selected: row.is_selected,
       account_status: row.account_status,
+      currency: row.currency ?? 'USD',
     });
   }
 

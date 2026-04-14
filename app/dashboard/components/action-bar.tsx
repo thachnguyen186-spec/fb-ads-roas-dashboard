@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { MergedCampaign } from '@/lib/types';
+import type { BudgetTarget, MergedCampaign } from '@/lib/types';
 import BudgetModal from './budget-modal';
 
 interface Props {
@@ -15,7 +15,7 @@ type ActionState = 'idle' | 'loading' | 'done' | 'error';
 export default function ActionBar({ selectedCampaigns, onActionComplete, onDeselect }: Props) {
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [budgetTarget, setBudgetTarget] = useState<MergedCampaign | null>(null);
+  const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
 
   const count = selectedCampaigns.length;
   const singleCampaign = count === 1 ? selectedCampaigns[0] : null;
@@ -60,7 +60,7 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
     if (!budgetTarget) return;
     setBudgetTarget(null);
     await runAction(async () => {
-      const res = await fetch(`/api/campaigns/${budgetTarget.campaign_id}`, {
+      const res = await fetch(`/api/campaigns/${budgetTarget.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -94,7 +94,14 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
           {/* Update budget — single campaign only (budget type must be known) */}
           {singleCampaign && hasBudget && (
             <button
-              onClick={() => setBudgetTarget(singleCampaign)}
+              onClick={() => setBudgetTarget({
+              id: singleCampaign.campaign_id,
+              name: singleCampaign.campaign_name,
+              budget_type: singleCampaign.budget_type,
+              daily_budget: singleCampaign.daily_budget,
+              lifetime_budget: singleCampaign.lifetime_budget,
+              entity_type: 'campaign',
+            })}
               disabled={actionState === 'loading'}
               className="px-4 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
             >
@@ -123,7 +130,7 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
 
       {budgetTarget && (
         <BudgetModal
-          campaign={budgetTarget}
+          target={budgetTarget}
           onConfirm={handleBudgetConfirm}
           onClose={() => setBudgetTarget(null)}
         />

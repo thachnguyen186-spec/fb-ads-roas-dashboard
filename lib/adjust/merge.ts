@@ -4,7 +4,7 @@
  * ROAS = cohort_revenue / fb_spend (null when spend=0 or no Adjust match).
  */
 
-import type { CampaignRow, MergedCampaign } from '@/lib/types';
+import type { AdSetRow, CampaignRow, MergedAdSet, MergedCampaign } from '@/lib/types';
 
 export function computeRoas(revenue: number | null, spend: number): number | null {
   if (revenue === null || spend === 0) return null;
@@ -14,13 +14,55 @@ export function computeRoas(revenue: number | null, spend: number): number | nul
 export function mergeCampaigns(
   fbCampaigns: CampaignRow[],
   adjustMap: Map<string, number>,
+  vndRate: number = 26000,
 ): MergedCampaign[] {
   return fbCampaigns.map((campaign) => {
+    const isVnd = campaign.currency === 'VND';
+    const insightRate = isVnd ? vndRate : 1;
+    // Budgets: centsToUsd divides by 100, but VND has no sub-unit, so multiply back by 100/vndRate for USD.
+    const budgetFactor = isVnd ? 100 / vndRate : 1;
     const adjustRevenue = adjustMap.get(campaign.campaign_id) ?? null;
+    const spendUsd = campaign.spend / insightRate;
     return {
       ...campaign,
+      spend: spendUsd,
+      cpm: campaign.cpm / insightRate,
+      cpc: campaign.cpc / insightRate,
+      daily_budget: campaign.daily_budget !== null ? campaign.daily_budget * budgetFactor : null,
+      lifetime_budget: campaign.lifetime_budget !== null ? campaign.lifetime_budget * budgetFactor : null,
+      budget_remaining: campaign.budget_remaining !== null ? campaign.budget_remaining * budgetFactor : null,
       adjust_revenue: adjustRevenue,
-      roas: computeRoas(adjustRevenue, campaign.spend),
+      roas: computeRoas(adjustRevenue, spendUsd),
+      has_adjust_data: adjustRevenue !== null,
+    };
+  });
+}
+
+/** Merges FB ad set rows with Adjust ad set revenue, applying VND conversion if needed */
+export function mergeAdSets(
+  fbAdSets: AdSetRow[],
+  adjustAdSetMap: Map<string, number>,
+  vndRate: number = 26000,
+): MergedAdSet[] {
+  return fbAdSets.map((adset) => {
+    const isVnd = adset.currency === 'VND';
+    // Insights (spend/cpm/cpc) are returned as VND numbers → divide by vndRate for USD.
+    // Budgets are returned in VND smallest unit (1 VND), but centsToUsd already divided by 100,
+    // so to get USD: multiply by 100 then divide by vndRate (= multiply by 100/vndRate).
+    const insightRate = isVnd ? vndRate : 1;
+    const budgetFactor = isVnd ? 100 / vndRate : 1;
+    const adjustRevenue = adjustAdSetMap.get(adset.adset_id) ?? null;
+    const spendUsd = adset.spend / insightRate;
+    return {
+      ...adset,
+      spend: spendUsd,
+      cpm: adset.cpm / insightRate,
+      cpc: adset.cpc / insightRate,
+      daily_budget: adset.daily_budget !== null ? adset.daily_budget * budgetFactor : null,
+      lifetime_budget: adset.lifetime_budget !== null ? adset.lifetime_budget * budgetFactor : null,
+      budget_remaining: adset.budget_remaining !== null ? adset.budget_remaining * budgetFactor : null,
+      adjust_revenue: adjustRevenue,
+      roas: computeRoas(adjustRevenue, spendUsd),
       has_adjust_data: adjustRevenue !== null,
     };
   });

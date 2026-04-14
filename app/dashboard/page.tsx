@@ -15,7 +15,7 @@ export default async function DashboardPage() {
     service.from('profiles').select('fb_access_token').eq('id', user.id).single(),
     service
       .from('fb_ad_accounts')
-      .select('account_id,name,is_selected,account_status')
+      .select('account_id,name,is_selected,account_status,currency')
       .eq('user_id', user.id)
       .eq('is_selected', true),
     getUserRole(user.id),
@@ -40,7 +40,7 @@ export default async function DashboardPage() {
         service.auth.admin.listUsers({ perPage: 200 }),
         service
           .from('fb_ad_accounts')
-          .select('user_id,account_id,name,is_selected,account_status')
+          .select('user_id,account_id,name,is_selected,account_status,currency')
           .in('user_id', staffIds)
           .eq('is_selected', true),
       ]);
@@ -57,6 +57,7 @@ export default async function DashboardPage() {
           name: row.name,
           is_selected: row.is_selected,
           account_status: row.account_status,
+          currency: row.currency ?? 'USD',
         });
       }
 

@@ -1,14 +1,14 @@
 /**
- * Fetches today's campaign data from Facebook Marketing API v21.
- * Retrieves campaign list with inline insights (spend, CPM, CPC etc).
- * Budget fields are converted from cents to USD automatically.
- * Paginates through all campaigns automatically.
+ * Fetches active ad sets for a campaign from FB Marketing API v21.
+ * Retrieves ad set list with inline today's insights.
+ * Budget fields converted from cents to USD automatically.
+ * Paginates through all ad sets automatically.
  */
 
 import { fbGet } from './fb-client';
-import type { CampaignRow } from '@/lib/types';
+import type { AdSetRow } from '@/lib/types';
 
-const CAMPAIGN_FIELDS = [
+const ADSET_FIELDS = [
   'id', 'name', 'status', 'effective_status',
   'daily_budget', 'lifetime_budget', 'budget_remaining',
 ].join(',');
@@ -23,7 +23,7 @@ interface RawInsightRow {
   cpc?: string;
 }
 
-interface RawCampaign {
+interface RawAdSet {
   id: string;
   name: string;
   status: string;
@@ -35,7 +35,7 @@ interface RawCampaign {
 }
 
 interface RawPageResponse {
-  data: RawCampaign[];
+  data: RawAdSet[];
   paging?: { cursors?: { after?: string }; next?: string };
 }
 
@@ -55,17 +55,24 @@ function toInt(val?: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-function resolveBudgetType(raw: RawCampaign): 'daily' | 'lifetime' | 'unknown' {
+function resolveBudgetType(raw: RawAdSet): 'daily' | 'lifetime' | 'cbo' {
   if (raw.daily_budget && parseInt(raw.daily_budget, 10) > 0) return 'daily';
   if (raw.lifetime_budget && parseInt(raw.lifetime_budget, 10) > 0) return 'lifetime';
-  return 'unknown';
+  return 'cbo'; // Campaign Budget Optimization — no individual ad set budget
 }
 
-function mapCampaign(raw: RawCampaign, accountId: string, accountName: string, currency: string): CampaignRow {
+function mapAdSet(
+  raw: RawAdSet,
+  campaignId: string,
+  accountId: string,
+  accountName: string,
+  currency: string,
+): AdSetRow {
   const ins = raw.insights?.data?.[0];
   return {
-    campaign_id: raw.id,
-    campaign_name: raw.name,
+    adset_id: raw.id,
+    adset_name: raw.name,
+    campaign_id: campaignId,
     account_id: accountId,
     account_name: accountName,
     currency,
@@ -84,37 +91,36 @@ function mapCampaign(raw: RawCampaign, accountId: string, accountName: string, c
 }
 
 /**
- * Fetches all campaigns for the given ad account with today's insights.
- * Uses cursor-based pagination to retrieve all campaigns (not just first 100).
+ * Fetches all active ad sets for a campaign with today's insights.
+ * Uses cursor-based pagination to retrieve all ad sets.
  */
-export async function fetchCampaigns(
+export async function fetchAdSets(
   token: string,
-  adAccountId: string,
+  campaignId: string,
+  accountId: string,
   accountName: string,
   currency: string = 'USD',
-): Promise<CampaignRow[]> {
-  const campaigns: CampaignRow[] = [];
-  // Inline insights sub-request using today date preset
+): Promise<AdSetRow[]> {
+  const adsets: AdSetRow[] = [];
   const insightFields = `insights.date_preset(today){${INSIGHT_FIELDS}}`;
   let after: string | undefined;
 
   do {
     const params: Record<string, string> = {
-      fields: `${CAMPAIGN_FIELDS},${insightFields}`,
-      // Only fetch campaigns that are currently running
+      fields: `${ADSET_FIELDS},${insightFields}`,
       filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }]),
       limit: '100',
     };
     if (after) params.after = after;
 
-    const page = await fbGet(`/${adAccountId}/campaigns`, params, token) as RawPageResponse;
+    const page = await fbGet(`/${campaignId}/adsets`, params, token) as RawPageResponse;
     for (const raw of page.data ?? []) {
-      campaigns.push(mapCampaign(raw, adAccountId, accountName, currency));
+      adsets.push(mapAdSet(raw, campaignId, accountId, accountName, currency));
     }
 
     after = page.paging?.cursors?.after;
     if (!page.paging?.next) break;
   } while (after);
 
-  return campaigns;
+  return adsets;
 }

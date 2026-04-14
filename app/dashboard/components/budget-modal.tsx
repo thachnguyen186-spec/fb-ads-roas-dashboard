@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import type { MergedCampaign } from '@/lib/types';
+import type { BudgetTarget } from '@/lib/types';
 
 interface Props {
-  campaign: MergedCampaign;
+  target: BudgetTarget;
   onConfirm: (amountUsd: number) => void;
   onClose: () => void;
 }
@@ -16,12 +16,12 @@ const PCT_BUTTONS = [
   { label: '+50%', pct: 50 },
 ];
 
-export default function BudgetModal({ campaign, onConfirm, onClose }: Props) {
+export default function BudgetModal({ target, onConfirm, onClose }: Props) {
   const currentBudget =
-    campaign.budget_type === 'daily'
-      ? campaign.daily_budget
-      : campaign.budget_type === 'lifetime'
-      ? campaign.lifetime_budget
+    target.budget_type === 'daily'
+      ? target.daily_budget
+      : target.budget_type === 'lifetime'
+      ? target.lifetime_budget
       : null;
 
   const [value, setValue] = useState(currentBudget !== null ? String(currentBudget) : '');
@@ -38,9 +38,9 @@ export default function BudgetModal({ campaign, onConfirm, onClose }: Props) {
   }
 
   const budgetLabel =
-    campaign.budget_type === 'daily'
+    target.budget_type === 'daily'
       ? 'Daily budget'
-      : campaign.budget_type === 'lifetime'
+      : target.budget_type === 'lifetime'
       ? 'Lifetime budget'
       : 'Budget';
 
@@ -49,7 +49,10 @@ export default function BudgetModal({ campaign, onConfirm, onClose }: Props) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
         <div>
           <h2 className="font-semibold text-gray-900">Update {budgetLabel}</h2>
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{campaign.campaign_name}</p>
+          <p className="text-xs text-gray-500 mt-0.5 truncate">{target.name}</p>
+          {target.entity_type === 'adset' && (
+            <span className="inline-block mt-1 text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">Ad Set</span>
+          )}
         </div>
 
         {currentBudget !== null && (

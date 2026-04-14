@@ -16,7 +16,7 @@ export async function GET() {
 
   const [profileRes, accountsRes] = await Promise.all([
     service.from('profiles').select('fb_access_token, role').eq('id', user.id).single(),
-    service.from('fb_ad_accounts').select('account_id,name,is_selected,account_status').eq('user_id', user.id),
+    service.from('fb_ad_accounts').select('account_id,name,is_selected,account_status,currency').eq('user_id', user.id),
   ]);
 
   const profile = profileRes.data as { fb_access_token?: string | null; role?: string } | null;
@@ -32,6 +32,7 @@ interface AccountInput {
   name: string;
   is_selected: boolean;
   account_status?: number | null;
+  currency?: string;
 }
 
 export async function PATCH(request: NextRequest) {
@@ -65,6 +66,7 @@ export async function PATCH(request: NextRequest) {
       name: a.name,
       is_selected: a.is_selected,
       account_status: a.account_status ?? null,
+      currency: a.currency ?? 'USD',
     }));
 
     const { error } = await service

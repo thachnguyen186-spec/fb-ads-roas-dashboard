@@ -48,8 +48,13 @@ create table if not exists public.fb_ad_accounts (
   name text not null,
   is_selected boolean not null default true,
   account_status int,                  -- 1=Active, 2=Disabled etc
+  currency text not null default 'USD',
   primary key (account_id, user_id)
 );
+
+-- Add currency column if table already exists
+alter table public.fb_ad_accounts
+  add column if not exists currency text not null default 'USD';
 
 alter table public.fb_ad_accounts enable row level security;
 

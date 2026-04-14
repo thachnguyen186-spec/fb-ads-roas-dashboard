@@ -56,12 +56,15 @@ export function parseAdjustCsv(file: File, appFilter?: string): Promise<AdjustRo
           if (!isValidCampaignId(String(row.campaign_id_network ?? ''))) continue;
           if (appFilter && row.app !== appFilter) continue;
 
+          const adsetId = String(row.adgroup_id_network ?? '').trim();
           rows.push({
             campaign_id: String(row.campaign_id_network).trim(),
             campaign_name: row.campaign_network ?? '',
             app: row.app ?? '',
             // Use cohort_all_revenue (period-specific), NOT all_revenue (lifetime cumulative)
             revenue: toNum(row.cohort_all_revenue),
+            adset_id: adsetId || undefined,
+            adset_name: row.adgroup_network ? String(row.adgroup_network) : undefined,
           });
         }
         resolve(rows);
@@ -105,6 +108,19 @@ export function aggregateByCampaignId(rows: AdjustRow[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
     map.set(row.campaign_id, (map.get(row.campaign_id) ?? 0) + row.revenue);
+  }
+  return map;
+}
+
+/**
+ * Aggregates AdjustRows by adset_id, summing revenue.
+ * Used to match Adjust ad set revenue to FB ad sets in the expanded view.
+ */
+export function aggregateByAdSetId(rows: AdjustRow[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.adset_id) continue;
+    map.set(row.adset_id, (map.get(row.adset_id) ?? 0) + row.revenue);
   }
   return map;
 }

@@ -1,24 +1,15 @@
 'use client';
 
-import type { MergedCampaign } from '@/lib/types';
-import { roasColorClass, formatRoas } from '@/lib/adjust/merge';
-
-interface Props {
-  campaigns: MergedCampaign[];
-  selectedIds: Set<string>;
-  onSelectionChange: (ids: Set<string>) => void;
-  sortCol: keyof MergedCampaign;
-  sortDir: 'asc' | 'desc';
-  onSort: (col: keyof MergedCampaign) => void;
-  /** Show an Account column when multiple accounts are loaded */
-  showAccountColumn?: boolean;
-}
+import { Fragment, useState } from 'react';
+import { mergeAdSets, roasColorClass, formatRoas } from '@/lib/adjust/merge';
+import type { AdSetRow, BudgetTarget, MergedAdSet, MergedCampaign } from '@/lib/types';
+import AdSetRows from './adset-rows';
+import BudgetModal from './budget-modal';
 
 function fmtUsd(v: number | null) {
   if (v === null || v === 0) return '—';
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
 function fmtNum(v: number | null) {
   if (v === null) return '—';
   return v.toLocaleString('en-US');
@@ -30,17 +21,38 @@ function SortBtn({ col, sortCol, sortDir, onSort }: {
 }) {
   return (
     <button onClick={() => onSort(col)} className="hover:text-gray-900 select-none">
-      {col === sortCol
-        ? (sortDir === 'asc' ? ' ↑' : ' ↓')
-        : <span className="text-gray-300"> ↕</span>}
+      {col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span className="text-gray-300"> ↕</span>}
     </button>
   );
 }
 
+interface Props {
+  campaigns: MergedCampaign[];
+  selectedIds: Set<string>;
+  onSelectionChange: (ids: Set<string>) => void;
+  sortCol: keyof MergedCampaign;
+  sortDir: 'asc' | 'desc';
+  onSort: (col: keyof MergedCampaign) => void;
+  showAccountColumn?: boolean;
+  adjustAdSetMap: Map<string, number>;
+  vndRate: number;
+}
+
 export default function CampaignTable({
-  campaigns, selectedIds, onSelectionChange, sortCol, sortDir, onSort, showAccountColumn = false,
+  campaigns, selectedIds, onSelectionChange, sortCol, sortDir, onSort,
+  showAccountColumn = false, adjustAdSetMap, vndRate,
 }: Props) {
   const allSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.campaign_id));
+
+  // Expansion state
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [adSetCache, setAdSetCache] = useState<Map<string, MergedAdSet[]>>(new Map());
+  const [loadingAdSets, setLoadingAdSets] = useState<Set<string>>(new Set());
+  const [adSetErrors, setAdSetErrors] = useState<Map<string, string>>(new Map());
+
+  // Inline campaign budget edit
+  const [campaignBudgetTarget, setCampaignBudgetTarget] = useState<BudgetTarget | null>(null);
+  const [campaignBudgetError, setCampaignBudgetError] = useState('');
 
   function toggleAll() {
     onSelectionChange(allSelected ? new Set() : new Set(campaigns.map((c) => c.campaign_id)));
@@ -51,6 +63,54 @@ export default function CampaignTable({
     onSelectionChange(next);
   }
 
+  async function handleToggleExpand(c: MergedCampaign) {
+    const id = c.campaign_id;
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); return next; }
+      next.add(id);
+      return next;
+    });
+    if (adSetCache.has(id)) return; // already cached
+
+    setLoadingAdSets((prev) => new Set([...prev, id]));
+    setAdSetErrors((prev) => { const m = new Map(prev); m.delete(id); return m; });
+    try {
+      const url = `/api/campaigns/${id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to load ad sets');
+      const merged = mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMap, vndRate);
+      setAdSetCache((prev) => new Map([...prev, [id, merged]]));
+    } catch (err) {
+      setAdSetErrors((prev) => new Map([...prev, [id, err instanceof Error ? err.message : 'Error']]));
+    } finally {
+      setLoadingAdSets((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  }
+
+  async function handleCampaignBudgetConfirm(amountUsd: number) {
+    if (!campaignBudgetTarget) return;
+    const target = campaignBudgetTarget;
+    setCampaignBudgetTarget(null);
+    setCampaignBudgetError('');
+    try {
+      const res = await fetch(`/api/campaigns/${target.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'budget', budget_type: target.budget_type, amount_usd: amountUsd }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? 'Budget update failed');
+    } catch (err) {
+      setCampaignBudgetError(err instanceof Error ? err.message : 'Budget update failed');
+    }
+  }
+
+  function invalidateAdSetCache(campaignId: string) {
+    setAdSetCache((prev) => { const m = new Map(prev); m.delete(campaignId); return m; });
+  }
+
   if (campaigns.length === 0) {
     return (
       <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-sm text-gray-400">
@@ -59,21 +119,17 @@ export default function CampaignTable({
     );
   }
 
-  // Number of FB cols changes depending on whether Account col is shown
-  const fbColSpan = showAccountColumn ? 7 : 6;
+  const fbColSpan = showAccountColumn ? 8 : 7; // Account? + Status + Spend + Impr + Clicks + CPM + CPC + Budget
+  const colCount = 2 + fbColSpan + 1 + 2; // checkbox + Campaign + FB + Adjust + Result
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            {/* Section header row */}
             <tr className="border-b border-gray-200">
               <th colSpan={2} className="bg-gray-50 border-r border-gray-200" />
-              <th
-                colSpan={fbColSpan}
-                className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase"
-              >
+              <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
                 Facebook Ads Data
               </th>
               <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
@@ -83,98 +139,122 @@ export default function CampaignTable({
                 Result
               </th>
             </tr>
-
-            {/* Column header row */}
             <tr className="border-b border-gray-200 bg-gray-50 text-gray-500 font-medium">
               <th className="w-10 px-4 py-2.5">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-gray-300" />
               </th>
               <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-gray-200">Campaign</th>
-
-              {/* FB section */}
-              {showAccountColumn && (
-                <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/40">Account</th>
-              )}
+              {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/40">Account</th>}
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/40">Status</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('spend')}>
-                Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-              </th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('impressions')}>
-                Impr. <SortBtn col="impressions" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-              </th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('clicks')}>
-                Clicks <SortBtn col="clicks" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-              </th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('cpm')}>
-                CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-              </th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer border-r border-blue-100" onClick={() => onSort('cpc')}>
-                CPC <SortBtn col="cpc" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-              </th>
-
-              {/* Adjust section */}
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50/40 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>
-                Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-              </th>
-
-              {/* Result section */}
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('impressions')}>Impr. <SortBtn col="impressions" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('clicks')}>Clicks <SortBtn col="clicks" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('cpc')}>CPC <SortBtn col="cpc" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 border-r border-blue-100">Budget</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50/40 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50/40">ID Match</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50/40 cursor-pointer" onClick={() => onSort('roas')}>
-                ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-              </th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50/40 cursor-pointer" onClick={() => onSort('roas')}>ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
             </tr>
           </thead>
 
           <tbody className="divide-y divide-gray-100">
-            {campaigns.map((c) => (
-              <tr
-                key={c.campaign_id}
-                className={`hover:bg-gray-50 transition-colors ${selectedIds.has(c.campaign_id) ? 'bg-blue-50' : ''}`}
-              >
-                <td className="px-4 py-2.5">
-                  <input type="checkbox" checked={selectedIds.has(c.campaign_id)} onChange={() => toggleOne(c.campaign_id)} className="rounded border-gray-300" />
-                </td>
-                <td className="px-3 py-2.5 max-w-xs border-r border-gray-100">
-                  <div className="font-medium text-gray-900 truncate" title={c.campaign_name}>{c.campaign_name}</div>
-                  <div className="text-xs text-gray-400 font-mono">{c.campaign_id}</div>
-                </td>
+            {campaigns.map((c) => {
+              const isExpanded = expandedIds.has(c.campaign_id);
+              const budgetVal = c.budget_type === 'daily' ? c.daily_budget : c.budget_type === 'lifetime' ? c.lifetime_budget : null;
 
-                {/* FB section */}
-                {showAccountColumn && (
-                  <td className="px-3 py-2.5 bg-blue-50/20">
-                    <span className="text-xs text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">
-                      {c.account_name}
-                    </span>
-                  </td>
-                )}
-                <td className="px-3 py-2.5 bg-blue-50/20">
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Active</span>
-                </td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-gray-700 bg-blue-50/20">{fmtUsd(c.spend)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtNum(c.impressions)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtNum(c.clicks)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtUsd(c.cpm)}</td>
-                <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20 border-r border-blue-100">{fmtUsd(c.cpc)}</td>
+              return (
+                <Fragment key={c.campaign_id}>
+                  <tr className={`hover:bg-gray-50 transition-colors ${selectedIds.has(c.campaign_id) ? 'bg-blue-50' : ''}`}>
+                    <td className="px-4 py-2.5">
+                      <input type="checkbox" checked={selectedIds.has(c.campaign_id)} onChange={() => toggleOne(c.campaign_id)} className="rounded border-gray-300" />
+                    </td>
+                    <td className="px-3 py-2.5 max-w-xs border-r border-gray-100">
+                      <div className="flex items-start gap-2">
+                        <button onClick={() => handleToggleExpand(c)} className="mt-0.5 flex-shrink-0 text-gray-400 hover:text-gray-700 text-xs w-4" title={isExpanded ? 'Collapse' : 'Expand ad sets'}>
+                          {isExpanded ? '▼' : '▶'}
+                        </button>
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 truncate" title={c.campaign_name}>{c.campaign_name}</div>
+                          <div className="text-xs text-gray-400 font-mono">{c.campaign_id}</div>
+                        </div>
+                      </div>
+                    </td>
 
-                {/* Adjust section */}
-                <td className="px-3 py-2.5 text-right tabular-nums text-gray-700 bg-emerald-50/20 border-r border-emerald-100">
-                  {c.has_adjust_data ? fmtUsd(c.adjust_revenue) : <span className="text-gray-300">—</span>}
-                </td>
+                    {showAccountColumn && (
+                      <td className="px-3 py-2.5 bg-blue-50/20">
+                        <span className="text-xs text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">{c.account_name}</span>
+                      </td>
+                    )}
+                    <td className="px-3 py-2.5 bg-blue-50/20">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Active</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-700 bg-blue-50/20">{fmtUsd(c.spend)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtNum(c.impressions)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtNum(c.clicks)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtUsd(c.cpm)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtUsd(c.cpc)}</td>
 
-                {/* Result section */}
-                <td className="px-3 py-2.5 text-center bg-purple-50/20">
-                  {c.has_adjust_data
-                    ? <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Matched</span>
-                    : <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">✗ No match</span>}
-                </td>
-                <td className={`px-3 py-2.5 text-right font-semibold tabular-nums bg-purple-50/20 ${roasColorClass(c.roas)}`}>
-                  {formatRoas(c.roas)}
-                </td>
-              </tr>
-            ))}
+                    {/* Budget */}
+                    <td className="px-3 py-2.5 text-right bg-blue-50/20 border-r border-blue-100">
+                      {c.budget_type === 'unknown' ? (
+                        <span className="text-gray-300">—</span>
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5 tabular-nums text-gray-700">
+                          <span>{fmtUsd(budgetVal)}</span>
+                          <span className="text-gray-400 text-xs">{c.budget_type === 'daily' ? '/d' : ' lt'}</span>
+                          <button
+                            onClick={() => setCampaignBudgetTarget({ id: c.campaign_id, name: c.campaign_name, budget_type: c.budget_type, daily_budget: c.daily_budget, lifetime_budget: c.lifetime_budget, entity_type: 'campaign' })}
+                            className="text-blue-400 hover:text-blue-600 transition-colors text-xs"
+                            title="Edit budget"
+                          >✎</button>
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-700 bg-emerald-50/20 border-r border-emerald-100">
+                      {c.has_adjust_data ? fmtUsd(c.adjust_revenue) : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center bg-purple-50/20">
+                      {c.has_adjust_data
+                        ? <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Matched</span>
+                        : <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">✗ No match</span>}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums bg-purple-50/20 ${roasColorClass(c.roas)}`}>
+                      {formatRoas(c.roas)}
+                    </td>
+                  </tr>
+
+                  {isExpanded && (
+                    <AdSetRows
+                      adsets={adSetCache.get(c.campaign_id) ?? []}
+                      loading={loadingAdSets.has(c.campaign_id)}
+                      error={adSetErrors.get(c.campaign_id) ?? null}
+                      showAccountColumn={showAccountColumn}
+                      colCount={colCount}
+                      onBudgetUpdate={() => invalidateAdSetCache(c.campaign_id)}
+                    />
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
+
+      {campaignBudgetTarget && (
+        <BudgetModal
+          target={campaignBudgetTarget}
+          onConfirm={handleCampaignBudgetConfirm}
+          onClose={() => setCampaignBudgetTarget(null)}
+        />
+      )}
+      {campaignBudgetError && (
+        <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-xs text-red-600 flex items-center justify-between">
+          <span>{campaignBudgetError}</span>
+          <button onClick={() => setCampaignBudgetError('')} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+        </div>
+      )}
     </div>
   );
 }
