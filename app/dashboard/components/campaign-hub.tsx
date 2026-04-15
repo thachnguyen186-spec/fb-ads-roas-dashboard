@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { parseAdjustCsv, aggregateByCampaignId, aggregateByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
+import { parseAdjustCsv, aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateByAdSetId, aggregateAllRevByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
 import type { AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
@@ -35,8 +35,10 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [appFilter, setAppFilter] = useState<string | undefined>(undefined);
   const [rawFbCampaigns, setRawFbCampaigns] = useState<CampaignRow[]>([]);
-  const [adjustMapState, setAdjustMapState] = useState<Map<string, number>>(new Map());
-  const [adjustAdSetMapState, setAdjustAdSetMapState] = useState<Map<string, number>>(new Map());
+  const [adjustMapState, setAdjustMapState] = useState<Map<string, number>>(new Map());           // cohort_all_revenue by campaign
+  const [adjustAllRevMapState, setAdjustAllRevMapState] = useState<Map<string, number>>(new Map()); // all_revenue by campaign
+  const [adjustAdSetMapState, setAdjustAdSetMapState] = useState<Map<string, number>>(new Map());   // cohort_all_revenue by adset
+  const [adjustAllRevAdSetMapState, setAdjustAllRevAdSetMapState] = useState<Map<string, number>>(new Map()); // all_revenue by adset
   const [adjustAppMapState, setAdjustAppMapState] = useState<Map<string, string>>(new Map());
   // Adset-only flat view
   const [showAdsetOnly, setShowAdsetOnly] = useState(false);
@@ -90,7 +92,9 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     setCsvFile(null);
     setRawFbCampaigns([]);
     setAdjustMapState(new Map());
+    setAdjustAllRevMapState(new Map());
     setAdjustAdSetMapState(new Map());
+    setAdjustAllRevAdSetMapState(new Map());
     setAdjustAppMapState(new Map());
     setShowAdsetOnly(false);
     setRawFlatAdSets([]);
@@ -144,7 +148,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
           const res = await fetch(url);
           const data = await res.json();
           if (!res.ok) return [] as SnapshotAdSetRow[];
-          return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
+          return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
             adset_id: a.adset_id,
             campaign_id: c.campaign_id,
             adset_name: a.adset_name,
@@ -180,7 +184,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     const rate = parseFloat(rateInput);
     if (isNaN(rate) || rate <= 0) return;
     setVndRate(rate);
-    setMergedCampaigns(mergeCampaigns(rawFbCampaigns, adjustMapState, rate));
+    setMergedCampaigns(mergeCampaigns(rawFbCampaigns, adjustMapState, adjustAllRevMapState, rate));
   }
 
   async function loadAllAdsets(campaigns: MergedCampaign[]) {
@@ -232,14 +236,18 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
       if (fbRes.error) throw new Error(fbRes.error);
       const adjustMap = aggregateByCampaignId(adjustRows);
+      const adjustAllRevMap = aggregateAllRevByCampaignId(adjustRows);
       const adjustAdSetMap = aggregateByAdSetId(adjustRows);
+      const adjustAllRevAdSetMap = aggregateAllRevByAdSetId(adjustRows);
       const adjustAppMap = aggregateAppByCampaignId(adjustRows);
       const fbCampaigns = fbRes.campaigns as CampaignRow[];
       setRawFbCampaigns(fbCampaigns);
       setAdjustMapState(adjustMap);
+      setAdjustAllRevMapState(adjustAllRevMap);
       setAdjustAdSetMapState(adjustAdSetMap);
+      setAdjustAllRevAdSetMapState(adjustAllRevAdSetMap);
       setAdjustAppMapState(adjustAppMap);
-      const merged = mergeCampaigns(fbCampaigns, adjustMap, vndRate);
+      const merged = mergeCampaigns(fbCampaigns, adjustMap, adjustAllRevMap, vndRate);
       setMergedCampaigns(merged);
       setPhase('results');
       fetchSnapshots(); // load saved snapshots when results are ready
@@ -274,7 +282,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const flatAdsets: FlatAdSet[] = useMemo(() => {
     if (rawFlatAdSets.length === 0) return [];
     return rawFlatAdSets.map((raw) => {
-      const merged = mergeAdSets([raw], adjustAdSetMapState, vndRate)[0]!;
+      const merged = mergeAdSets([raw], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate)[0]!;
       return { ...merged, campaign_name: raw.campaign_name };
     });
   }, [rawFlatAdSets, adjustAdSetMapState, vndRate]);
@@ -579,6 +587,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                   onSort={handleSort}
                   showAccountColumn={accountOptions.length > 1}
                   adjustAdSetMap={adjustAdSetMapState}
+                  adjustAllRevAdSetMap={adjustAllRevAdSetMapState}
                   vndRate={vndRate}
                   snapshotCampaignMap={snapshotCampaignMap}
                   snapshotAdSetMap={snapshotAdSetMap}

@@ -35,6 +35,7 @@ interface Props {
   onSort: (col: keyof MergedCampaign) => void;
   showAccountColumn?: boolean;
   adjustAdSetMap: Map<string, number>;
+  adjustAllRevAdSetMap: Map<string, number>;
   vndRate: number;
   /** Snapshot compare: map campaign_id → saved metrics. Null = no snapshot selected. */
   snapshotCampaignMap: Map<string, SnapshotRow> | null;
@@ -45,7 +46,7 @@ interface Props {
 
 export default function CampaignTable({
   campaigns, selectedIds, onSelectionChange, sortCol, sortDir, onSort,
-  showAccountColumn = false, adjustAdSetMap, vndRate,
+  showAccountColumn = false, adjustAdSetMap, adjustAllRevAdSetMap, vndRate,
   snapshotCampaignMap, snapshotAdSetMap, zoom = 100,
 }: Props) {
   const allSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.campaign_id));
@@ -383,7 +384,7 @@ export default function CampaignTable({
 
                   {isExpanded && (
                     <AdSetRows
-                      adsets={mergeAdSets(adSetCache.get(c.campaign_id) ?? [], adjustAdSetMap, vndRate)}
+                      adsets={mergeAdSets(adSetCache.get(c.campaign_id) ?? [], adjustAdSetMap, adjustAllRevAdSetMap, vndRate)}
                       loading={loadingAdSets.has(c.campaign_id)}
                       error={adSetErrors.get(c.campaign_id) ?? null}
                       showAccountColumn={showAccountColumn}

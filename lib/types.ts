@@ -73,20 +73,25 @@ export interface AdjustRow {
   campaign_id: string;   // campaign_id_network column
   campaign_name: string; // campaign_network column
   app: string;
-  /** Sum of cohort_all_revenue for this campaign (period revenue, not lifetime) */
+  /** Sum of cohort_all_revenue for this campaign — used for D0 ROAS */
   revenue: number;
+  /** Sum of all_revenue for this campaign — used for %Profit and Profit */
+  all_revenue: number;
   adset_id?: string;    // adgroup_id_network (present when Adjust exports ad set rows)
   adset_name?: string;  // adgroup_network
 }
 
 /** FB campaign merged with Adjust revenue data */
 export interface MergedCampaign extends CampaignRow {
+  /** cohort_all_revenue — used for D0 ROAS display */
   adjust_revenue: number | null;
-  /** Revenue / Spend; null if no Adjust match or spend === 0 */
+  /** all_revenue — used for %Profit and Profit calculations */
+  adjust_all_revenue: number | null;
+  /** cohort_all_revenue / Spend; null if no Adjust match or spend === 0 */
   roas: number | null;
-  /** (Revenue - Spend) / Spend * 100; null when no Adjust data or spend === 0 */
+  /** (all_revenue - Spend) / all_revenue * 100; null when no Adjust data or all_revenue === 0 */
   profit_pct: number | null;
-  /** Revenue - Spend in USD; null when no Adjust data */
+  /** all_revenue - Spend in USD; null when no Adjust data */
   profit: number | null;
   has_adjust_data: boolean;
 }
@@ -117,11 +122,15 @@ export interface AdSetRow {
 
 /** Ad Set merged with Adjust revenue data */
 export interface MergedAdSet extends AdSetRow {
+  /** cohort_all_revenue — used for D0 ROAS display */
   adjust_revenue: number | null;
+  /** all_revenue — used for %Profit and Profit calculations */
+  adjust_all_revenue: number | null;
+  /** cohort_all_revenue / Spend; null if no Adjust match or spend === 0 */
   roas: number | null;
-  /** (Revenue - Spend) / Spend * 100; null when no Adjust data or spend === 0 */
+  /** (all_revenue - Spend) / all_revenue * 100; null when no Adjust data or all_revenue === 0 */
   profit_pct: number | null;
-  /** Revenue - Spend in USD; null when no Adjust data */
+  /** all_revenue - Spend in USD; null when no Adjust data */
   profit: number | null;
   has_adjust_data: boolean;
 }

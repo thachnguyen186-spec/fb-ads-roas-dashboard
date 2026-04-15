@@ -3,8 +3,10 @@
  *   app, channel, campaign_network, campaign_id_network,
  *   adgroup_network, adgroup_id_network, cost, all_revenue, cohort_all_revenue
  *
- * Filters to Facebook rows only, skips invalid campaign IDs,
- * and aggregates cohort_all_revenue by campaign_id_network.
+ * Filters to Facebook rows only, skips invalid campaign IDs.
+ * Produces two aggregation maps per entity:
+ *   - cohort_all_revenue (D0 ROAS)
+ *   - all_revenue (%Profit and Profit)
  *
  * Runs entirely client-side — no server upload.
  */
@@ -61,8 +63,10 @@ export function parseAdjustCsv(file: File, appFilter?: string): Promise<AdjustRo
             campaign_id: String(row.campaign_id_network).trim(),
             campaign_name: row.campaign_network ?? '',
             app: row.app ?? '',
-            // Use cohort_all_revenue (period-specific), NOT all_revenue (lifetime cumulative)
+            // cohort_all_revenue → D0 ROAS numerator
             revenue: toNum(row.cohort_all_revenue),
+            // all_revenue → %Profit and Profit calculations
+            all_revenue: toNum(row.all_revenue),
             adset_id: adsetId || undefined,
             adset_name: row.adgroup_network ? String(row.adgroup_network) : undefined,
           });
@@ -101,13 +105,25 @@ export function parseAppsFromCsv(file: File): Promise<string[]> {
 }
 
 /**
- * Aggregates AdjustRows by campaign_id, summing revenue.
- * Needed because Adjust exports one row per ad set, not per campaign.
+ * Aggregates AdjustRows by campaign_id, summing cohort_all_revenue.
+ * Used for D0 ROAS = cohort_all_revenue / spend.
  */
 export function aggregateByCampaignId(rows: AdjustRow[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
     map.set(row.campaign_id, (map.get(row.campaign_id) ?? 0) + row.revenue);
+  }
+  return map;
+}
+
+/**
+ * Aggregates AdjustRows by campaign_id, summing all_revenue.
+ * Used for %Profit and Profit = (all_revenue - spend) calculations.
+ */
+export function aggregateAllRevByCampaignId(rows: AdjustRow[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(row.campaign_id, (map.get(row.campaign_id) ?? 0) + row.all_revenue);
   }
   return map;
 }
@@ -127,14 +143,27 @@ export function aggregateAppByCampaignId(rows: AdjustRow[]): Map<string, string>
 }
 
 /**
- * Aggregates AdjustRows by adset_id, summing revenue.
- * Used to match Adjust ad set revenue to FB ad sets in the expanded view.
+ * Aggregates AdjustRows by adset_id, summing cohort_all_revenue.
+ * Used for adset-level D0 ROAS in the expanded view.
  */
 export function aggregateByAdSetId(rows: AdjustRow[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const row of rows) {
     if (!row.adset_id) continue;
     map.set(row.adset_id, (map.get(row.adset_id) ?? 0) + row.revenue);
+  }
+  return map;
+}
+
+/**
+ * Aggregates AdjustRows by adset_id, summing all_revenue.
+ * Used for adset-level %Profit and Profit in the expanded view.
+ */
+export function aggregateAllRevByAdSetId(rows: AdjustRow[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    if (!row.adset_id) continue;
+    map.set(row.adset_id, (map.get(row.adset_id) ?? 0) + row.all_revenue);
   }
   return map;
 }
