@@ -53,6 +53,7 @@ export default function CampaignTable({
   // Inline campaign budget edit
   const [campaignBudgetTarget, setCampaignBudgetTarget] = useState<BudgetTarget | null>(null);
   const [campaignBudgetError, setCampaignBudgetError] = useState('');
+  const [budgetSuccessMsg, setBudgetSuccessMsg] = useState('');
 
   function toggleAll() {
     onSelectionChange(allSelected ? new Set() : new Set(campaigns.map((c) => c.campaign_id)));
@@ -107,8 +108,20 @@ export default function CampaignTable({
     }
   }
 
-  function invalidateAdSetCache(campaignId: string) {
-    setAdSetCache((prev) => { const m = new Map(prev); m.delete(campaignId); return m; });
+  async function refetchAdSets(c: MergedCampaign) {
+    const id = c.campaign_id;
+    setBudgetSuccessMsg('Budget updated — refreshing ad sets…');
+    try {
+      const url = `/api/campaigns/${id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed');
+      setAdSetCache((prev) => new Map([...prev, [id, data.adsets as AdSetRow[]]]));
+      setBudgetSuccessMsg('Budget updated successfully!');
+    } catch {
+      setBudgetSuccessMsg('Budget saved — reload to see updated values.');
+    }
+    setTimeout(() => setBudgetSuccessMsg(''), 4000);
   }
 
   if (campaigns.length === 0) {
@@ -123,10 +136,10 @@ export default function CampaignTable({
   const colCount = 2 + fbColSpan + 1 + 3; // checkbox + Campaign + FB + Adjust + (ID Match + D0 ROAS + %Profit)
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <div className="overflow-x-scroll" style={{ scrollbarGutter: 'stable' }}>
+    <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-x-scroll overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-11 z-10">
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200">
               <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />
               <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
@@ -236,7 +249,7 @@ export default function CampaignTable({
                       error={adSetErrors.get(c.campaign_id) ?? null}
                       showAccountColumn={showAccountColumn}
                       colCount={colCount}
-                      onBudgetUpdate={() => invalidateAdSetCache(c.campaign_id)}
+                      onBudgetUpdate={() => refetchAdSets(c)}
                       vndRate={vndRate}
                     />
                   )}
@@ -258,6 +271,12 @@ export default function CampaignTable({
         <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-xs text-red-600 flex items-center justify-between">
           <span>{campaignBudgetError}</span>
           <button onClick={() => setCampaignBudgetError('')} className="text-red-400 hover:text-red-700 ml-4">✕</button>
+        </div>
+      )}
+      {budgetSuccessMsg && (
+        <div className="px-4 py-2 bg-emerald-50 border-t border-emerald-200 text-xs text-emerald-700 flex items-center justify-between">
+          <span>{budgetSuccessMsg}</span>
+          <button onClick={() => setBudgetSuccessMsg('')} className="text-emerald-400 hover:text-emerald-700 ml-4">✕</button>
         </div>
       )}
     </div>

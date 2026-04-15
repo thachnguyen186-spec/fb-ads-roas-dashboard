@@ -244,9 +244,21 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     router.refresh();
   }
 
+  const isResults = phase === 'results';
+
   return (
-    <div className="min-h-screen bg-slate-50" style={{ zoom: zoom / 100 }}>
-      <header className="sticky top-0 z-20 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+    // Outer: no zoom, fixed-height in results so table scroll is contained inside the page
+    <div className={`flex flex-col bg-slate-50 ${isResults ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    {/* Inner: zoomed. Height compensated so zoom never shrinks below viewport (e.g. zoom=80 → height=125%) */}
+    <div
+      style={{
+        zoom: zoom / 100,
+        height: isResults ? `${(10000 / zoom).toFixed(2)}%` : undefined,
+        minHeight: !isResults ? '100%' : undefined,
+      }}
+      className="flex flex-col"
+    >
+      <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold text-slate-900">FB Ads ROAS</h1>
           {/* Leader/admin: staff switcher */}
@@ -292,7 +304,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
         </div>
       </header>
 
-      <main className="max-w-screen-xl mx-auto w-full px-6 py-6 flex flex-col gap-5">
+      <main className={isResults ? 'flex-1 min-h-0 overflow-hidden flex flex-col gap-3 px-6 pt-4 pb-0 w-full' : 'max-w-screen-xl mx-auto w-full px-6 py-6 flex flex-col gap-5'}>
 
         {!hasToken && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
@@ -370,115 +382,121 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
         {/* Results */}
         {phase === 'results' && (
-          <div className="flex flex-col gap-4">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
-              <span>⚠ Today&apos;s FB spend may be incomplete — insights delayed 6–48h. Active campaigns only.</span>
-              <button onClick={handleStartOver} className="ml-4 text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
-            </div>
-
-            {/* VND/USD rate control — only shown when VND accounts are present */}
-            {hasVndAccounts && (
-              <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
-                <span className="text-orange-800 font-medium whitespace-nowrap">VND → USD rate:</span>
-                <input
-                  type="number"
-                  value={rateInput}
-                  onChange={(e) => setRateInput(e.target.value)}
-                  min="1"
-                  className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-                  placeholder="26000"
-                />
-                <button
-                  onClick={handleRecalculate}
-                  className="px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded hover:bg-orange-600 transition-colors whitespace-nowrap"
-                >
-                  Recalculate
-                </button>
-                <span className="text-xs text-orange-600">Current: 1 USD = {vndRate.toLocaleString()} VND</span>
+          <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
+            {/* Controls — fixed height, never scroll */}
+            <div className="flex-shrink-0 flex flex-col gap-3">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
+                <span>⚠ Today&apos;s FB spend may be incomplete — insights delayed 6–48h. Active campaigns only.</span>
+                <button onClick={handleStartOver} className="ml-4 text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
               </div>
-            )}
 
-            {/* View toggle: campaigns vs flat adsets */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  const next = !showAdsetOnly;
-                  setShowAdsetOnly(next);
-                  if (next) loadAllAdsets(displayedCampaigns);
-                }}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${showAdsetOnly ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
-              >
-                {showAdsetOnly ? '← Show Campaigns' : 'Show Ad Sets Only'}
-              </button>
-              {showAdsetOnly && selectedFlatAdsets.length > 0 && (
+              {/* VND/USD rate control — only shown when VND accounts are present */}
+              {hasVndAccounts && (
+                <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
+                  <span className="text-orange-800 font-medium whitespace-nowrap">VND → USD rate:</span>
+                  <input
+                    type="number"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    min="1"
+                    className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+                    placeholder="26000"
+                  />
+                  <button
+                    onClick={handleRecalculate}
+                    className="px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded hover:bg-orange-600 transition-colors whitespace-nowrap"
+                  >
+                    Recalculate
+                  </button>
+                  <span className="text-xs text-orange-600">Current: 1 USD = {vndRate.toLocaleString()} VND</span>
+                </div>
+              )}
+
+              {/* View toggle: campaigns vs flat adsets */}
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setShowBulkModal(true)}
-                  className="px-3 py-1.5 text-xs font-medium rounded-lg border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 transition-colors"
+                  onClick={() => {
+                    const next = !showAdsetOnly;
+                    setShowAdsetOnly(next);
+                    if (next) loadAllAdsets(displayedCampaigns);
+                  }}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${showAdsetOnly ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
                 >
-                  Change Budget ({selectedFlatAdsets.length} ad set{selectedFlatAdsets.length !== 1 ? 's' : ''})
+                  {showAdsetOnly ? '← Show Campaigns' : 'Show Ad Sets Only'}
                 </button>
+                {showAdsetOnly && selectedFlatAdsets.length > 0 && (
+                  <button
+                    onClick={() => setShowBulkModal(true)}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 transition-colors"
+                  >
+                    Change Budget ({selectedFlatAdsets.length} ad set{selectedFlatAdsets.length !== 1 ? 's' : ''})
+                  </button>
+                )}
+              </div>
+
+              {/* Unified filter bar — shown in campaign view only */}
+              {!showAdsetOnly && (
+                <FilterBar
+                  campaignName={campaignNameFilter}
+                  onCampaignNameChange={setCampaignNameFilter}
+                  appFilter={appNameFilter}
+                  onAppFilterChange={setAppNameFilter}
+                  appOptions={appOptions}
+                  accountFilter={accountFilter}
+                  onAccountFilterChange={setAccountFilter}
+                  accountOptions={accountOptions}
+                  roasMin={roasMin} roasMax={roasMax}
+                  onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
+                  spendMin={spendMin} spendMax={spendMax}
+                  onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
+                  budgetMin={budgetMin} budgetMax={budgetMax}
+                  onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
+                  totalCount={mergedCampaigns.length}
+                  filteredCount={displayedCampaigns.length}
+                  onClearAll={() => {
+                    setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
+                    setRoasMin(''); setRoasMax('');
+                    setSpendMin(''); setSpendMax('');
+                    setBudgetMin(''); setBudgetMax('');
+                  }}
+                />
               )}
             </div>
 
-            {/* Unified filter bar — shown in campaign view only */}
-            {!showAdsetOnly && (
-              <FilterBar
-                campaignName={campaignNameFilter}
-                onCampaignNameChange={setCampaignNameFilter}
-                appFilter={appNameFilter}
-                onAppFilterChange={setAppNameFilter}
-                appOptions={appOptions}
-                accountFilter={accountFilter}
-                onAccountFilterChange={setAccountFilter}
-                accountOptions={accountOptions}
-                roasMin={roasMin} roasMax={roasMax}
-                onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
-                spendMin={spendMin} spendMax={spendMax}
-                onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
-                budgetMin={budgetMin} budgetMax={budgetMax}
-                onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
-                totalCount={mergedCampaigns.length}
-                filteredCount={displayedCampaigns.length}
-                onClearAll={() => {
-                  setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
-                  setRoasMin(''); setRoasMax('');
-                  setSpendMin(''); setSpendMax('');
-                  setBudgetMin(''); setBudgetMax('');
-                }}
-              />
-            )}
-
-            {/* Campaign table */}
-            {!showAdsetOnly && (
-              <CampaignTable
-                campaigns={displayedCampaigns}
-                selectedIds={selectedIds}
-                onSelectionChange={setSelectedIds}
-                sortCol={sortCol}
-                sortDir={sortDir}
-                onSort={handleSort}
-                showAccountColumn={accountOptions.length > 1}
-                adjustAdSetMap={adjustAdSetMapState}
-                vndRate={vndRate}
-              />
-            )}
-
-            {/* Flat adset view */}
-            {showAdsetOnly && (
-              loadingAllAdsets ? (
-                <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-400">
-                  Loading ad sets from {displayedCampaigns.length} campaign{displayedCampaigns.length !== 1 ? 's' : ''}…
-                </div>
-              ) : (
-                <AdsetFlatView
-                  adsets={flatAdsets}
-                  selectedIds={selectedFlatAdsetIds}
-                  onSelectionChange={setSelectedFlatAdsetIds}
-                  vndRate={vndRate}
+            {/* Table area — fills remaining vertical space, both axes scroll within */}
+            <div className="flex-1 min-h-0 overflow-hidden pb-3">
+              {/* Campaign table */}
+              {!showAdsetOnly && (
+                <CampaignTable
+                  campaigns={displayedCampaigns}
+                  selectedIds={selectedIds}
+                  onSelectionChange={setSelectedIds}
+                  sortCol={sortCol}
+                  sortDir={sortDir}
+                  onSort={handleSort}
                   showAccountColumn={accountOptions.length > 1}
+                  adjustAdSetMap={adjustAdSetMapState}
+                  vndRate={vndRate}
                 />
-              )
-            )}
+              )}
+
+              {/* Flat adset view */}
+              {showAdsetOnly && (
+                loadingAllAdsets ? (
+                  <div className="h-full flex items-center justify-center bg-white border border-slate-200 rounded-xl text-sm text-slate-400">
+                    Loading ad sets from {displayedCampaigns.length} campaign{displayedCampaigns.length !== 1 ? 's' : ''}…
+                  </div>
+                ) : (
+                  <AdsetFlatView
+                    adsets={flatAdsets}
+                    selectedIds={selectedFlatAdsetIds}
+                    onSelectionChange={setSelectedFlatAdsetIds}
+                    vndRate={vndRate}
+                    showAccountColumn={accountOptions.length > 1}
+                  />
+                )
+              )}
+            </div>
           </div>
         )}
       </main>
@@ -503,6 +521,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
           }}
         />
       )}
+    </div>
     </div>
   );
 }
