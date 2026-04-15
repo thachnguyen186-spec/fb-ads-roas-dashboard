@@ -20,8 +20,8 @@ function SortBtn({ col, sortCol, sortDir, onSort }: {
   sortDir: 'asc' | 'desc'; onSort: (c: keyof MergedCampaign) => void;
 }) {
   return (
-    <button onClick={() => onSort(col)} className="hover:text-slate-100 select-none">
-      {col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span className="text-slate-600"> ↕</span>}
+    <button onClick={() => onSort(col)} className="hover:text-slate-800 select-none">
+      {col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span className="text-slate-400"> ↕</span>}
     </button>
   );
 }
@@ -188,99 +188,101 @@ export default function CampaignTable({
     <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="flex-1 min-h-0 overflow-x-scroll overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <table className="w-full text-sm border-collapse" style={zoom !== 100 ? { zoom: zoom / 100 } : undefined}>
-          <thead className="sticky top-0 z-10 bg-white" style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }}>
-            <tr className="border-b border-slate-200">
-              <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />
-              <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
+          <thead className="sticky top-0 z-10" style={{ boxShadow: '0 3px 10px rgba(0,0,0,0.12)' }}>
+            {/* Group header row — borders on <th> cells (not <tr>) to fix Chrome sticky+border-collapse gap bug */}
+            <tr>
+              <th colSpan={2} className="bg-slate-100 border-r border-slate-300 border-b border-slate-300" />
+              <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-200 border-b border-blue-200 tracking-wide uppercase">
                 Facebook Ads Data
               </th>
-              <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
+              <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-200 border-b border-emerald-200 tracking-wide uppercase">
                 Adjust CSV
               </th>
-              <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
+              <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 border-b border-purple-200 tracking-wide uppercase">
                 Result
               </th>
               {hasSnapshot && (
-                <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-100 tracking-wide uppercase">
+                <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase">
                   Snapshot Compare
                 </th>
               )}
             </tr>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-medium">
-              <th className="w-10 px-4 py-2.5">
+            {/* Column header row — borders on <th> cells */}
+            <tr className="bg-slate-100 text-slate-600 font-semibold">
+              <th className="w-10 px-4 py-2.5 border-b border-slate-300">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-300 bg-white h-5 w-5 cursor-pointer" />
               </th>
-              <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-200">Campaign</th>
-              {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Account</th>}
-              <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Status</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">CTR (all)</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 border-r border-blue-100">Budget</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('roas')}>D0 ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('profit_pct')}>%Profit <SortBtn col="profit_pct" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('profit')}>Profit <SortBtn col="profit" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-300 border-b border-slate-300">Campaign</th>
+              {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-100 border-b border-blue-200">Account</th>}
+              <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-100 border-b border-blue-200">Status</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200">CTR (all)</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-r border-blue-200 border-b border-blue-200">Budget</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-100 cursor-pointer border-r border-emerald-200 border-b border-emerald-200" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-100 border-b border-purple-200">ID Match</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-100 border-b border-purple-200 cursor-pointer" onClick={() => onSort('roas')}>D0 ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-100 border-b border-purple-200 cursor-pointer" onClick={() => onSort('profit_pct')}>%Profit <SortBtn col="profit_pct" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-100 border-b border-purple-200 cursor-pointer" onClick={() => onSort('profit')}>Profit <SortBtn col="profit" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               {hasSnapshot && (
                 <>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-l border-amber-100 text-xs">Old ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Old Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Δ ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Δ Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs">Old ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ Profit</th>
                 </>
               )}
             </tr>
-            {/* Subtotal row — aligned to data columns, fully opaque backgrounds */}
-            <tr className="border-b-2 border-slate-300 bg-slate-50 text-sm font-semibold text-slate-600">
-              <th className="w-10 px-4 py-1.5 bg-slate-50" />
-              <th className="px-3 py-1.5 text-left text-slate-400 font-medium bg-slate-50 border-r border-slate-200 whitespace-nowrap">
+            {/* Subtotal row — borders on <th> cells, stronger bottom border to separate from data */}
+            <tr className="bg-slate-100 text-sm font-semibold text-slate-700">
+              <th className="w-10 px-4 py-2 border-b-2 border-slate-400" />
+              <th className="px-3 py-2 text-left text-slate-500 font-medium border-r border-slate-300 border-b-2 border-slate-400 whitespace-nowrap">
                 {campaigns.length} campaigns · {matchedCount} matched
               </th>
-              {showAccountColumn && <th className="px-3 py-1.5 bg-blue-50" />}
-              <th className="px-3 py-1.5 bg-blue-50" />
+              {showAccountColumn && <th className="px-3 py-2 bg-blue-100 border-b-2 border-blue-300" />}
+              <th className="px-3 py-2 bg-blue-100 border-b-2 border-blue-300" />
               {/* Spend */}
-              <th className="px-3 py-1.5 text-right tabular-nums bg-blue-50 text-slate-700">{fmtUsd(totalSpend)}</th>
+              <th className="px-3 py-2 text-right tabular-nums bg-blue-100 border-b-2 border-blue-300">{fmtUsd(totalSpend)}</th>
               {/* CPM */}
-              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50">—</th>
+              <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-b-2 border-blue-300">—</th>
               {/* CTR */}
-              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50">—</th>
+              <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-b-2 border-blue-300">—</th>
               {/* Budget */}
-              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50 border-r border-blue-100">—</th>
+              <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-r border-blue-200 border-b-2 border-blue-300">—</th>
               {/* Revenue */}
-              <th className="px-3 py-1.5 text-right tabular-nums bg-emerald-50 text-emerald-700 border-r border-emerald-100">
-                {totalRevenue > 0 ? fmtUsd(totalRevenue) : <span className="text-slate-300">—</span>}
+              <th className="px-3 py-2 text-right tabular-nums bg-emerald-100 text-emerald-700 border-r border-emerald-200 border-b-2 border-emerald-300">
+                {totalRevenue > 0 ? fmtUsd(totalRevenue) : <span className="text-slate-400">—</span>}
               </th>
               {/* ID Match */}
-              <th className="px-3 py-1.5 text-center text-slate-400 bg-purple-50">—</th>
+              <th className="px-3 py-2 text-center text-slate-400 bg-purple-100 border-b-2 border-purple-300">—</th>
               {/* Avg ROAS */}
-              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50 ${avgRoas === null ? 'text-slate-300' : avgRoas >= 2 ? 'text-emerald-600' : avgRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
+              <th className={`px-3 py-2 text-right tabular-nums bg-purple-100 border-b-2 border-purple-300 ${avgRoas === null ? 'text-slate-400' : avgRoas >= 2 ? 'text-emerald-600' : avgRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
                 {avgRoas !== null ? `${avgRoas.toFixed(2)}x` : '—'}
               </th>
               {/* Avg %Profit */}
-              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50 ${avgProfitPct === null ? 'text-slate-300' : avgProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <th className={`px-3 py-2 text-right tabular-nums bg-purple-100 border-b-2 border-purple-300 ${avgProfitPct === null ? 'text-slate-400' : avgProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {avgProfitPct !== null ? `${avgProfitPct >= 0 ? '+' : ''}${avgProfitPct.toFixed(1)}%` : '—'}
               </th>
               {/* Total Profit */}
-              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50 ${totalProfit === 0 ? 'text-slate-300' : totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                {totalRevenue > 0 ? fmtUsd(totalProfit) : <span className="text-slate-300">—</span>}
+              <th className={`px-3 py-2 text-right tabular-nums bg-purple-100 border-b-2 border-purple-300 ${totalProfit === 0 ? 'text-slate-400' : totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {totalRevenue > 0 ? fmtUsd(totalProfit) : <span className="text-slate-400">—</span>}
               </th>
               {hasSnapshot && (
                 <>
                   {/* Avg Old ROAS */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 border-l border-amber-100 text-xs font-semibold ${avgSnapRoas === null ? 'text-slate-300' : avgSnapRoas >= 2 ? 'text-emerald-600' : avgSnapRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-l border-amber-200 border-b-2 border-amber-300 text-xs font-semibold ${avgSnapRoas === null ? 'text-slate-400' : avgSnapRoas >= 2 ? 'text-emerald-600' : avgSnapRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
                     {avgSnapRoas !== null ? `${avgSnapRoas.toFixed(2)}x` : '—'}
                   </th>
                   {/* Total Old Profit */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 text-xs font-semibold ${totalSnapProfit === null ? 'text-slate-300' : totalSnapProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalSnapProfit === null ? 'text-slate-400' : totalSnapProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalSnapProfit !== null ? fmtUsd(totalSnapProfit) : '—'}
                   </th>
                   {/* Avg Δ ROAS */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 text-xs font-semibold ${avgDeltaRoas === null ? 'text-slate-300' : avgDeltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${avgDeltaRoas === null ? 'text-slate-400' : avgDeltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {avgDeltaRoas !== null ? `${avgDeltaRoas >= 0 ? '+' : ''}${avgDeltaRoas.toFixed(2)}x` : '—'}
                   </th>
                   {/* Total Δ Profit */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 text-xs font-semibold ${totalDeltaProfit === null ? 'text-slate-300' : totalDeltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalDeltaProfit === null ? 'text-slate-400' : totalDeltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalDeltaProfit !== null ? `${totalDeltaProfit >= 0 ? '+' : '-'}$${Math.abs(totalDeltaProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                   </th>
                 </>
