@@ -325,18 +325,6 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     [displayedCampaigns, selectedIds],
   );
 
-  // Subtotals for the summary bar
-  const subtotals = useMemo(() => {
-    const withRoas = displayedCampaigns.filter((c) => c.roas !== null);
-    const withProfit = displayedCampaigns.filter((c) => c.profit_pct !== null);
-    return {
-      totalSpend: displayedCampaigns.reduce((s, c) => s + c.spend, 0),
-      totalRevenue: displayedCampaigns.reduce((s, c) => s + (c.adjust_revenue ?? 0), 0),
-      avgRoas: withRoas.length > 0 ? withRoas.reduce((s, c) => s + c.roas!, 0) / withRoas.length : null,
-      avgProfitPct: withProfit.length > 0 ? withProfit.reduce((s, c) => s + c.profit_pct!, 0) / withProfit.length : null,
-      roasCount: withRoas.length,
-    };
-  }, [displayedCampaigns]);
 
   // Derive snapshot lookup maps — null when no snapshot is selected
   const snapshotCampaignMap = useMemo<Map<string, SnapshotRow> | null>(() => {
@@ -367,7 +355,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   }, [displayedCampaigns, showAdsetOnly]);
 
   return (
-    <div className={`flex flex-col bg-slate-50 ${isResults ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    <div className="flex flex-col bg-slate-50 min-h-screen">
       <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold text-slate-900">FB Ads ROAS</h1>
@@ -414,7 +402,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
         </div>
       </header>
 
-      <main className={isResults ? 'flex-1 min-h-0 overflow-hidden flex flex-col gap-3 px-6 pt-4 pb-0 w-full' : 'max-w-screen-xl mx-auto w-full px-6 py-6 flex flex-col gap-5'}>
+      <main className={isResults ? 'px-6 pt-4 pb-4 w-full flex flex-col gap-3' : 'max-w-screen-xl mx-auto w-full px-6 py-6 flex flex-col gap-5'}>
 
         {!hasToken && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
@@ -492,9 +480,9 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
         {/* Results */}
         {phase === 'results' && (
-          <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
-            {/* Controls — fixed height, never scroll */}
-            <div className="flex-shrink-0 flex flex-col gap-3">
+          <div className="flex flex-col gap-3">
+            {/* Controls */}
+            <div className="flex flex-col gap-3">
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
                 <span>⚠ Today&apos;s FB spend may be incomplete — insights delayed 6–48h. Active campaigns only.</span>
                 <button onClick={handleStartOver} className="ml-4 text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
@@ -576,22 +564,10 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                 }}
               />
 
-              {/* Subtotal summary bar */}
-              <div className="flex items-center gap-4 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 flex-wrap">
-                <span className="font-semibold text-slate-700">{displayedCampaigns.length} campaigns</span>
-                <span className="text-slate-300">|</span>
-                <span>Total Spend: <span className="font-semibold text-slate-800">${subtotals.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
-                {subtotals.totalRevenue > 0 && (
-                  <span>Total Revenue: <span className="font-semibold text-emerald-700">${subtotals.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
-                )}
-                <span className="text-slate-300">|</span>
-                <span>Avg ROAS: <span className={`font-semibold ${subtotals.avgRoas === null ? 'text-slate-400' : subtotals.avgRoas >= 2 ? 'text-emerald-600' : subtotals.avgRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>{subtotals.avgRoas !== null ? `${subtotals.avgRoas.toFixed(2)}x` : '—'}</span>{subtotals.roasCount > 0 && <span className="text-slate-400 ml-1">({subtotals.roasCount} matched)</span>}</span>
-                <span>Avg %Profit: <span className={`font-semibold ${subtotals.avgProfitPct === null ? 'text-slate-400' : subtotals.avgProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{subtotals.avgProfitPct !== null ? `${subtotals.avgProfitPct >= 0 ? '+' : ''}${subtotals.avgProfitPct.toFixed(1)}%` : '—'}</span></span>
-              </div>
             </div>
 
-            {/* Table area — fills remaining vertical space, both axes scroll within */}
-            <div className="flex-1 min-h-0 overflow-hidden pb-3">
+            {/* Table area — fixed viewport-relative height; scrolls internally on both axes */}
+            <div className="h-[calc(100vh-340px)] min-h-[420px] overflow-hidden pb-3">
               {/* Campaign table */}
               {!showAdsetOnly && (
                 <CampaignTable

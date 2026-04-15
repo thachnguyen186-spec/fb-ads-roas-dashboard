@@ -11,10 +11,10 @@ export function computeRoas(revenue: number | null, spend: number): number | nul
   return revenue / spend;
 }
 
-/** %Profit = (revenue - spend) / spend * 100. Null when no data or spend === 0. */
+/** %Profit = (revenue - spend) / revenue * 100. Null when no data or revenue === 0. */
 export function computeProfit(revenue: number | null, spend: number): number | null {
-  if (revenue === null || spend === 0) return null;
-  return ((revenue - spend) / spend) * 100;
+  if (revenue === null || revenue === 0) return null;
+  return ((revenue - spend) / revenue) * 100;
 }
 
 /** Profit amount = revenue - spend. Null when no Adjust data. */
