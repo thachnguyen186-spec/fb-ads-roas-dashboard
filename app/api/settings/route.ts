@@ -21,7 +21,8 @@ export async function GET() {
 
   const profile = profileRes.data as { fb_access_token?: string | null; role?: string } | null;
   return Response.json({
-    fb_access_token: profile?.fb_access_token ?? null,
+    // Never return the raw token to the browser — only whether one is configured
+    has_token: !!profile?.fb_access_token,
     role: profile?.role ?? 'staff',
     accounts: accountsRes.data ?? [],
   });

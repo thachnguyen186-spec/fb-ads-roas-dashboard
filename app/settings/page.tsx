@@ -8,7 +8,9 @@ import type { FbAdAccount } from '@/lib/types';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState('');           // new token input (empty = keep existing)
+  const [hasToken, setHasToken] = useState(false);  // whether a token is already saved
+  const [removeToken, setRemoveToken] = useState(false); // user explicitly requested removal
   const [accounts, setAccounts] = useState<FbAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
@@ -21,7 +23,8 @@ export default function SettingsPage() {
     fetch('/api/settings')
       .then((r) => r.json())
       .then((data) => {
-        if (data.fb_access_token) setToken(data.fb_access_token);
+        // API returns has_token (boolean), never the raw token
+        setHasToken(!!data.has_token);
         if (Array.isArray(data.accounts) && data.accounts.length > 0) {
           setAccounts(data.accounts);
         }
@@ -35,7 +38,12 @@ export default function SettingsPage() {
     setFetching(true);
     setFetchError('');
     try {
-      const res = await fetch(`/api/settings/accounts?token=${encodeURIComponent(token.trim())}`);
+      // POST to keep token out of URL / server logs
+      const res = await fetch('/api/settings/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: token.trim() }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch accounts');
       const fetched = (data.accounts as FbAdAccount[]).map((a) => {
@@ -67,16 +75,22 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveMsg('');
     setSaveError('');
+    // Only touch the token field when user explicitly changed it
+    const payload: Record<string, unknown> = { accounts };
+    if (removeToken) payload.fb_access_token = null;
+    else if (token.trim()) payload.fb_access_token = token.trim();
     const res = await fetch('/api/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fb_access_token: token || null, accounts }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) {
       setSaveError(data.error ?? 'Failed to save');
     } else {
       setSaveMsg('Settings saved.');
+      if (token.trim()) { setHasToken(true); setToken(''); }
+      if (removeToken) setRemoveToken(false);
     }
     setSaving(false);
   }
@@ -122,14 +136,32 @@ export default function SettingsPage() {
                   <code className="bg-slate-100 text-slate-700 px-1 rounded">ads_read</code> permissions.
                 </p>
               </div>
+              {/* Current token status */}
+              {hasToken && (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-600 text-sm">✓</span>
+                    <span className="text-sm text-emerald-800 font-medium">Token configured</span>
+                  </div>
+                  <button
+                    onClick={() => { setHasToken(false); setRemoveToken(true); setToken(''); }}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">User Access Token</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {hasToken ? 'Replace token (leave blank to keep existing)' : 'User Access Token'}
+                </label>
                 <input
                   type="password"
-                  value={token}
+                  value={token === '\x00REMOVE' ? '' : token}
                   onChange={(e) => setToken(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="EAAxxxxxx…"
+                  placeholder={hasToken ? '••••••• (paste new token to replace)' : 'EAAxxxxxx…'}
                 />
               </div>
               <button
