@@ -14,7 +14,7 @@ const CAMPAIGN_FIELDS = [
   'promoted_object',
 ].join(',');
 
-const INSIGHT_FIELDS = 'spend,impressions,clicks,cpm,cpc';
+const INSIGHT_FIELDS = 'spend,impressions,clicks,cpm,cpc,ctr';
 
 interface RawInsightRow {
   spend?: string;
@@ -22,6 +22,7 @@ interface RawInsightRow {
   clicks?: string;
   cpm?: string;
   cpc?: string;
+  ctr?: string;
 }
 
 interface RawCampaign {
@@ -82,6 +83,7 @@ function mapCampaign(raw: RawCampaign, accountId: string, accountName: string, c
     clicks: toInt(ins?.clicks),
     cpm: toFloat(ins?.cpm),
     cpc: toFloat(ins?.cpc),
+    ctr: toFloat(ins?.ctr),
     app_id: raw.promoted_object?.application_id ?? null,
     app_name: null, // resolved later via fetchAppNames
   };

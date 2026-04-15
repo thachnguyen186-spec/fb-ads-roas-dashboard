@@ -225,7 +225,7 @@ export default function CampaignTable({
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 bg-blue-50/40">{fmtUsd(c.spend)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(c.cpm)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">
-                      {c.impressions > 0 ? `${((c.clicks / c.impressions) * 100).toFixed(2)}%` : '—'}
+                      {c.ctr > 0 ? `${c.ctr.toFixed(2)}%` : '—'}
                     </td>
 
                     {/* Budget */}

@@ -13,7 +13,7 @@ const ADSET_FIELDS = [
   'daily_budget', 'lifetime_budget', 'budget_remaining',
 ].join(',');
 
-const INSIGHT_FIELDS = 'spend,impressions,clicks,cpm,cpc';
+const INSIGHT_FIELDS = 'spend,impressions,clicks,cpm,cpc,ctr';
 
 interface RawInsightRow {
   spend?: string;
@@ -21,6 +21,7 @@ interface RawInsightRow {
   clicks?: string;
   cpm?: string;
   cpc?: string;
+  ctr?: string;
 }
 
 interface RawAdSet {
@@ -87,6 +88,7 @@ function mapAdSet(
     clicks: toInt(ins?.clicks),
     cpm: toFloat(ins?.cpm),
     cpc: toFloat(ins?.cpc),
+    ctr: toFloat(ins?.ctr),
   };
 }
 

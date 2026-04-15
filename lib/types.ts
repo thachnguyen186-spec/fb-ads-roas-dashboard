@@ -64,6 +64,8 @@ export interface CampaignRow {
   clicks: number;
   cpm: number;
   cpc: number;
+  /** CTR (all) as percentage, e.g. 3.25 means 3.25% — fetched directly from FB insights */
+  ctr: number;
 }
 
 /** Row from Adjust CSV after filtering + aggregation */
@@ -109,6 +111,8 @@ export interface AdSetRow {
   clicks: number;
   cpm: number;
   cpc: number;
+  /** CTR (all) as percentage, e.g. 3.25 means 3.25% — fetched directly from FB insights */
+  ctr: number;
 }
 
 /** Ad Set merged with Adjust revenue data */

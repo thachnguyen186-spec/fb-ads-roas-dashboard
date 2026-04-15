@@ -147,7 +147,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 bg-blue-50/40">{fmtUsd(a.spend)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(a.cpm)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">
-                    {a.impressions > 0 ? `${((a.clicks / a.impressions) * 100).toFixed(2)}%` : '—'}
+                    {a.ctr > 0 ? `${a.ctr.toFixed(2)}%` : '—'}
                   </td>
                   <td className="px-3 py-2.5 text-right bg-blue-50/40 border-r border-blue-100">
                     {a.budget_type === 'cbo' ? (

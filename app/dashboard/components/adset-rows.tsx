@@ -116,7 +116,7 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
             <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(adset.cpm)}</td>
             {/* CTR (all) */}
             <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">
-              {adset.impressions > 0 ? `${((adset.clicks / adset.impressions) * 100).toFixed(2)}%` : '—'}
+              {adset.ctr > 0 ? `${adset.ctr.toFixed(2)}%` : '—'}
             </td>
 
             {/* Budget */}
