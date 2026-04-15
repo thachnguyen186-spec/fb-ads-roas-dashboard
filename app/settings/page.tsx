@@ -14,6 +14,9 @@ export default function SettingsPage() {
   const [adjustToken, setAdjustToken] = useState('');
   const [hasAdjustToken, setHasAdjustToken] = useState(false);
   const [removeAdjustToken, setRemoveAdjustToken] = useState(false);
+  const [adjustAppToken, setAdjustAppToken] = useState('');
+  const [hasAdjustAppToken, setHasAdjustAppToken] = useState(false);
+  const [removeAdjustAppToken, setRemoveAdjustAppToken] = useState(false);
   const [accounts, setAccounts] = useState<FbAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
@@ -29,6 +32,7 @@ export default function SettingsPage() {
         // API returns has_token (boolean), never the raw token
         setHasToken(!!data.has_token);
         setHasAdjustToken(!!data.has_adjust_token);
+        setHasAdjustAppToken(!!data.has_adjust_app_token);
         if (Array.isArray(data.accounts) && data.accounts.length > 0) {
           setAccounts(data.accounts);
         }
@@ -85,6 +89,8 @@ export default function SettingsPage() {
     else if (token.trim()) payload.fb_access_token = token.trim();
     if (removeAdjustToken) payload.adjust_api_token = null;
     else if (adjustToken.trim()) payload.adjust_api_token = adjustToken.trim();
+    if (removeAdjustAppToken) payload.adjust_app_token = null;
+    else if (adjustAppToken.trim()) payload.adjust_app_token = adjustAppToken.trim();
     const res = await fetch('/api/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -99,6 +105,8 @@ export default function SettingsPage() {
       if (removeToken) setRemoveToken(false);
       if (adjustToken.trim()) { setHasAdjustToken(true); setAdjustToken(''); }
       if (removeAdjustToken) { setHasAdjustToken(false); setRemoveAdjustToken(false); }
+      if (adjustAppToken.trim()) { setHasAdjustAppToken(true); setAdjustAppToken(''); }
+      if (removeAdjustAppToken) { setHasAdjustAppToken(false); setRemoveAdjustAppToken(false); }
     }
     setSaving(false);
   }
@@ -214,6 +222,43 @@ export default function SettingsPage() {
                   onChange={(e) => setAdjustToken(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder={hasAdjustToken ? '••••••• (paste new token to replace)' : 'Paste Adjust API token…'}
+                />
+              </div>
+            </div>
+
+            {/* Adjust App Token section */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <div>
+                <h2 className="font-semibold text-slate-900">Adjust App Token</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Found in Adjust Dashboard → your app → App Settings. Required to query revenue data.
+                  Separate multiple app tokens with commas.
+                </p>
+              </div>
+              {hasAdjustAppToken && (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-600 text-sm">✓</span>
+                    <span className="text-sm text-emerald-800 font-medium">App token configured</span>
+                  </div>
+                  <button
+                    onClick={() => { setHasAdjustAppToken(false); setRemoveAdjustAppToken(true); setAdjustAppToken(''); }}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {hasAdjustAppToken ? 'Replace app token (leave blank to keep existing)' : 'App Token'}
+                </label>
+                <input
+                  type="text"
+                  value={adjustAppToken}
+                  onChange={(e) => setAdjustAppToken(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder={hasAdjustAppToken ? '(paste new token to replace)' : 'e.g. abc123xyz or abc123,def456'}
                 />
               </div>
             </div>

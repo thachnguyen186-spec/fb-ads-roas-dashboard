@@ -15,15 +15,16 @@ export async function GET() {
   const service = createServiceClient();
 
   const [profileRes, accountsRes] = await Promise.all([
-    service.from('profiles').select('fb_access_token, adjust_api_token, role').eq('id', user.id).single(),
+    service.from('profiles').select('fb_access_token, adjust_api_token, adjust_app_token, role').eq('id', user.id).single(),
     service.from('fb_ad_accounts').select('account_id,name,is_selected,account_status,currency').eq('user_id', user.id),
   ]);
 
-  const profile = profileRes.data as { fb_access_token?: string | null; adjust_api_token?: string | null; role?: string } | null;
+  const profile = profileRes.data as { fb_access_token?: string | null; adjust_api_token?: string | null; adjust_app_token?: string | null; role?: string } | null;
   return Response.json({
     // Never return raw tokens to the browser — only whether one is configured
     has_token: !!profile?.fb_access_token,
     has_adjust_token: !!profile?.adjust_api_token,
+    has_adjust_app_token: !!profile?.adjust_app_token,
     role: profile?.role ?? 'staff',
     accounts: accountsRes.data ?? [],
   });
@@ -42,7 +43,7 @@ export async function PATCH(request: NextRequest) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  let body: { fb_access_token?: string | null; adjust_api_token?: string | null; accounts?: AccountInput[] };
+  let body: { fb_access_token?: string | null; adjust_api_token?: string | null; adjust_app_token?: string | null; accounts?: AccountInput[] };
   try {
     body = await request.json();
   } catch {
@@ -60,11 +61,20 @@ export async function PATCH(request: NextRequest) {
     if (error) return errorResponse(error.message, 500);
   }
 
-  // Update Adjust token in profiles
+  // Update Adjust API token in profiles
   if ('adjust_api_token' in body) {
     const { error } = await service
       .from('profiles')
       .update({ adjust_api_token: body.adjust_api_token ?? null })
+      .eq('id', user.id);
+    if (error) return errorResponse(error.message, 500);
+  }
+
+  // Update Adjust app token(s) in profiles
+  if ('adjust_app_token' in body) {
+    const { error } = await service
+      .from('profiles')
+      .update({ adjust_app_token: body.adjust_app_token ?? null })
       .eq('id', user.id);
     if (error) return errorResponse(error.message, 500);
   }

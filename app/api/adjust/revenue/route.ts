@@ -26,17 +26,27 @@ export async function GET(request: NextRequest) {
   const service = createServiceClient();
   const { data: profile } = await service
     .from('profiles')
-    .select('adjust_api_token')
+    .select('adjust_api_token, adjust_app_token')
     .eq('id', user.id)
     .single();
 
-  const token = (profile as { adjust_api_token?: string | null } | null)?.adjust_api_token;
+  const p = profile as { adjust_api_token?: string | null; adjust_app_token?: string | null } | null;
+  const token = p?.adjust_api_token;
   if (!token) return errorResponse('Adjust API token not configured. Add it in Settings.', 400);
+
+  // adjust_app_token stored as comma-separated list (e.g. "abc123,def456")
+  const appTokens = (p?.adjust_app_token ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (appTokens.length === 0) {
+    return errorResponse('Adjust app token(s) not configured. Add them in Settings → Adjust App Token field.', 400);
+  }
 
   const appFilter = request.nextUrl.searchParams.get('app') || undefined;
 
   try {
-    const rows = await fetchAdjustRevenueToday(token, appFilter);
+    const rows = await fetchAdjustRevenueToday(token, appTokens, appFilter);
     return Response.json({ rows });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch from Adjust API';

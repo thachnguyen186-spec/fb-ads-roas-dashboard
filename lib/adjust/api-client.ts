@@ -44,13 +44,19 @@ interface AdjustApiRow {
  * Fetches today's Adjust revenue data via the Reports API.
  * Returns AdjustRow[] filtered to Facebook traffic only.
  *
- * @param token       Adjust API token (from profiles.adjust_api_token — server-side only)
- * @param appFilter   Optional: restrict to a specific app name
+ * @param token        Adjust API token (Bearer auth — from profiles.adjust_api_token, server-side only)
+ * @param appTokens    One or more Adjust app tokens (required by Adjust API — from profiles.adjust_app_token)
+ * @param appFilter    Optional: restrict rows to a specific app name
  */
 export async function fetchAdjustRevenueToday(
   token: string,
+  appTokens: string[],
   appFilter?: string,
 ): Promise<AdjustRow[]> {
+  if (appTokens.length === 0) {
+    throw new Error('Adjust app token(s) not configured. Add them in Settings.');
+  }
+
   // Today in YYYY-MM-DD (UTC) — Adjust expects UTC dates
   const today = new Date().toISOString().slice(0, 10);
 
@@ -59,9 +65,11 @@ export async function fetchAdjustRevenueToday(
     dimensions: 'app,partner_name,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network',
     metrics: 'network_cost,all_revenue,cohort_all_revenue',
     ad_spend_mode: 'network',
-    // Note: filter_by=partner_name:facebook causes a 400 "app_tokens required" error from Adjust.
-    // Facebook filtering is handled client-side below via partner_name.includes('facebook').
   });
+  // Adjust requires app_token as a repeated param for each app
+  for (const appToken of appTokens) {
+    params.append('app_token', appToken);
+  }
 
   const res = await fetch(`${ADJUST_API_URL}?${params}`, {
     headers: { Authorization: `Bearer ${token}` },

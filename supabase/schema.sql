@@ -118,3 +118,7 @@ create policy "Users manage own snapshots"
 -- Run this in Supabase SQL editor to add Adjust API token support.
 alter table public.profiles
   add column if not exists adjust_api_token text;
+
+-- Adjust app token(s) — comma-separated, required by Adjust Reports API to identify which app to query.
+alter table public.profiles
+  add column if not exists adjust_app_token text;
