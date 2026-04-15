@@ -67,6 +67,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [activeSnapshot, setActiveSnapshot] = useState<SnapshotData | null>(null);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const [snapshotError, setSnapshotError] = useState('');
 
   // Auto-select zoom based on available viewport height so small monitors show as many rows as large ones
   const [zoom, setZoom] = useState<number>(() => {
@@ -132,6 +133,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
   async function handleSaveSnapshot(name: string) {
     setSavingSnapshot(true);
+    setSnapshotError('');
     try {
       // Collect current campaign metrics
       const campaigns: SnapshotRow[] = mergedCampaigns.map((c) => ({
@@ -141,31 +143,41 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
         profit_pct: c.profit_pct,
         profit: c.profit,
       }));
-      // Fetch and merge all adsets in parallel
+      // Fetch and merge all adsets in parallel (errors per-campaign are silenced → return [])
       const adsetResults = await Promise.all(
         mergedCampaigns.map(async (c) => {
-          const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          if (!res.ok) return [] as SnapshotAdSetRow[];
-          return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
-            adset_id: a.adset_id,
-            campaign_id: c.campaign_id,
-            adset_name: a.adset_name,
-            roas: a.roas,
-            profit_pct: a.profit_pct,
-            profit: a.profit,
-          }));
+          try {
+            const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            if (!res.ok) return [] as SnapshotAdSetRow[];
+            return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
+              adset_id: a.adset_id,
+              campaign_id: c.campaign_id,
+              adset_name: a.adset_name,
+              roas: a.roas,
+              profit_pct: a.profit_pct,
+              profit: a.profit,
+            }));
+          } catch {
+            return [] as SnapshotAdSetRow[];
+          }
         }),
       );
       const adsets = adsetResults.flat();
       const snapshot_data: SnapshotData = { campaigns, adsets };
-      await fetch('/api/snapshots', {
+      const postRes = await fetch('/api/snapshots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, snapshot_data }),
       });
+      if (!postRes.ok) {
+        const errData = await postRes.json().catch(() => ({}));
+        throw new Error((errData as { error?: string }).error ?? `Save failed (${postRes.status})`);
+      }
       await fetchSnapshots();
+    } catch (err) {
+      setSnapshotError(err instanceof Error ? err.message : 'Failed to save snapshot');
     } finally {
       setSavingSnapshot(false);
     }
@@ -285,7 +297,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       const merged = mergeAdSets([raw], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate)[0]!;
       return { ...merged, campaign_name: raw.campaign_name };
     });
-  }, [rawFlatAdSets, adjustAdSetMapState, vndRate]);
+  }, [rawFlatAdSets, adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate]);
 
   const selectedFlatAdsets = useMemo(
     () => flatAdsets.filter((a) => selectedFlatAdsetIds.has(a.adset_id)),
@@ -545,6 +557,12 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                 onDelete={handleDeleteSnapshot}
                 saving={savingSnapshot}
               />
+              {snapshotError && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                  <span>Snapshot error: {snapshotError}</span>
+                  <button onClick={() => setSnapshotError('')} className="text-red-400 hover:text-red-700 ml-auto">✕</button>
+                </div>
+              )}
 
               {/* Unified filter bar — always shown */}
               <FilterBar
