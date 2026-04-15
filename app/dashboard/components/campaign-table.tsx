@@ -145,13 +145,16 @@ export default function CampaignTable({
   const colCount = 2 + fbColSpan + 1 + 4 + (hasSnapshot ? 4 : 0);
 
   // Subtotals computed from visible campaigns
-  const withRoas = campaigns.filter((c) => c.roas !== null);
-  const withProfit = campaigns.filter((c) => c.profit_pct !== null);
   const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
+  // adjust_revenue = cohort_all_revenue → D0 ROAS numerator
   const totalRevenue = campaigns.reduce((s, c) => s + (c.adjust_revenue ?? 0), 0);
+  // adjust_all_revenue → %Profit / Profit denominator
+  const totalAllRevenue = campaigns.reduce((s, c) => s + (c.adjust_all_revenue ?? 0), 0);
   const totalProfit = campaigns.reduce((s, c) => s + (c.profit ?? 0), 0);
-  const avgRoas = withRoas.length > 0 ? withRoas.reduce((s, c) => s + c.roas!, 0) / withRoas.length : null;
-  const avgProfitPct = withProfit.length > 0 ? withProfit.reduce((s, c) => s + c.profit_pct!, 0) / withProfit.length : null;
+  // Weighted: D0 ROAS = Σcohort_all_revenue / Σspend (only when there is spend and Adjust data)
+  const avgRoas = totalSpend > 0 && totalRevenue > 0 ? totalRevenue / totalSpend : null;
+  // Weighted: %Profit = (Σall_revenue − Σspend) / Σall_revenue × 100
+  const avgProfitPct = totalAllRevenue > 0 ? (totalAllRevenue - totalSpend) / totalAllRevenue * 100 : null;
   const matchedCount = campaigns.filter((c) => c.has_adjust_data).length;
 
   // Snapshot subtotals (only meaningful when snapshotCampaignMap is set)
