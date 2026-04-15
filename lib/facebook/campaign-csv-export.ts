@@ -1,0 +1,340 @@
+/**
+ * Fetches full campaign structure from FB API and generates a UTF-16 LE TSV buffer
+ * matching Facebook Ads Manager's own export format (63 columns).
+ * The file can be re-imported via "Import Ads from Spreadsheet" in another ad account.
+ *
+ * Key rules:
+ * - Campaign ID / Ad Set ID / Ad ID are cleared (empty) so FB creates new objects
+ * - Campaign Name is replaced with user-specified name
+ * - All other columns preserved verbatim
+ * - Encoding: UTF-16 LE with BOM (\uFFFE)
+ * - Delimiter: tab (\t), line endings: \r\n
+ */
+
+import { fbGet } from './fb-client';
+
+// 63 columns in exact order matching FB's own export template
+const COLUMNS = [
+  'Campaign ID',
+  'Campaign Name',
+  'Campaign Status',
+  'Campaign Objective',
+  'Buying Type',
+  'Campaign Bid Strategy',
+  'Campaign Start Time',
+  'New Objective',
+  'Buy With Prime Type',
+  'Is Budget Scheduling Enabled For Campaign',
+  'Campaign High Demand Periods',
+  'Buy With Integration Partner',
+  'Ad Set ID',
+  'Ad Set Run Status',
+  'Ad Set Lifetime Impressions',
+  'Ad Set Name',
+  'Ad Set Time Start',
+  'Ad Set Daily Budget',
+  'Destination Type',
+  'Ad Set Lifetime Budget',
+  'Is Budget Scheduling Enabled For Ad Set',
+  'Ad Set High Demand Periods',
+  'Link Object ID',
+  'Optimized Event',
+  'Link',
+  'Application ID',
+  'Object Store URL',
+  'Global Regions',
+  'Location Types',
+  'Excluded Countries',
+  'Age Min',
+  'Age Max',
+  'Advantage Audience',
+  'Age Range',
+  'Targeting Optimization',
+  'Beneficiary',
+  'Payer',
+  'User Device',
+  'User Operating System',
+  'Brand Safety Inventory Filtering Levels',
+  'Optimization Goal',
+  'Attribution Spec',
+  'Billing Event',
+  'Ad ID',
+  'Ad Status',
+  'Preview Link',
+  'Instagram Preview Link',
+  'Ad Name',
+  'Title',
+  'Body',
+  'Optimize text per person',
+  'Optimized Ad Creative',
+  'Image Hash',
+  'Image File Name',
+  'Creative Type',
+  'Video ID',
+  'Video File Name',
+  'Instagram Account ID',
+  'Call to Action',
+  'Additional Custom Tracking Specs',
+  'Video Retargeting',
+  'Permalink',
+  'Use Page as Actor',
+] as const;
+
+type Row = Record<string, string>;
+
+// Strip CSV injection characters from user-supplied text
+function sanitizeName(name: string): string {
+  return name.replace(/^[=+\-@\t\r\n]+/, '').trim();
+}
+
+function budgetCents(val: string | undefined): string {
+  if (!val) return '';
+  // FB API returns budgets in cents for USD; return as-is
+  return val;
+}
+
+interface FbCampaign {
+  id: string;
+  name: string;
+  status: string;
+  objective?: string;
+  buying_type?: string;
+  bid_strategy?: string;
+  start_time?: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+}
+
+interface FbAdSet {
+  id: string;
+  name: string;
+  status: string;
+  daily_budget?: string;
+  lifetime_budget?: string;
+  optimization_goal?: string;
+  bid_amount?: string;
+  billing_event?: string;
+  start_time?: string;
+  destination_type?: string;
+  targeting?: {
+    age_min?: number;
+    age_max?: number;
+    geo_locations?: { countries?: string[] };
+    excluded_geo_locations?: { countries?: string[] };
+    device_platforms?: string[];
+    user_os?: string[];
+  };
+  promoted_object?: { application_id?: string; object_store_url?: string; pixel_id?: string; custom_event_type?: string };
+}
+
+interface FbCreative {
+  id?: string;
+  body?: string;
+  title?: string;
+  image_hash?: string;
+  image_file_name?: string;
+  video_id?: string;
+  call_to_action?: { type?: string };
+  link?: string;
+  instagram_actor_id?: string;
+  object_story_spec?: {
+    link_data?: { link?: string; call_to_action?: { type?: string } };
+    video_data?: { video_id?: string; call_to_action?: { type?: string } };
+  };
+}
+
+interface FbAd {
+  id: string;
+  name: string;
+  status: string;
+  creative?: FbCreative;
+}
+
+function buildRow(
+  campaign: FbCampaign,
+  adSet: FbAdSet,
+  ad: FbAd | null,
+  newCampaignName: string,
+): Row {
+  const creative = ad?.creative;
+  const targeting = adSet.targeting ?? {};
+  const promotedObj = adSet.promoted_object ?? {};
+
+  // Resolve call-to-action type
+  const ctaType = creative?.call_to_action?.type
+    ?? creative?.object_story_spec?.link_data?.call_to_action?.type
+    ?? creative?.object_story_spec?.video_data?.call_to_action?.type
+    ?? '';
+
+  // Resolve link
+  const link = creative?.link
+    ?? creative?.object_story_spec?.link_data?.link
+    ?? '';
+
+  // Resolve video ID
+  const videoId = creative?.video_id
+    ?? creative?.object_story_spec?.video_data?.video_id
+    ?? '';
+
+  const countries = targeting.geo_locations?.countries?.join(',') ?? '';
+  const excludedCountries = targeting.excluded_geo_locations?.countries?.join(',') ?? '';
+  const devices = targeting.device_platforms?.join(',') ?? '';
+  const userOs = targeting.user_os?.join(',') ?? '';
+
+  // Detect creative type
+  const creativeType = videoId ? 'VIDEO' : creative?.image_hash ? 'IMAGE' : '';
+
+  const row: Row = {
+    'Campaign ID': '',                          // cleared for re-import
+    'Campaign Name': sanitizeName(newCampaignName),
+    'Campaign Status': campaign.status ?? '',
+    'Campaign Objective': campaign.objective ?? '',
+    'Buying Type': campaign.buying_type ?? '',
+    'Campaign Bid Strategy': campaign.bid_strategy ?? '',
+    'Campaign Start Time': campaign.start_time ?? '',
+    'New Objective': '',
+    'Buy With Prime Type': '',
+    'Is Budget Scheduling Enabled For Campaign': '',
+    'Campaign High Demand Periods': '',
+    'Buy With Integration Partner': '',
+    'Ad Set ID': '',                            // cleared for re-import
+    'Ad Set Run Status': adSet.status ?? '',
+    'Ad Set Lifetime Impressions': '',
+    'Ad Set Name': adSet.name ?? '',
+    'Ad Set Time Start': adSet.start_time ?? '',
+    'Ad Set Daily Budget': budgetCents(adSet.daily_budget),
+    'Destination Type': adSet.destination_type ?? '',
+    'Ad Set Lifetime Budget': budgetCents(adSet.lifetime_budget),
+    'Is Budget Scheduling Enabled For Ad Set': '',
+    'Ad Set High Demand Periods': '',
+    'Link Object ID': promotedObj.pixel_id ?? '',
+    'Optimized Event': promotedObj.custom_event_type ?? '',
+    'Link': link,
+    'Application ID': promotedObj.application_id ?? '',
+    'Object Store URL': promotedObj.object_store_url ?? '',
+    'Global Regions': '',
+    'Location Types': '',
+    'Excluded Countries': excludedCountries,
+    'Age Min': targeting.age_min ? String(targeting.age_min) : '',
+    'Age Max': targeting.age_max ? String(targeting.age_max) : '',
+    'Advantage Audience': '',
+    'Age Range': '',
+    'Targeting Optimization': '',
+    'Beneficiary': '',
+    'Payer': '',
+    'User Device': devices,
+    'User Operating System': userOs,
+    'Brand Safety Inventory Filtering Levels': '',
+    'Optimization Goal': adSet.optimization_goal ?? '',
+    'Attribution Spec': '',
+    'Billing Event': adSet.billing_event ?? '',
+    'Ad ID': '',                                // cleared for re-import
+    'Ad Status': ad?.status ?? '',
+    'Preview Link': '',
+    'Instagram Preview Link': '',
+    'Ad Name': ad?.name ?? '',
+    'Title': creative?.title ?? '',
+    'Body': creative?.body ?? '',
+    'Optimize text per person': '',
+    'Optimized Ad Creative': '',
+    'Image Hash': creative?.image_hash ?? '',
+    'Image File Name': creative?.image_file_name ?? '',
+    'Creative Type': creativeType,
+    'Video ID': videoId,
+    'Video File Name': '',
+    'Instagram Account ID': creative?.instagram_actor_id ?? '',
+    'Call to Action': ctaType,
+    'Additional Custom Tracking Specs': '',
+    'Video Retargeting': '',
+    'Permalink': '',
+    'Use Page as Actor': '',
+  };
+
+  // If no ad, leave ad-level fields empty but still emit a row for the ad set
+  if (!ad) {
+    row['Ad ID'] = '';
+    row['Ad Status'] = '';
+    row['Ad Name'] = '';
+  }
+
+  // Apply campaign budget at campaign level if present
+  if (campaign.daily_budget) {
+    // Campaign-level budget — ad set budgets should be empty in this case
+    row['Ad Set Daily Budget'] = '';
+    row['Ad Set Lifetime Budget'] = '';
+  }
+
+  return row;
+}
+
+function generateTsv(rows: Row[]): Buffer {
+  const lines = rows.map((r) => COLUMNS.map((col) => r[col] ?? '').join('\t'));
+  const content = [COLUMNS.join('\t'), ...lines].join('\r\n');
+  // UTF-16 LE with BOM (\uFFFE)
+  return Buffer.from('\uFFFE' + content, 'utf16le');
+}
+
+export async function fetchCampaignForTsvExport(
+  token: string,
+  campaignId: string,
+  newCampaignName: string,
+): Promise<Buffer> {
+  // 1. Fetch campaign
+  const campaignRes = await fbGet(
+    `/${campaignId}`,
+    { fields: 'name,status,objective,buying_type,bid_strategy,start_time,daily_budget,lifetime_budget' },
+    token,
+  ) as FbCampaign;
+
+  // 2. Fetch ad sets
+  const adSetsRes = await fbGet(
+    `/${campaignId}/adsets`,
+    {
+      fields: [
+        'name,status,daily_budget,lifetime_budget',
+        'optimization_goal,bid_amount,billing_event,start_time',
+        'destination_type,targeting,promoted_object',
+      ].join(','),
+      limit: '200',
+    },
+    token,
+  ) as { data: FbAdSet[] };
+
+  const adSets = adSetsRes.data ?? [];
+
+  if (adSets.length === 0) {
+    // No ad sets — emit one row with campaign info only
+    const row = buildRow(campaignRes, { id: '', name: '', status: '' }, null, newCampaignName);
+    return generateTsv([row]);
+  }
+
+  const rows: Row[] = [];
+
+  for (const adSet of adSets) {
+    // 3. Fetch ads for each ad set
+    const adsRes = await fbGet(
+      `/${adSet.id}/ads`,
+      {
+        fields: [
+          'name,status',
+          'creative{id,body,title,image_hash,image_file_name,video_id',
+          'call_to_action,link,instagram_actor_id,object_story_spec}',
+        ].join(','),
+        limit: '200',
+      },
+      token,
+    ) as { data: FbAd[] };
+
+    const ads = adsRes.data ?? [];
+
+    if (ads.length === 0) {
+      rows.push(buildRow(campaignRes, adSet, null, newCampaignName));
+    } else {
+      for (const ad of ads) {
+        rows.push(buildRow(campaignRes, adSet, ad, newCampaignName));
+      }
+    }
+  }
+
+  return generateTsv(rows);
+}

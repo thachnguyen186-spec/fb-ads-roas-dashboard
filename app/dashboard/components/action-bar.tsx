@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import type { BudgetTarget, MergedCampaign } from '@/lib/types';
+import type { BudgetTarget, MergedCampaign, FbAdAccount } from '@/lib/types';
 import BudgetModal from './budget-modal';
+import DuplicateCampaignModal from './duplicate-campaign-modal';
 
 interface Props {
   selectedCampaigns: MergedCampaign[];
+  allAccounts: FbAdAccount[];
   onActionComplete: () => void;
   onDeselect: () => void;
   vndRate: number;
@@ -13,10 +15,11 @@ interface Props {
 
 type ActionState = 'idle' | 'loading' | 'done' | 'error';
 
-export default function ActionBar({ selectedCampaigns, onActionComplete, onDeselect, vndRate }: Props) {
+export default function ActionBar({ selectedCampaigns, allAccounts, onActionComplete, onDeselect, vndRate }: Props) {
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
+  const [showDuplicate, setShowDuplicate] = useState(false);
 
   const count = selectedCampaigns.length;
   const singleCampaign = count === 1 ? selectedCampaigns[0] : null;
@@ -126,6 +129,17 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
             </button>
           )}
 
+          {/* Duplicate — single campaign only */}
+          {singleCampaign && allAccounts.length > 0 && (
+            <button
+              onClick={() => setShowDuplicate(true)}
+              disabled={actionState === 'loading'}
+              className="px-4 py-1.5 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+            >
+              Duplicate
+            </button>
+          )}
+
           {/* Update budget — single campaign only (budget type must be known) */}
           {singleCampaign && hasBudget && (
             <button
@@ -170,6 +184,15 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
           target={budgetTarget}
           onConfirm={handleBudgetConfirm}
           onClose={() => setBudgetTarget(null)}
+        />
+      )}
+
+      {showDuplicate && singleCampaign && (
+        <DuplicateCampaignModal
+          campaign={singleCampaign}
+          allAccounts={allAccounts}
+          onClose={() => setShowDuplicate(false)}
+          onComplete={() => { setShowDuplicate(false); onActionComplete(); }}
         />
       )}
     </>

@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { pauseCampaign, enableCampaign, updateBudget } from '@/lib/facebook/campaign-actions';
+import { pauseCampaign, enableCampaign, updateBudget, duplicateCampaignSameAccount } from '@/lib/facebook/campaign-actions';
 
 type Params = { params: Promise<{ campaignId: string }> };
 
@@ -15,6 +15,15 @@ type ActionBody =
   | { action: 'pause' }
   | { action: 'enable' }
   | { action: 'budget'; budget_type: 'daily' | 'lifetime'; amount: number; currency: string };
+
+type CopySpec = { name: string; budget_amount?: number; budget_type?: 'daily' | 'lifetime' };
+
+type DuplicateBody = {
+  action: 'duplicate';
+  source_account_id: string;
+  currency: string;
+  copies: CopySpec[];
+};
 
 export async function PATCH(request: NextRequest, { params }: Params) {
   const { campaignId } = await params;
@@ -65,4 +74,55 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const message = err instanceof Error ? err.message : 'FB API error';
     return errorResponse(message, 502);
   }
+}
+
+export async function POST(request: NextRequest, { params }: Params) {
+  const { campaignId } = await params;
+
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return errorResponse('Unauthorized', 401);
+
+  const service = createServiceClient();
+  const { data: profile } = await service
+    .from('profiles')
+    .select('fb_access_token')
+    .eq('id', user.id)
+    .single();
+
+  const token = (profile as { fb_access_token?: string | null })?.fb_access_token;
+  if (!token) return errorResponse('Facebook token not configured', 400);
+
+  let body: DuplicateBody;
+  try {
+    body = await request.json() as DuplicateBody;
+  } catch {
+    return errorResponse('Invalid JSON body');
+  }
+
+  if (body.action !== 'duplicate') return errorResponse('Unknown action');
+
+  const { copies, currency } = body;
+  if (!Array.isArray(copies) || copies.length < 1 || copies.length > 10) {
+    return errorResponse('copies must be an array of 1-10 items');
+  }
+  if (copies.some((c) => !c.name?.trim())) {
+    return errorResponse('All copies must have a non-empty name');
+  }
+
+  const results: Array<{ name: string; success: boolean; campaign_id?: string; error?: string }> = [];
+
+  for (const copy of copies) {
+    try {
+      const budgetOverride = copy.budget_amount && copy.budget_type
+        ? { amount: copy.budget_amount, type: copy.budget_type, currency }
+        : undefined;
+      const newId = await duplicateCampaignSameAccount(token, campaignId, copy.name.trim(), budgetOverride);
+      results.push({ name: copy.name, success: true, campaign_id: newId });
+    } catch (err) {
+      results.push({ name: copy.name, success: false, error: err instanceof Error ? err.message : 'FB API error' });
+    }
+  }
+
+  return Response.json({ results });
 }

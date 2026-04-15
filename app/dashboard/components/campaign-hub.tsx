@@ -721,6 +721,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
       {phase === 'results' && selectedCampaigns.length > 0 && !showAdsetOnly && (
         <ActionBar
           selectedCampaigns={selectedCampaigns}
+          allAccounts={selectedAccounts}
           onActionComplete={() => { if (csvFile || adjustApiRows) { setPhase('analyzing'); handleAnalyze(); } }}
           onDeselect={() => setSelectedIds(new Set())}
           vndRate={vndRate}
