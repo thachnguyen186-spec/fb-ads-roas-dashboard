@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { canViewAs } from '@/lib/auth-guards';
 import { errorResponse } from '@/lib/utils';
-import { fetchCampaigns } from '@/lib/facebook/campaigns';
+import { fetchCampaigns, fetchAppNames } from '@/lib/facebook/campaigns';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -51,6 +51,14 @@ export async function GET(request: NextRequest) {
       accounts.map((a) => fetchCampaigns(fb_access_token, a.account_id, a.name, a.currency ?? 'USD')),
     );
     const campaigns = results.flat();
+
+    // Enrich campaigns with app names (best-effort, non-fatal)
+    const appIds = campaigns.map((c) => c.app_id).filter((id): id is string => !!id);
+    const appNameMap = await fetchAppNames(fb_access_token, appIds);
+    for (const c of campaigns) {
+      if (c.app_id) c.app_name = appNameMap.get(c.app_id) ?? null;
+    }
+
     return Response.json({ campaigns });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch campaigns';

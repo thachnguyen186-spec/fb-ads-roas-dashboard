@@ -9,7 +9,7 @@ import { mergeCampaigns } from '@/lib/adjust/merge';
 import type { CampaignRow, FbAdAccount, MergedCampaign, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
 import CampaignTable from './campaign-table';
-import RoasFilter from './roas-filter';
+import FilterBar from './filter-bar';
 import ActionBar from './action-bar';
 
 type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
@@ -39,6 +39,12 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [roasMin, setRoasMin] = useState('');
   const [roasMax, setRoasMax] = useState('');
   const [accountFilter, setAccountFilter] = useState(''); // '' = all accounts
+  const [appNameFilter, setAppNameFilter] = useState('');
+  const [campaignNameFilter, setCampaignNameFilter] = useState('');
+  const [spendMin, setSpendMin] = useState('');
+  const [spendMax, setSpendMax] = useState('');
+  const [budgetMin, setBudgetMin] = useState('');
+  const [budgetMax, setBudgetMax] = useState('');
   const [sortCol, setSortCol] = useState<keyof MergedCampaign>('spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -65,6 +71,11 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     setMergedCampaigns([]);
     setSelectedIds(new Set());
     setAccountFilter('');
+    setAppNameFilter('');
+    setCampaignNameFilter('');
+    setSpendMin(''); setSpendMax('');
+    setBudgetMin(''); setBudgetMax('');
+    setRoasMin(''); setRoasMax('');
   }
 
   function handleRecalculate() {
@@ -129,20 +140,48 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [mergedCampaigns]);
 
+  // Unique app names found in loaded campaigns (for filter dropdown)
+  const appOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const c of mergedCampaigns) {
+      if (c.app_name) seen.add(c.app_name);
+    }
+    return Array.from(seen).sort((a, b) => a.localeCompare(b));
+  }, [mergedCampaigns]);
+
   const displayedCampaigns = useMemo(() => {
     let list = [...mergedCampaigns];
+    if (campaignNameFilter) {
+      const q = campaignNameFilter.toLowerCase();
+      list = list.filter((c) => c.campaign_name.toLowerCase().includes(q));
+    }
     if (accountFilter) list = list.filter((c) => c.account_id === accountFilter);
-    const min = roasMin !== '' ? parseFloat(roasMin) : null;
-    const max = roasMax !== '' ? parseFloat(roasMax) : null;
-    if (min !== null) list = list.filter((c) => c.roas !== null && c.roas >= min);
-    if (max !== null) list = list.filter((c) => c.roas !== null && c.roas <= max);
+    if (appNameFilter) list = list.filter((c) => c.app_name === appNameFilter);
+    const roasMinN = roasMin !== '' ? parseFloat(roasMin) : null;
+    const roasMaxN = roasMax !== '' ? parseFloat(roasMax) : null;
+    if (roasMinN !== null) list = list.filter((c) => c.roas !== null && c.roas >= roasMinN);
+    if (roasMaxN !== null) list = list.filter((c) => c.roas !== null && c.roas <= roasMaxN);
+    const spendMinN = spendMin !== '' ? parseFloat(spendMin) : null;
+    const spendMaxN = spendMax !== '' ? parseFloat(spendMax) : null;
+    if (spendMinN !== null) list = list.filter((c) => c.spend >= spendMinN);
+    if (spendMaxN !== null) list = list.filter((c) => c.spend <= spendMaxN);
+    const budgetMinN = budgetMin !== '' ? parseFloat(budgetMin) : null;
+    const budgetMaxN = budgetMax !== '' ? parseFloat(budgetMax) : null;
+    if (budgetMinN !== null) list = list.filter((c) => {
+      const b = c.daily_budget ?? c.lifetime_budget ?? 0;
+      return b >= budgetMinN;
+    });
+    if (budgetMaxN !== null) list = list.filter((c) => {
+      const b = c.daily_budget ?? c.lifetime_budget ?? 0;
+      return b <= budgetMaxN;
+    });
     list.sort((a, b) => {
       const av = (a[sortCol] ?? 0) as number;
       const bv = (b[sortCol] ?? 0) as number;
       return sortDir === 'asc' ? av - bv : bv - av;
     });
     return list;
-  }, [mergedCampaigns, accountFilter, roasMin, roasMax, sortCol, sortDir]);
+  }, [mergedCampaigns, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax, sortCol, sortDir]);
 
   const selectedCampaigns = useMemo(
     () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
@@ -310,29 +349,31 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               </div>
             )}
 
-            {/* Filter bar: ROAS filter + account filter */}
-            <div className="flex flex-wrap items-center gap-3">
-              <RoasFilter
-                roasMin={roasMin}
-                roasMax={roasMax}
-                onMinChange={setRoasMin}
-                onMaxChange={setRoasMax}
-                totalCount={mergedCampaigns.length}
-                filteredCount={displayedCampaigns.length}
-              />
-              {accountOptions.length > 1 && (
-                <select
-                  value={accountFilter}
-                  onChange={(e) => setAccountFilter(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">All accounts ({accountOptions.length})</option>
-                  {accountOptions.map(([id, name]) => (
-                    <option key={id} value={id}>{name}</option>
-                  ))}
-                </select>
-              )}
-            </div>
+            {/* Unified filter bar */}
+            <FilterBar
+              campaignName={campaignNameFilter}
+              onCampaignNameChange={setCampaignNameFilter}
+              appFilter={appNameFilter}
+              onAppFilterChange={setAppNameFilter}
+              appOptions={appOptions}
+              accountFilter={accountFilter}
+              onAccountFilterChange={setAccountFilter}
+              accountOptions={accountOptions}
+              roasMin={roasMin} roasMax={roasMax}
+              onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
+              spendMin={spendMin} spendMax={spendMax}
+              onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
+              budgetMin={budgetMin} budgetMax={budgetMax}
+              onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
+              totalCount={mergedCampaigns.length}
+              filteredCount={displayedCampaigns.length}
+              onClearAll={() => {
+                setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
+                setRoasMin(''); setRoasMax('');
+                setSpendMin(''); setSpendMax('');
+                setBudgetMin(''); setBudgetMax('');
+              }}
+            />
 
             <CampaignTable
               campaigns={displayedCampaigns}

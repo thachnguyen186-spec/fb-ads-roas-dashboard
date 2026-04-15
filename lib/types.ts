@@ -45,6 +45,10 @@ export interface CampaignRow {
   account_name: string;
   /** Account-level currency code (e.g. 'USD', 'VND') */
   currency: string;
+  /** FB application_id from promoted_object (null for non-app campaigns) */
+  app_id: string | null;
+  /** Resolved app name from FB API (null if no app or lookup failed) */
+  app_name: string | null;
   status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' | 'DELETED' | string;
   effective_status: string;
   /** Daily budget in USD (null if lifetime budget campaign) */

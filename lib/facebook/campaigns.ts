@@ -11,6 +11,7 @@ import type { CampaignRow } from '@/lib/types';
 const CAMPAIGN_FIELDS = [
   'id', 'name', 'status', 'effective_status',
   'daily_budget', 'lifetime_budget', 'budget_remaining',
+  'promoted_object',
 ].join(',');
 
 const INSIGHT_FIELDS = 'spend,impressions,clicks,cpm,cpc';
@@ -31,6 +32,7 @@ interface RawCampaign {
   daily_budget?: string;
   lifetime_budget?: string;
   budget_remaining?: string;
+  promoted_object?: { application_id?: string };
   insights?: { data: RawInsightRow[] };
 }
 
@@ -80,7 +82,34 @@ function mapCampaign(raw: RawCampaign, accountId: string, accountName: string, c
     clicks: toInt(ins?.clicks),
     cpm: toFloat(ins?.cpm),
     cpc: toFloat(ins?.cpc),
+    app_id: raw.promoted_object?.application_id ?? null,
+    app_name: null, // resolved later via fetchAppNames
   };
+}
+
+/**
+ * Batch-fetches app names for a set of app IDs using the FB Graph API.
+ * Returns a map of app_id → app_name.
+ */
+export async function fetchAppNames(
+  token: string,
+  appIds: string[],
+): Promise<Map<string, string>> {
+  if (appIds.length === 0) return new Map();
+  const ids = [...new Set(appIds)].join(',');
+  type AppNode = { id: string; name?: string };
+  type BatchResponse = Record<string, AppNode>;
+  try {
+    const res = await fbGet('/', { ids, fields: 'name' }, token) as BatchResponse;
+    const map = new Map<string, string>();
+    for (const [id, node] of Object.entries(res)) {
+      if (node?.name) map.set(id, node.name);
+    }
+    return map;
+  } catch {
+    // Non-fatal: app name enrichment is best-effort
+    return new Map();
+  }
 }
 
 /**
