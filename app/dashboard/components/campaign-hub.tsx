@@ -343,29 +343,16 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
   const isResults = phase === 'results';
 
-  // Lock page scroll in results mode — prevents page scroll when inner zoom div overflows layout
+  // Reload adsets when filters change while in adset-only view
   useEffect(() => {
-    if (isResults) {
-      document.documentElement.style.overflow = 'hidden';
-    } else {
-      document.documentElement.style.overflow = '';
+    if (showAdsetOnly && displayedCampaigns.length > 0) {
+      loadAllAdsets(displayedCampaigns);
     }
-    return () => { document.documentElement.style.overflow = ''; };
-  }, [isResults]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayedCampaigns, showAdsetOnly]);
 
   return (
-    // Outer: fixed-height in results mode; overflow NOT hidden here (body scroll locked instead)
-    // so that zoom-compensated inner div's scroll containers are never clipped
-    <div className={`flex flex-col bg-slate-50 ${isResults ? 'h-dvh' : 'min-h-screen'}`}>
-    {/* Inner: zoomed. Height compensated so zoom never shrinks below viewport (e.g. zoom=80 → height=125%) */}
-    <div
-      style={{
-        zoom: zoom / 100,
-        height: isResults ? `${(10000 / zoom).toFixed(2)}%` : undefined,
-        minHeight: !isResults ? '100%' : undefined,
-      }}
-      className="flex flex-col"
-    >
+    <div className={`flex flex-col bg-slate-50 ${isResults ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
       <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold text-slate-900">FB Ads ROAS</h1>
@@ -523,11 +510,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               {/* View toggle: campaigns vs flat adsets */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    const next = !showAdsetOnly;
-                    setShowAdsetOnly(next);
-                    if (next) loadAllAdsets(displayedCampaigns);
-                  }}
+                  onClick={() => setShowAdsetOnly((v) => !v)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${showAdsetOnly ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
                 >
                   {showAdsetOnly ? '← Show Campaigns' : 'Show Ad Sets Only'}
@@ -552,33 +535,31 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                 saving={savingSnapshot}
               />
 
-              {/* Unified filter bar — shown in campaign view only */}
-              {!showAdsetOnly && (
-                <FilterBar
-                  campaignName={campaignNameFilter}
-                  onCampaignNameChange={setCampaignNameFilter}
-                  appFilter={appNameFilter}
-                  onAppFilterChange={setAppNameFilter}
-                  appOptions={appOptions}
-                  accountFilter={accountFilter}
-                  onAccountFilterChange={setAccountFilter}
-                  accountOptions={accountOptions}
-                  roasMin={roasMin} roasMax={roasMax}
-                  onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
-                  spendMin={spendMin} spendMax={spendMax}
-                  onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
-                  budgetMin={budgetMin} budgetMax={budgetMax}
-                  onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
-                  totalCount={mergedCampaigns.length}
-                  filteredCount={displayedCampaigns.length}
-                  onClearAll={() => {
-                    setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
-                    setRoasMin(''); setRoasMax('');
-                    setSpendMin(''); setSpendMax('');
-                    setBudgetMin(''); setBudgetMax('');
-                  }}
-                />
-              )}
+              {/* Unified filter bar — always shown */}
+              <FilterBar
+                campaignName={campaignNameFilter}
+                onCampaignNameChange={setCampaignNameFilter}
+                appFilter={appNameFilter}
+                onAppFilterChange={setAppNameFilter}
+                appOptions={appOptions}
+                accountFilter={accountFilter}
+                onAccountFilterChange={setAccountFilter}
+                accountOptions={accountOptions}
+                roasMin={roasMin} roasMax={roasMax}
+                onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
+                spendMin={spendMin} spendMax={spendMax}
+                onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
+                budgetMin={budgetMin} budgetMax={budgetMax}
+                onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
+                totalCount={mergedCampaigns.length}
+                filteredCount={displayedCampaigns.length}
+                onClearAll={() => {
+                  setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
+                  setRoasMin(''); setRoasMax('');
+                  setSpendMin(''); setSpendMax('');
+                  setBudgetMin(''); setBudgetMax('');
+                }}
+              />
             </div>
 
             {/* Table area — fills remaining vertical space, both axes scroll within */}
@@ -597,6 +578,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                   vndRate={vndRate}
                   snapshotCampaignMap={snapshotCampaignMap}
                   snapshotAdSetMap={snapshotAdSetMap}
+                  zoom={zoom}
                 />
               )}
 
@@ -614,6 +596,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                     vndRate={vndRate}
                     showAccountColumn={accountOptions.length > 1}
                     snapshotAdSetMap={snapshotAdSetMap}
+                    zoom={zoom}
                   />
                 )
               )}
@@ -642,7 +625,6 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
           }}
         />
       )}
-    </div>
     </div>
   );
 }

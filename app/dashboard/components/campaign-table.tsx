@@ -40,12 +40,13 @@ interface Props {
   snapshotCampaignMap: Map<string, SnapshotRow> | null;
   /** Passed through to AdSetRows for adset-level compare columns. */
   snapshotAdSetMap: Map<string, SnapshotAdSetRow> | null;
+  zoom?: number;
 }
 
 export default function CampaignTable({
   campaigns, selectedIds, onSelectionChange, sortCol, sortDir, onSort,
   showAccountColumn = false, adjustAdSetMap, vndRate,
-  snapshotCampaignMap, snapshotAdSetMap,
+  snapshotCampaignMap, snapshotAdSetMap, zoom = 100,
 }: Props) {
   const allSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.campaign_id));
 
@@ -145,7 +146,7 @@ export default function CampaignTable({
   return (
     <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="flex-1 min-h-0 overflow-x-scroll overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-sm border-collapse" style={zoom !== 100 ? { zoom: zoom / 100 } : undefined}>
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200">
               <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />

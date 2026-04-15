@@ -27,9 +27,10 @@ interface Props {
   showAccountColumn: boolean;
   /** Snapshot compare: map adset_id → saved metrics. Null = no snapshot selected. */
   snapshotAdSetMap: Map<string, SnapshotAdSetRow> | null;
+  zoom?: number;
 }
 
-export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn, snapshotAdSetMap }: Props) {
+export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn, snapshotAdSetMap, zoom = 100 }: Props) {
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -77,7 +78,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
   return (
     <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="flex-1 min-h-0 overflow-x-scroll overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
-        <table className="w-full text-sm border-collapse">
+        <table className="w-full text-sm border-collapse" style={zoom !== 100 ? { zoom: zoom / 100 } : undefined}>
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200">
               <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />
