@@ -1,7 +1,8 @@
 /**
- * GET /api/campaigns/[campaignId]/export-csv?newName=<name>
- * Fetches full campaign structure from FB API and returns a UTF-16 LE TSV file
- * compatible with Facebook Ads Manager "Import Ads from Spreadsheet".
+ * GET /api/campaigns/[campaignId]/export-csv?name=<name1>&name=<name2>...
+ * Fetches full campaign structure from FB API and returns a single UTF-16 LE TSV file
+ * where rows are repeated for each ?name= param (one campaign block per name).
+ * FB's "Import Ads in Bulk" creates one campaign per unique Campaign Name in the file.
  * Use for cross-account campaign duplication (download → manual import).
  */
 
@@ -29,11 +30,12 @@ export async function GET(request: NextRequest, { params }: Params) {
   const token = (profile as { fb_access_token?: string | null })?.fb_access_token;
   if (!token) return errorResponse('Facebook token not configured', 400);
 
-  const newName = request.nextUrl.searchParams.get('newName')?.trim();
-  if (!newName) return errorResponse('newName query parameter is required', 400);
+  // Accept repeated ?name= params: ?name=Copy+1&name=Copy+2
+  const names = request.nextUrl.searchParams.getAll('name').map((n) => n.trim()).filter(Boolean);
+  if (names.length === 0) return errorResponse('At least one ?name= query parameter is required', 400);
 
   try {
-    const tsvBuffer = await fetchCampaignForTsvExport(token, campaignId, newName);
+    const tsvBuffer = await fetchCampaignForTsvExport(token, campaignId, names);
 
     // Use Uint8Array, not tsvBuffer.buffer — Buffer.buffer returns the full underlying
     // ArrayBuffer which may include extra bytes before/after the actual data.

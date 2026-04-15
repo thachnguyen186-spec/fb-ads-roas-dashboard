@@ -277,12 +277,21 @@ function generateTsv(rows: Row[]): Buffer {
 // buildRow already reads them from object_story_spec as the primary source.
 const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,video_id,instagram_actor_id,object_story_spec}';
 
+/**
+ * Fetches campaign structure once, then generates a single TSV where the rows
+ * are repeated for each name in newCampaignNames.
+ * FB's importer treats each unique Campaign Name as a separate campaign to create.
+ *
+ * @param newCampaignNames - 1-10 names; each produces its own campaign block in the TSV
+ */
 export async function fetchCampaignForTsvExport(
   token: string,
   campaignId: string,
-  newCampaignName: string,
+  newCampaignNames: string[],
 ): Promise<Buffer> {
-  // 2 total API calls instead of 2+N — avoids Vercel 10s timeout for campaigns with many ad sets.
+  if (newCampaignNames.length === 0) throw new Error('At least one campaign name is required');
+
+  // 2 total API calls regardless of adset/copy count — avoids Vercel 10s timeout.
 
   // Call 1: Fetch campaign metadata
   const campaignRes = await fbGet(
@@ -303,23 +312,27 @@ export async function fetchCampaignForTsvExport(
 
   const adSets = adSetsRes.data ?? [];
 
-  if (adSets.length === 0) {
-    const row = buildRow(campaignRes, { id: '', name: '', status: '' }, null, newCampaignName);
-    return generateTsv([row]);
-  }
-
-  const rows: Row[] = [];
-
-  for (const adSet of adSets) {
-    const ads = adSet.ads?.data ?? [];
-    if (ads.length === 0) {
-      rows.push(buildRow(campaignRes, adSet, null, newCampaignName));
-    } else {
-      for (const ad of ads) {
-        rows.push(buildRow(campaignRes, adSet, ad, newCampaignName));
+  // Build base rows for the campaign structure (using a placeholder name — will be replaced per copy)
+  function buildRowsForName(name: string): Row[] {
+    if (adSets.length === 0) {
+      return [buildRow(campaignRes, { id: '', name: '', status: '' }, null, name)];
+    }
+    const rows: Row[] = [];
+    for (const adSet of adSets) {
+      const ads = adSet.ads?.data ?? [];
+      if (ads.length === 0) {
+        rows.push(buildRow(campaignRes, adSet, null, name));
+      } else {
+        for (const ad of ads) {
+          rows.push(buildRow(campaignRes, adSet, ad, name));
+        }
       }
     }
+    return rows;
   }
 
-  return generateTsv(rows);
+  // Concatenate row blocks for all names — FB creates one campaign per unique Campaign Name
+  const allRows: Row[] = newCampaignNames.flatMap((name) => buildRowsForName(name));
+
+  return generateTsv(allRows);
 }

@@ -23,21 +23,20 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
   const [copies, setCopies] = useState<CopyRow[]>([{ name: `Copy of ${campaign.campaign_name}`, budget: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<CopyResult[] | null>(null);
-  // tracks which copy indices have been downloaded (cross-account)
-  const [downloadedIndices, setDownloadedIndices] = useState<Set<number>>(new Set());
-  // per-copy download errors (cross-account) — index → error message
-  const [downloadErrors, setDownloadErrors] = useState<Record<number, string>>({});
-  // which indices are currently fetching
-  const [downloadingIndices, setDownloadingIndices] = useState<Set<number>>(new Set());
+  // cross-account download state
+  const [csvDownloading, setCsvDownloading] = useState(false);
+  const [csvDownloaded, setCsvDownloaded] = useState(false);
+  const [csvError, setCsvError] = useState('');
 
-  const isCrossAccount = destAccountId !== campaign.account_id;
-  const destAccount = allAccounts.find((a) => a.account_id === destAccountId) ?? allAccounts[0];
+  // '__cross__' sentinel means cross-account mode (no specific destination needed)
+  const isCrossAccount = destAccountId === '__cross__';
   const hasBudget = campaign.budget_type !== 'unknown';
   const currency = campaign.currency ?? 'USD';
 
   function handleCopyCountChange(n: number) {
     setCopyCount(n);
-    setDownloadedIndices(new Set());
+    setCsvDownloaded(false);
+    setCsvError('');
     setCopies((prev) => {
       const next = prev.slice(0, n);
       while (next.length < n) {
@@ -85,43 +84,46 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
     }
   }
 
-  async function handleCsvDownload(index: number) {
-    const newName = copies[index].name;
-    const url = `/api/campaigns/${campaign.campaign_id}/export-csv?newName=${encodeURIComponent(newName)}`;
+  async function handleCsvDownload() {
+    // Build one URL with all copy names as repeated ?name= params
+    const params = new URLSearchParams();
+    for (const copy of copies) {
+      if (copy.name.trim()) params.append('name', copy.name.trim());
+    }
+    const url = `/api/campaigns/${campaign.campaign_id}/export-csv?${params.toString()}`;
 
-    // Clear previous error for this index and mark as loading
-    setDownloadErrors((prev) => { const next = { ...prev }; delete next[index]; return next; });
-    setDownloadingIndices((prev) => new Set([...prev, index]));
+    setCsvError('');
+    setCsvDownloading(true);
+    setCsvDownloaded(false);
 
     try {
       const res = await fetch(url);
 
       if (!res.ok) {
-        // Parse the JSON error body so the user sees the actual reason
         let errMsg = `HTTP ${res.status}`;
         try {
           const data = await res.json() as { error?: string };
           if (data.error) errMsg = data.error;
         } catch { /* ignore parse error */ }
-        setDownloadErrors((prev) => ({ ...prev, [index]: errMsg }));
+        setCsvError(errMsg);
         return;
       }
 
-      // Success — convert to blob and trigger browser download
+      // Success — one CSV with all copy names as separate campaign blocks
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = `campaign-export${copies.length > 1 ? `-${index + 1}` : ''}.csv`;
+      a.download = 'campaign-export.csv';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
-      setDownloadedIndices((prev) => new Set([...prev, index]));
+      setCsvDownloaded(true);
     } catch (err) {
-      setDownloadErrors((prev) => ({ ...prev, [index]: err instanceof Error ? err.message : 'Network error' }));
+      setCsvError(err instanceof Error ? err.message : 'Network error');
     } finally {
-      setDownloadingIndices((prev) => { const next = new Set(prev); next.delete(index); return next; });
+      setCsvDownloading(false);
     }
   }
 
@@ -140,65 +142,66 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
           <p className="text-slate-500 text-xs mt-0.5">{campaign.account_id} · {campaign.budget_type !== 'unknown' ? campaign.budget_type + ' budget' : 'CBO'}</p>
         </div>
 
-        {/* Destination account */}
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Destination account</label>
-          <select
-            value={destAccountId}
-            onChange={(e) => { setDestAccountId(e.target.value); setResults(null); setDownloadedIndices(new Set()); setDownloadErrors({}); }}
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        {/* Same account vs Cross account toggle */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => { setDestAccountId(campaign.account_id); setResults(null); setCsvDownloaded(false); setCsvError(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${!isCrossAccount ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
           >
-            {allAccounts.map((a) => (
-              <option key={a.account_id} value={a.account_id}>
-                {a.name} ({a.account_id}){a.account_id === campaign.account_id ? ' — same' : ''}
-              </option>
+            Same account
+          </button>
+          <button
+            onClick={() => { setDestAccountId('__cross__'); setResults(null); setCsvDownloaded(false); setCsvError(''); }}
+            className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${isCrossAccount ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+          >
+            Cross account
+          </button>
+        </div>
+
+        {/* Copy count — shared by both modes */}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Number of copies</label>
+          <select
+            value={copyCount}
+            onChange={(e) => handleCopyCountChange(Number(e.target.value))}
+            className="w-28 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>{n}</option>
             ))}
           </select>
         </div>
 
-        {/* Same-account flow */}
+        {/* Copy name rows — shared by both modes */}
+        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          {copies.map((copy, i) => (
+            <div key={i} className="flex gap-2 items-center">
+              <input
+                value={copy.name}
+                onChange={(e) => updateCopy(i, 'name', e.target.value)}
+                placeholder="Campaign name"
+                className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              {!isCrossAccount && hasBudget && (
+                <input
+                  type="number"
+                  min="0"
+                  value={copy.budget}
+                  onChange={(e) => updateCopy(i, 'budget', e.target.value)}
+                  placeholder={`Budget (${currency})`}
+                  className="w-32 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        {!isCrossAccount && !hasBudget && (
+          <p className="text-xs text-slate-500">Budget managed at ad set level — no campaign budget override available.</p>
+        )}
+
+        {/* Same-account results + footer */}
         {!isCrossAccount && (
           <>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Number of copies</label>
-              <select
-                value={copyCount}
-                onChange={(e) => handleCopyCountChange(Number(e.target.value))}
-                className="w-28 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {copies.map((copy, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    value={copy.name}
-                    onChange={(e) => updateCopy(i, 'name', e.target.value)}
-                    placeholder="Campaign name"
-                    className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  {hasBudget && (
-                    <input
-                      type="number"
-                      min="0"
-                      value={copy.budget}
-                      onChange={(e) => updateCopy(i, 'budget', e.target.value)}
-                      placeholder={`Budget (${currency})`}
-                      className="w-32 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            {!hasBudget && (
-              <p className="text-xs text-slate-500">Budget managed at ad set level — no campaign budget override available.</p>
-            )}
-
-            {/* Results */}
             {results && (
               <div className="space-y-1">
                 {results.map((r, i) => (
@@ -210,7 +213,6 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
                 ))}
               </div>
             )}
-
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancel</button>
               <button
@@ -218,76 +220,34 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
                 disabled={submitting || copies.some((c) => !c.name.trim())}
                 className="px-5 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
-                {submitting ? 'Duplicating…' : `Duplicate →`}
+                {submitting ? 'Duplicating…' : 'Duplicate →'}
               </button>
             </div>
           </>
         )}
 
-        {/* Cross-account flow */}
+        {/* Cross-account footer */}
         {isCrossAccount && (
           <>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Number of copies</label>
-              <select
-                value={copyCount}
-                onChange={(e) => handleCopyCountChange(Number(e.target.value))}
-                className="w-28 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
-              <p className="font-medium mb-0.5">Cross-account export</p>
-              <p>Each CSV contains the full campaign structure. Upload to <strong>{destAccount?.name}</strong> in Facebook Ads Manager → Campaigns → Import Ads in Bulk.</p>
+              One CSV file will be generated with all {copies.length} campaign{copies.length > 1 ? 's' : ''} inside. Import it in Facebook Ads Manager → Campaigns → Import Ads in Bulk.
             </div>
-
-            {/* Per-copy name + download button */}
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {copies.map((copy, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="flex gap-2 items-center">
-                    <input
-                      value={copy.name}
-                      onChange={(e) => updateCopy(i, 'name', e.target.value)}
-                      placeholder="Campaign name"
-                      className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                    <button
-                      onClick={() => handleCsvDownload(i)}
-                      disabled={!copy.name.trim() || downloadingIndices.has(i)}
-                      className="px-3 py-1.5 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors whitespace-nowrap"
-                    >
-                      {downloadingIndices.has(i) ? '…' : downloadedIndices.has(i) ? '✓ Done' : '↓ CSV'}
-                    </button>
-                  </div>
-                  {downloadErrors[i] && (
-                    <p className="text-xs text-red-600 pl-1">Error: {downloadErrors[i]}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {downloadedIndices.size > 0 && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 space-y-1">
-                <p className="font-medium">✓ {downloadedIndices.size}/{copies.length} downloaded</p>
-                <p>Import each file in Facebook Ads Manager for <strong>{destAccount?.name}</strong>.</p>
-                <a
-                  href="https://business.facebook.com/adsmanager"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block text-indigo-600 underline hover:text-indigo-800"
-                >
-                  Open Ads Manager ↗
-                </a>
+            {csvError && <p className="text-xs text-red-600">Error: {csvError}</p>}
+            {csvDownloaded && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-center justify-between">
+                <span className="font-medium">✓ CSV downloaded</span>
+                <a href="https://business.facebook.com/adsmanager" target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline hover:text-indigo-800">Open Ads Manager ↗</a>
               </div>
             )}
-
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end gap-2 pt-2">
               <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Close</button>
+              <button
+                onClick={handleCsvDownload}
+                disabled={csvDownloading || copies.some((c) => !c.name.trim())}
+                className="px-5 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors"
+              >
+                {csvDownloading ? 'Generating…' : csvDownloaded ? '↓ Download again' : '↓ Download CSV'}
+              </button>
             </div>
           </>
         )}
