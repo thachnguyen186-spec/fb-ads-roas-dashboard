@@ -156,16 +156,16 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold text-slate-100">FB Ads ROAS</h1>
+          <h1 className="text-sm font-semibold text-slate-900">FB Ads ROAS</h1>
           {/* Leader/admin: staff switcher */}
           {(userRole === 'leader' || userRole === 'admin') && staffList.length > 0 && (
             <select
               value={viewingStaffId ?? ''}
               onChange={(e) => switchToStaff(e.target.value || null)}
-              className="text-xs border border-slate-700 rounded-lg px-2 py-1 bg-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">My dashboard</option>
               {staffList.map((s) => (
@@ -174,31 +174,31 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
             </select>
           )}
           {viewingStaff && (
-            <span className="text-xs bg-indigo-900/50 text-indigo-300 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
               Viewing: {viewingStaff.email}
             </span>
           )}
         </div>
         <div className="flex items-center gap-4">
           {userRole === 'admin' && (
-            <Link href="/admin" className="text-sm text-purple-400 hover:text-purple-300 font-medium">Admin</Link>
+            <Link href="/admin" className="text-sm text-purple-600 hover:text-purple-700 font-medium">Admin</Link>
           )}
-          <Link href="/settings" className="text-sm text-slate-400 hover:text-slate-200">Settings</Link>
-          <button onClick={handleSignOut} className="text-sm text-slate-400 hover:text-slate-200">Sign out</button>
+          <Link href="/settings" className="text-sm text-slate-500 hover:text-slate-800">Settings</Link>
+          <button onClick={handleSignOut} className="text-sm text-slate-500 hover:text-slate-800">Sign out</button>
         </div>
       </header>
 
       <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-6 space-y-5">
 
         {!hasToken && (
-          <div className="p-4 bg-amber-950/50 border border-amber-800 rounded-xl text-sm text-amber-300">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
             Facebook access token not configured.{' '}
             <Link href="/settings" className="font-medium underline">Go to Settings</Link> to add it.
           </div>
         )}
 
         {hasToken && viewingAccounts.length === 0 && (
-          <div className="p-4 bg-amber-950/50 border border-amber-800 rounded-xl text-sm text-amber-300">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
             No ad accounts selected.{' '}
             <Link href="/settings" className="font-medium underline">Go to Settings</Link>{' '}
             to fetch and select your ad accounts.
@@ -207,11 +207,11 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
         {/* Step card */}
         {phase !== 'results' && (
-          <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 space-y-5 max-w-lg">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-5 max-w-lg">
 
             {/* Account summary (informational, not a selector) */}
             {hasFbConfig && (
-              <div className="p-3 bg-indigo-950/50 border border-indigo-900 rounded-lg text-xs text-indigo-300">
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-700">
                 Will fetch active campaigns from <strong>{viewingAccounts.length}</strong> ad account{viewingAccounts.length !== 1 ? 's' : ''}:&nbsp;
                 {viewingAccounts.map((a) => a.name).join(', ')}
               </div>
@@ -221,7 +221,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-semibold">1</span>
-                <h2 className="font-medium text-slate-100">Upload Adjust CSV</h2>
+                <h2 className="font-medium text-slate-900">Upload Adjust CSV</h2>
               </div>
               <p className="text-xs text-slate-500">Export from Adjust → Analytics → Campaign report</p>
               <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
@@ -229,11 +229,11 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
             {phase === 'csv_ready' && (
               <>
-                <hr className="border-slate-700" />
+                <hr className="border-slate-200" />
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-semibold">2</span>
-                    <h2 className="font-medium text-slate-100">Fetch &amp; Analyze</h2>
+                    <h2 className="font-medium text-slate-900">Fetch &amp; Analyze</h2>
                   </div>
                   <button
                     onClick={handleAnalyze}
@@ -246,8 +246,8 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
             )}
 
             {phase === 'analyzing' && (
-              <div className="flex items-center gap-2 text-sm text-slate-400">
-                <svg className="animate-spin w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24">
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <svg className="animate-spin w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
@@ -257,8 +257,8 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
             {phase === 'error' && (
               <div className="space-y-2">
-                <p className="text-sm text-red-400">{errorMsg}</p>
-                <button onClick={() => setPhase('csv_ready')} className="text-xs text-indigo-400 hover:underline">Try again</button>
+                <p className="text-sm text-red-600">{errorMsg}</p>
+                <button onClick={() => setPhase('csv_ready')} className="text-xs text-indigo-600 hover:underline">Try again</button>
               </div>
             )}
           </div>
@@ -267,30 +267,30 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
         {/* Results */}
         {phase === 'results' && (
           <div className="space-y-4">
-            <div className="p-3 bg-amber-950/40 border border-amber-800 rounded-lg text-xs text-amber-400 flex items-center justify-between">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
               <span>⚠ Today&apos;s FB spend may be incomplete — insights delayed 6–48h. Active campaigns only.</span>
-              <button onClick={handleStartOver} className="ml-4 text-amber-300 underline hover:no-underline whitespace-nowrap">Start over</button>
+              <button onClick={handleStartOver} className="ml-4 text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
             </div>
 
             {/* VND/USD rate control — only shown when VND accounts are present */}
             {hasVndAccounts && (
-              <div className="flex items-center gap-2 p-3 bg-orange-950/40 border border-orange-800 rounded-lg text-sm">
-                <span className="text-orange-300 font-medium whitespace-nowrap">VND → USD rate:</span>
+              <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
+                <span className="text-orange-800 font-medium whitespace-nowrap">VND → USD rate:</span>
                 <input
                   type="number"
                   value={rateInput}
                   onChange={(e) => setRateInput(e.target.value)}
                   min="1"
-                  className="w-28 px-2 py-1 border border-slate-700 rounded text-sm text-slate-100 bg-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
                   placeholder="26000"
                 />
                 <button
                   onClick={handleRecalculate}
-                  className="px-3 py-1 bg-orange-600 text-white text-sm font-medium rounded hover:bg-orange-700 transition-colors whitespace-nowrap"
+                  className="px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded hover:bg-orange-600 transition-colors whitespace-nowrap"
                 >
                   Recalculate
                 </button>
-                <span className="text-xs text-orange-400">Current: 1 USD = {vndRate.toLocaleString()} VND</span>
+                <span className="text-xs text-orange-600">Current: 1 USD = {vndRate.toLocaleString()} VND</span>
               </div>
             )}
 
@@ -308,7 +308,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                 <select
                   value={accountFilter}
                   onChange={(e) => setAccountFilter(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-700 rounded-lg text-sm bg-slate-800 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">All accounts ({accountOptions.length})</option>
                   {accountOptions.map(([id, name]) => (

@@ -54,20 +54,20 @@ export default function TeamManager({ users, initialAssignments }: Props) {
   return (
     <div className="space-y-6">
       {/* Team overview */}
-      <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 space-y-4">
-        <h3 className="font-medium text-slate-100">Team overview</h3>
+      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        <h3 className="font-medium text-slate-900">Team overview</h3>
         {leaderSummary.length === 0 && (
-          <p className="text-sm text-slate-500">No leaders found. Assign the leader role to users first.</p>
+          <p className="text-sm text-slate-400">No leaders found. Assign the leader role to users first.</p>
         )}
         {leaderSummary.map(({ leader, staffMembers }) => (
           <div key={leader.id} className="flex items-start gap-3">
-            <div className="flex-shrink-0 text-sm font-medium text-indigo-400 w-40 truncate">{leader.email}</div>
+            <div className="flex-shrink-0 text-sm font-medium text-indigo-600 w-40 truncate">{leader.email}</div>
             <div className="flex flex-wrap gap-1.5">
               {staffMembers.length === 0 ? (
-                <span className="text-xs text-slate-500 italic">No staff assigned</span>
+                <span className="text-xs text-slate-400 italic">No staff assigned</span>
               ) : (
                 staffMembers.map((s) => (
-                  <span key={s.id} className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                  <span key={s.id} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
                     {s.email}
                   </span>
                 ))
@@ -78,14 +78,14 @@ export default function TeamManager({ users, initialAssignments }: Props) {
       </div>
 
       {/* Assignment editor */}
-      <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 space-y-4">
-        <h3 className="font-medium text-slate-100">Assign staff to leader</h3>
+      <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+        <h3 className="font-medium text-slate-900">Assign staff to leader</h3>
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">Select leader</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Select leader</label>
           <select
             value={selectedLeaderId}
             onChange={(e) => setSelectedLeaderId(e.target.value)}
-            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-sm"
+            className="px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-sm"
           >
             <option value="">— pick a leader —</option>
             {leaders.map((l) => (
@@ -96,11 +96,11 @@ export default function TeamManager({ users, initialAssignments }: Props) {
 
         {selectedLeader && (
           <div>
-            <p className="text-xs text-slate-400 mb-2">
-              Check which staff members belong to <strong className="text-slate-200">{selectedLeader.email}</strong>:
+            <p className="text-xs text-slate-500 mb-2">
+              Check which staff members belong to <strong className="text-slate-800">{selectedLeader.email}</strong>:
             </p>
             {staff.length === 0 && (
-              <p className="text-sm text-slate-500 italic">No staff users found.</p>
+              <p className="text-sm text-slate-400 italic">No staff users found.</p>
             )}
             <ul className="space-y-2">
               {staff.map((s) => {
@@ -114,12 +114,12 @@ export default function TeamManager({ users, initialAssignments }: Props) {
                       checked={assigned}
                       disabled={isSaving}
                       onChange={() => toggleAssignment(s.id, assigned)}
-                      className="h-4 w-4 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500 bg-slate-800"
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 bg-white"
                     />
-                    <label htmlFor={`staff-${s.id}`} className="text-sm text-slate-100 cursor-pointer select-none">
+                    <label htmlFor={`staff-${s.id}`} className="text-sm text-slate-900 cursor-pointer select-none">
                       {s.email}
                     </label>
-                    {isSaving && <span className="text-xs text-slate-500">saving…</span>}
+                    {isSaving && <span className="text-xs text-slate-400">saving…</span>}
                   </li>
                 );
               })}

@@ -59,10 +59,10 @@ export default function AdjustCsvUpload({ onReady, disabled }: Props) {
         onClick={() => !disabled && inputRef.current?.click()}
         className={`border-2 border-dashed rounded-lg px-4 py-6 text-center transition-colors ${
           disabled
-            ? 'border-slate-700 bg-slate-800/30 cursor-not-allowed'
+            ? 'border-slate-200 bg-slate-50 cursor-not-allowed'
             : file
-            ? 'border-emerald-700 bg-emerald-950/30 cursor-pointer'
-            : 'border-slate-700 hover:border-indigo-500 cursor-pointer'
+            ? 'border-emerald-400 bg-emerald-50 cursor-pointer'
+            : 'border-slate-300 hover:border-indigo-400 cursor-pointer'
         }`}
       >
         <input
@@ -74,32 +74,32 @@ export default function AdjustCsvUpload({ onReady, disabled }: Props) {
           disabled={disabled}
         />
         {parsing ? (
-          <p className="text-sm text-slate-400">Reading CSV…</p>
+          <p className="text-sm text-slate-500">Reading CSV…</p>
         ) : file ? (
           <div>
-            <p className="text-sm font-medium text-emerald-400">{file.name}</p>
-            <p className="text-xs text-slate-500 mt-0.5">Click to replace</p>
+            <p className="text-sm font-medium text-emerald-600">{file.name}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Click to replace</p>
           </div>
         ) : (
           <div>
-            <p className="text-sm text-slate-400">Drop Adjust CSV here or click to browse</p>
-            <p className="text-xs text-slate-500 mt-0.5">.csv files only</p>
+            <p className="text-sm text-slate-500">Drop Adjust CSV here or click to browse</p>
+            <p className="text-xs text-slate-400 mt-0.5">.csv files only</p>
           </div>
         )}
       </div>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
 
       {/* App filter */}
       {apps.length > 1 && (
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">
-            Filter by app <span className="text-slate-500 font-normal">(optional)</span>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Filter by app <span className="text-slate-400 font-normal">(optional)</span>
           </label>
           <select
             value={selectedApp}
             onChange={(e) => handleAppChange(e.target.value)}
-            className="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">All apps</option>
             {apps.map((a) => (

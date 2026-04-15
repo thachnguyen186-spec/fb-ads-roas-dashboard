@@ -54,12 +54,12 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
     }
   }
 
-  const subRowCls = 'bg-indigo-950/20 border-t border-slate-800 text-xs';
+  const subRowCls = 'bg-indigo-50/50 border-t border-slate-100 text-xs';
 
   if (loading) {
     return (
       <tr className={subRowCls}>
-        <td colSpan={colCount} className="px-6 py-2 text-slate-500 italic">Loading ad sets…</td>
+        <td colSpan={colCount} className="px-6 py-2 text-slate-400 italic">Loading ad sets…</td>
       </tr>
     );
   }
@@ -67,7 +67,7 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
   if (error) {
     return (
       <tr className={subRowCls}>
-        <td colSpan={colCount} className="px-6 py-2 text-red-400">{error}</td>
+        <td colSpan={colCount} className="px-6 py-2 text-red-600">{error}</td>
       </tr>
     );
   }
@@ -75,7 +75,7 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
   if (adsets.length === 0) {
     return (
       <tr className={subRowCls}>
-        <td colSpan={colCount} className="px-6 py-2 text-slate-500 italic">No active ad sets found.</td>
+        <td colSpan={colCount} className="px-6 py-2 text-slate-400 italic">No active ad sets found.</td>
       </tr>
     );
   }
@@ -90,46 +90,46 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
           : null;
 
         return (
-          <tr key={adset.adset_id} className={`${subRowCls} hover:bg-indigo-950/40`}>
+          <tr key={adset.adset_id} className={`${subRowCls} hover:bg-indigo-50`}>
             {/* Indent / tree marker */}
-            <td className="px-4 py-2 text-slate-600 text-center">└</td>
+            <td className="px-4 py-2 text-slate-300 text-center">└</td>
 
             {/* Ad Set name + ID */}
-            <td className="px-3 py-2 max-w-xs border-r border-slate-700">
-              <div className="font-medium text-slate-200 truncate" title={adset.adset_name}>{adset.adset_name}</div>
-              <div className="text-slate-500 font-mono">{adset.adset_id}</div>
+            <td className="px-3 py-2 max-w-xs border-r border-slate-200">
+              <div className="font-medium text-slate-700 truncate" title={adset.adset_name}>{adset.adset_name}</div>
+              <div className="text-slate-400 font-mono">{adset.adset_id}</div>
             </td>
 
             {/* Account (blank — same as campaign) */}
-            {showAccountColumn && <td className="px-3 py-2 bg-blue-950/10" />}
+            {showAccountColumn && <td className="px-3 py-2 bg-blue-50/40" />}
 
             {/* Status */}
-            <td className="px-3 py-2 bg-blue-950/10">
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400">Active</span>
+            <td className="px-3 py-2 bg-blue-50/40">
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>
             </td>
 
             {/* Spend */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-300 bg-blue-950/10">{fmtUsd(adset.spend)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-slate-700 bg-blue-50/40">{fmtUsd(adset.spend)}</td>
             {/* Impr */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtNum(adset.impressions)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(adset.impressions)}</td>
             {/* Clicks */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtNum(adset.clicks)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(adset.clicks)}</td>
             {/* CPM */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtUsd(adset.cpm)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(adset.cpm)}</td>
             {/* CPC */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtUsd(adset.cpc)}</td>
+            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(adset.cpc)}</td>
 
             {/* Budget */}
-            <td className="px-3 py-2 text-right tabular-nums bg-blue-950/10 border-r border-slate-700">
+            <td className="px-3 py-2 text-right tabular-nums bg-blue-50/40 border-r border-slate-200">
               <div className="flex items-center justify-end gap-1.5">
                 {adset.budget_type === 'cbo' ? (
-                  <span className="text-xs bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded font-medium">CBO</span>
+                  <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">CBO</span>
                 ) : (
                   <>
-                    <span className="text-slate-300">{fmtUsd(budgetVal)}</span>
-                    <span className="text-slate-500">{adset.budget_type === 'daily' ? '/d' : ' lt'}</span>
+                    <span className="text-slate-700">{fmtUsd(budgetVal)}</span>
+                    <span className="text-slate-400">{adset.budget_type === 'daily' ? '/d' : ' lt'}</span>
                     {saving ? (
-                      <span className="text-slate-500 text-xs">…</span>
+                      <span className="text-slate-400 text-xs">…</span>
                     ) : (
                       <button
                         onClick={() => setBudgetTarget({
@@ -142,7 +142,7 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
                           currency: adset.currency,
                           vndRate,
                         })}
-                        className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                        className="text-indigo-500 hover:text-indigo-700 transition-colors"
                         title="Edit budget"
                       >
                         ✎
@@ -151,23 +151,23 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
                   </>
                 )}
               </div>
-              {saveError && <div className="text-red-400 text-xs mt-0.5">{saveError}</div>}
+              {saveError && <div className="text-red-600 text-xs mt-0.5">{saveError}</div>}
             </td>
 
             {/* Adjust revenue */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-300 bg-emerald-950/20 border-r border-slate-700">
-              {adset.has_adjust_data ? fmtUsd(adset.adjust_revenue) : <span className="text-slate-600">—</span>}
+            <td className="px-3 py-2 text-right tabular-nums text-slate-700 bg-emerald-50/40 border-r border-slate-200">
+              {adset.has_adjust_data ? fmtUsd(adset.adjust_revenue) : <span className="text-slate-300">—</span>}
             </td>
 
             {/* ID Match */}
-            <td className="px-3 py-2 text-center bg-purple-950/20">
+            <td className="px-3 py-2 text-center bg-purple-50/40">
               {adset.has_adjust_data
-                ? <span className="inline-flex items-center gap-1 font-medium text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">✓</span>
-                : <span className="inline-flex items-center gap-1 font-medium text-slate-500 bg-slate-700/50 px-2 py-0.5 rounded-full">✗</span>}
+                ? <span className="inline-flex items-center gap-1 font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">✓</span>
+                : <span className="inline-flex items-center gap-1 font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">✗</span>}
             </td>
 
             {/* ROAS */}
-            <td className={`px-3 py-2 text-right font-semibold tabular-nums bg-purple-950/20 ${roasColorClass(adset.roas)}`}>
+            <td className={`px-3 py-2 text-right font-semibold tabular-nums bg-purple-50/40 ${roasColorClass(adset.roas)}`}>
               {formatRoas(adset.roas)}
             </td>
           </tr>

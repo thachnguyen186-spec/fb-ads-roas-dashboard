@@ -78,8 +78,8 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
 
   return (
     <>
-      <div className="sticky bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 px-6 py-3 flex items-center gap-3 shadow-xl">
-        <span className="text-sm font-medium text-slate-200">
+      <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center gap-3 shadow-md">
+        <span className="text-sm font-medium text-slate-700">
           {count} campaign{count !== 1 ? 's' : ''} selected
         </span>
 
@@ -88,7 +88,7 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
           <button
             onClick={handlePause}
             disabled={actionState === 'loading'}
-            className="px-4 py-1.5 text-sm bg-red-950/60 text-red-400 border border-red-800 rounded-lg hover:bg-red-900/60 disabled:opacity-50 transition-colors"
+            className="px-4 py-1.5 text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
           >
             Pause
           </button>
@@ -107,7 +107,7 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
               vndRate,
             })}
               disabled={actionState === 'loading'}
-              className="px-4 py-1.5 text-sm bg-indigo-950/60 text-indigo-400 border border-indigo-800 rounded-lg hover:bg-indigo-900/60 disabled:opacity-50 transition-colors"
+              className="px-4 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors"
             >
               Update budget
             </button>
@@ -118,15 +118,15 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
           <span className="text-sm text-slate-400 ml-2">Applying…</span>
         )}
         {actionState === 'done' && (
-          <span className="text-sm text-emerald-400 ml-2">Done</span>
+          <span className="text-sm text-emerald-600 ml-2">Done</span>
         )}
         {actionState === 'error' && (
-          <span className="text-sm text-red-400 ml-2">{errorMsg}</span>
+          <span className="text-sm text-red-600 ml-2">{errorMsg}</span>
         )}
 
         <button
           onClick={onDeselect}
-          className="ml-auto text-xs text-slate-500 hover:text-slate-300"
+          className="ml-auto text-xs text-slate-400 hover:text-slate-700"
         >
           Deselect all
         </button>
