@@ -23,7 +23,8 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
   const [copies, setCopies] = useState<CopyRow[]>([{ name: `Copy of ${campaign.campaign_name}`, budget: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<CopyResult[] | null>(null);
-  const [csvDownloaded, setCsvDownloaded] = useState(false);
+  // tracks which copy indices have been downloaded (cross-account)
+  const [downloadedIndices, setDownloadedIndices] = useState<Set<number>>(new Set());
 
   const isCrossAccount = destAccountId !== campaign.account_id;
   const destAccount = allAccounts.find((a) => a.account_id === destAccountId) ?? allAccounts[0];
@@ -32,12 +33,13 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
 
   function handleCopyCountChange(n: number) {
     setCopyCount(n);
+    setDownloadedIndices(new Set());
     setCopies((prev) => {
       const next = prev.slice(0, n);
       while (next.length < n) {
         next.push({ name: makeCopyName(campaign.campaign_name, next.length, n), budget: '' });
       }
-      // Rename existing when switching count direction
+      // Rename existing entries when count changes
       return next.map((c, i) => ({ ...c, name: makeCopyName(campaign.campaign_name, i, n) }));
     });
   }
@@ -79,16 +81,17 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
     }
   }
 
-  function handleCsvDownload() {
-    const newName = copies[0].name;
+  function handleCsvDownload(index: number) {
+    const newName = copies[index].name;
     const url = `/api/campaigns/${campaign.campaign_id}/export-csv?newName=${encodeURIComponent(newName)}`;
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'campaign-export.csv';
+    // filename includes index so browser doesn't deduplicate them
+    a.download = `campaign-export${copies.length > 1 ? `-${index + 1}` : ''}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setCsvDownloaded(true);
+    setDownloadedIndices((prev) => new Set([...prev, index]));
   }
 
   return (
@@ -111,7 +114,7 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
           <label className="block text-xs font-medium text-slate-600 mb-1">Destination account</label>
           <select
             value={destAccountId}
-            onChange={(e) => { setDestAccountId(e.target.value); setResults(null); setCsvDownloaded(false); }}
+            onChange={(e) => { setDestAccountId(e.target.value); setResults(null); setDownloadedIndices(new Set()); }}
             className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {allAccounts.map((a) => (
@@ -194,31 +197,48 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
         {isCrossAccount && (
           <>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">New campaign name</label>
-              <input
-                value={copies[0].name}
-                onChange={(e) => updateCopy(0, 'name', e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+              <label className="block text-xs font-medium text-slate-600 mb-1">Number of copies</label>
+              <select
+                value={copyCount}
+                onChange={(e) => handleCopyCountChange(Number(e.target.value))}
+                className="w-28 px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 space-y-1">
-              <p className="font-medium">Cross-account export</p>
-              <p>Campaign, ad sets, and ads will be exported as a CSV file. Upload it to <strong>{destAccount?.name}</strong> in Facebook Ads Manager → Campaigns → Import Ads in Bulk.</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+              <p className="font-medium mb-0.5">Cross-account export</p>
+              <p>Each CSV contains the full campaign structure. Upload to <strong>{destAccount?.name}</strong> in Facebook Ads Manager → Campaigns → Import Ads in Bulk.</p>
             </div>
 
-            <button
-              onClick={handleCsvDownload}
-              disabled={!copies[0].name.trim()}
-              className="w-full px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors"
-            >
-              Download CSV
-            </button>
+            {/* Per-copy name + download button */}
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {copies.map((copy, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <input
+                    value={copy.name}
+                    onChange={(e) => updateCopy(i, 'name', e.target.value)}
+                    placeholder="Campaign name"
+                    className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    onClick={() => handleCsvDownload(i)}
+                    disabled={!copy.name.trim()}
+                    className="px-3 py-1.5 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors whitespace-nowrap"
+                  >
+                    {downloadedIndices.has(i) ? '✓ Done' : '↓ CSV'}
+                  </button>
+                </div>
+              ))}
+            </div>
 
-            {csvDownloaded && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 space-y-2">
-                <p className="font-medium">✓ CSV downloaded</p>
-                <p>Open Facebook Ads Manager for <strong>{destAccount?.name}</strong>, go to Campaigns, and click &quot;Import Ads in Bulk&quot; to upload the file.</p>
+            {downloadedIndices.size > 0 && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 space-y-1">
+                <p className="font-medium">✓ {downloadedIndices.size}/{copies.length} downloaded</p>
+                <p>Import each file in Facebook Ads Manager for <strong>{destAccount?.name}</strong>.</p>
                 <a
                   href="https://business.facebook.com/adsmanager"
                   target="_blank"

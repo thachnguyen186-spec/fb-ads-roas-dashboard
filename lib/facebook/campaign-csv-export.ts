@@ -125,6 +125,8 @@ interface FbAdSet {
     user_os?: string[];
   };
   promoted_object?: { application_id?: string; object_store_url?: string; pixel_id?: string; custom_event_type?: string };
+  // Nested ads — populated when fetching adsets with ads{...} subfields
+  ads?: { data: FbAd[] };
 }
 
 interface FbCreative {
@@ -270,31 +272,32 @@ function buildRow(
 function generateTsv(rows: Row[]): Buffer {
   const lines = rows.map((r) => COLUMNS.map((col) => r[col] ?? '').join('\t'));
   const content = [COLUMNS.join('\t'), ...lines].join('\r\n');
-  // UTF-16 LE with BOM (\uFFFE)
-  return Buffer.from('\uFFFE' + content, 'utf16le');
+  // UTF-16 LE with BOM: U+FEFF (\uFEFF) encodes to bytes FF FE in little-endian
+  return Buffer.from('\uFEFF' + content, 'utf16le');
 }
+
+// Ad fields for nested fetch inside adsets
+const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,image_file_name,video_id,call_to_action,link,instagram_actor_id,object_story_spec}';
 
 export async function fetchCampaignForTsvExport(
   token: string,
   campaignId: string,
   newCampaignName: string,
 ): Promise<Buffer> {
-  // 1. Fetch campaign
+  // 2 total API calls instead of 2+N — avoids Vercel 10s timeout for campaigns with many ad sets.
+
+  // Call 1: Fetch campaign metadata
   const campaignRes = await fbGet(
     `/${campaignId}`,
     { fields: 'name,status,objective,buying_type,bid_strategy,start_time,daily_budget,lifetime_budget' },
     token,
   ) as FbCampaign;
 
-  // 2. Fetch ad sets
+  // Call 2: Fetch all ad sets with nested ads in a single request
   const adSetsRes = await fbGet(
     `/${campaignId}/adsets`,
     {
-      fields: [
-        'name,status,daily_budget,lifetime_budget',
-        'optimization_goal,bid_amount,billing_event,start_time',
-        'destination_type,targeting,promoted_object',
-      ].join(','),
+      fields: `name,status,daily_budget,lifetime_budget,optimization_goal,billing_event,start_time,destination_type,targeting,promoted_object,ads{${AD_FIELDS}}`,
       limit: '200',
     },
     token,
@@ -303,7 +306,6 @@ export async function fetchCampaignForTsvExport(
   const adSets = adSetsRes.data ?? [];
 
   if (adSets.length === 0) {
-    // No ad sets — emit one row with campaign info only
     const row = buildRow(campaignRes, { id: '', name: '', status: '' }, null, newCampaignName);
     return generateTsv([row]);
   }
@@ -311,22 +313,7 @@ export async function fetchCampaignForTsvExport(
   const rows: Row[] = [];
 
   for (const adSet of adSets) {
-    // 3. Fetch ads for each ad set
-    const adsRes = await fbGet(
-      `/${adSet.id}/ads`,
-      {
-        fields: [
-          'name,status',
-          'creative{id,body,title,image_hash,image_file_name,video_id',
-          'call_to_action,link,instagram_actor_id,object_story_spec}',
-        ].join(','),
-        limit: '200',
-      },
-      token,
-    ) as { data: FbAd[] };
-
-    const ads = adsRes.data ?? [];
-
+    const ads = adSet.ads?.data ?? [];
     if (ads.length === 0) {
       rows.push(buildRow(campaignRes, adSet, null, newCampaignName));
     } else {
