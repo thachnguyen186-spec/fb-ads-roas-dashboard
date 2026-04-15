@@ -286,6 +286,8 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
   const displayedCampaigns = useMemo(() => {
     let list = [...mergedCampaigns];
+    // Always show active; show paused/inactive only if they have today's spend > 0
+    list = list.filter((c) => c.effective_status === 'ACTIVE' || c.spend > 0);
     if (campaignNameFilter) {
       const q = campaignNameFilter.toLowerCase();
       list = list.filter((c) => c.campaign_name.toLowerCase().includes(q));
@@ -322,6 +324,19 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
     [displayedCampaigns, selectedIds],
   );
+
+  // Subtotals for the summary bar
+  const subtotals = useMemo(() => {
+    const withRoas = displayedCampaigns.filter((c) => c.roas !== null);
+    const withProfit = displayedCampaigns.filter((c) => c.profit_pct !== null);
+    return {
+      totalSpend: displayedCampaigns.reduce((s, c) => s + c.spend, 0),
+      totalRevenue: displayedCampaigns.reduce((s, c) => s + (c.adjust_revenue ?? 0), 0),
+      avgRoas: withRoas.length > 0 ? withRoas.reduce((s, c) => s + c.roas!, 0) / withRoas.length : null,
+      avgProfitPct: withProfit.length > 0 ? withProfit.reduce((s, c) => s + c.profit_pct!, 0) / withProfit.length : null,
+      roasCount: withRoas.length,
+    };
+  }, [displayedCampaigns]);
 
   // Derive snapshot lookup maps — null when no snapshot is selected
   const snapshotCampaignMap = useMemo<Map<string, SnapshotRow> | null>(() => {
@@ -560,6 +575,19 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                   setBudgetMin(''); setBudgetMax('');
                 }}
               />
+
+              {/* Subtotal summary bar */}
+              <div className="flex items-center gap-4 px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-600 flex-wrap">
+                <span className="font-semibold text-slate-700">{displayedCampaigns.length} campaigns</span>
+                <span className="text-slate-300">|</span>
+                <span>Total Spend: <span className="font-semibold text-slate-800">${subtotals.totalSpend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                {subtotals.totalRevenue > 0 && (
+                  <span>Total Revenue: <span className="font-semibold text-emerald-700">${subtotals.totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
+                )}
+                <span className="text-slate-300">|</span>
+                <span>Avg ROAS: <span className={`font-semibold ${subtotals.avgRoas === null ? 'text-slate-400' : subtotals.avgRoas >= 2 ? 'text-emerald-600' : subtotals.avgRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>{subtotals.avgRoas !== null ? `${subtotals.avgRoas.toFixed(2)}x` : '—'}</span>{subtotals.roasCount > 0 && <span className="text-slate-400 ml-1">({subtotals.roasCount} matched)</span>}</span>
+                <span>Avg %Profit: <span className={`font-semibold ${subtotals.avgProfitPct === null ? 'text-slate-400' : subtotals.avgProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{subtotals.avgProfitPct !== null ? `${subtotals.avgProfitPct >= 0 ? '+' : ''}${subtotals.avgProfitPct.toFixed(1)}%` : '—'}</span></span>
+              </div>
             </div>
 
             {/* Table area — fills remaining vertical space, both axes scroll within */}

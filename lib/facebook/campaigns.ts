@@ -132,8 +132,8 @@ export async function fetchCampaigns(
   do {
     const params: Record<string, string> = {
       fields: `${CAMPAIGN_FIELDS},${insightFields}`,
-      // Only fetch campaigns that are currently running
-      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }]),
+      // Fetch active + paused campaigns (paused with spend today will be filtered client-side)
+      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED'] }]),
       limit: '100',
     };
     if (after) params.after = after;

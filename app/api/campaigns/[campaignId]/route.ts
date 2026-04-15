@@ -7,12 +7,13 @@
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { pauseCampaign, updateBudget } from '@/lib/facebook/campaign-actions';
+import { pauseCampaign, enableCampaign, updateBudget } from '@/lib/facebook/campaign-actions';
 
 type Params = { params: Promise<{ campaignId: string }> };
 
 type ActionBody =
   | { action: 'pause' }
+  | { action: 'enable' }
   | { action: 'budget'; budget_type: 'daily' | 'lifetime'; amount: number; currency: string };
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -42,6 +43,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   try {
     if (body.action === 'pause') {
       await pauseCampaign(token, campaignId);
+      return Response.json({ success: true });
+    }
+
+    if (body.action === 'enable') {
+      await enableCampaign(token, campaignId);
       return Response.json({ success: true });
     }
 

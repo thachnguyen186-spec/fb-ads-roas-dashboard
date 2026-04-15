@@ -23,6 +23,10 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
   const hasBudget = singleCampaign
     ? singleCampaign.budget_type !== 'unknown'
     : selectedCampaigns.every((c) => c.budget_type !== 'unknown');
+  // Show Turn On when ALL selected are paused/inactive (not active)
+  const allPaused = selectedCampaigns.every((c) => c.effective_status !== 'ACTIVE');
+  // Show Pause only when at least one is active
+  const anyActive = selectedCampaigns.some((c) => c.effective_status === 'ACTIVE');
 
   async function runAction(fn: () => Promise<void>) {
     setActionState('loading');
@@ -57,6 +61,23 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
     });
   }
 
+  async function handleEnable() {
+    await runAction(async () => {
+      await Promise.all(
+        selectedCampaigns.map((c) =>
+          fetch(`/api/campaigns/${c.campaign_id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'enable' }),
+          }).then(async (r) => {
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error ?? 'Enable failed');
+          }),
+        ),
+      );
+    });
+  }
+
   async function handleBudgetConfirm(amount: number, currency: string) {
     if (!budgetTarget) return;
     setBudgetTarget(null);
@@ -84,14 +105,26 @@ export default function ActionBar({ selectedCampaigns, onActionComplete, onDesel
         </span>
 
         <div className="flex items-center gap-2 ml-2">
-          {/* Pause */}
-          <button
-            onClick={handlePause}
-            disabled={actionState === 'loading'}
-            className="px-4 py-1.5 text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
-          >
-            Pause
-          </button>
+          {/* Pause — only shown when at least one selected campaign is active */}
+          {anyActive && (
+            <button
+              onClick={handlePause}
+              disabled={actionState === 'loading'}
+              className="px-4 py-1.5 text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors"
+            >
+              Pause
+            </button>
+          )}
+          {/* Turn On — only shown when all selected campaigns are paused/inactive */}
+          {allPaused && (
+            <button
+              onClick={handleEnable}
+              disabled={actionState === 'loading'}
+              className="px-4 py-1.5 text-sm bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+            >
+              Turn On
+            </button>
+          )}
 
           {/* Update budget — single campaign only (budget type must be known) */}
           {singleCampaign && hasBudget && (

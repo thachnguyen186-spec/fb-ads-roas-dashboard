@@ -14,6 +14,13 @@ export async function pauseCampaign(token: string, campaignId: string): Promise<
 }
 
 /**
+ * Enables (turns on) a campaign by setting its status to ACTIVE.
+ */
+export async function enableCampaign(token: string, campaignId: string): Promise<void> {
+  await fbPatch(`/${campaignId}`, { status: 'ACTIVE' }, token);
+}
+
+/**
  * Updates the daily or lifetime budget for a campaign.
  * FB API expects budgets in the account's smallest currency unit:
  *   - USD → cents (multiply × 100)
