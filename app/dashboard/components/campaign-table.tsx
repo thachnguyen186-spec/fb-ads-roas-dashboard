@@ -123,8 +123,8 @@ export default function CampaignTable({
   const colCount = 2 + fbColSpan + 1 + 2; // checkbox + Campaign + FB + Adjust + Result
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden h-full flex flex-col">
+      <div className="overflow-auto overscroll-contain flex-1">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-slate-200">
@@ -141,7 +141,7 @@ export default function CampaignTable({
             </tr>
             <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-medium">
               <th className="w-10 px-4 py-2.5">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-300 bg-white" />
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-300 bg-white h-5 w-5 cursor-pointer" />
               </th>
               <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-200">Campaign</th>
               {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/60">Account</th>}
@@ -167,7 +167,7 @@ export default function CampaignTable({
                 <Fragment key={c.campaign_id}>
                   <tr className={`hover:bg-slate-50 transition-colors ${selectedIds.has(c.campaign_id) ? 'bg-indigo-50' : ''}`}>
                     <td className="px-4 py-2.5">
-                      <input type="checkbox" checked={selectedIds.has(c.campaign_id)} onChange={() => toggleOne(c.campaign_id)} className="rounded border-slate-300 bg-white" />
+                      <input type="checkbox" checked={selectedIds.has(c.campaign_id)} onChange={() => toggleOne(c.campaign_id)} className="rounded border-slate-300 bg-white h-5 w-5 cursor-pointer" />
                     </td>
                     <td className="px-3 py-2.5 max-w-xs border-r border-slate-100">
                       <div className="flex items-start gap-2">

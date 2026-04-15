@@ -156,7 +156,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="h-screen overflow-hidden bg-slate-50 flex flex-col">
       <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold text-slate-900">FB Ads ROAS</h1>
@@ -188,7 +188,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
         </div>
       </header>
 
-      <main className="flex-1 max-w-screen-xl mx-auto w-full px-6 py-6 space-y-5">
+      <main className="flex-1 min-h-0 max-w-screen-xl mx-auto w-full px-6 py-6 flex flex-col gap-5 overflow-hidden">
 
         {!hasToken && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
@@ -266,7 +266,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
         {/* Results */}
         {phase === 'results' && (
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4 flex-1 min-h-0">
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
               <span>⚠ Today&apos;s FB spend may be incomplete — insights delayed 6–48h. Active campaigns only.</span>
               <button onClick={handleStartOver} className="ml-4 text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
@@ -318,17 +318,19 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               )}
             </div>
 
-            <CampaignTable
-              campaigns={displayedCampaigns}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-              sortCol={sortCol}
-              sortDir={sortDir}
-              onSort={handleSort}
-              showAccountColumn={accountOptions.length > 1}
-              adjustAdSetMap={adjustAdSetMapState}
-              vndRate={vndRate}
-            />
+            <div className="flex-1 min-h-0">
+              <CampaignTable
+                campaigns={displayedCampaigns}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                sortCol={sortCol}
+                sortDir={sortDir}
+                onSort={handleSort}
+                showAccountColumn={accountOptions.length > 1}
+                adjustAdSetMap={adjustAdSetMapState}
+                vndRate={vndRate}
+              />
+            </div>
           </div>
         )}
       </main>
