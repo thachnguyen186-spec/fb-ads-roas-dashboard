@@ -59,7 +59,14 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [vndRate, setVndRate] = useState(26000);
   const [rateInput, setRateInput] = useState('26000');
-  const [zoom, setZoom] = useState(100);
+  // Auto-select zoom based on available viewport height so small monitors show as many rows as large ones
+  const [zoom, setZoom] = useState<number>(() => {
+    if (typeof window === 'undefined') return 100;
+    const h = window.innerHeight;
+    if (h >= 900) return 100;
+    if (h >= 768) return 90;
+    return 80;
+  });
 
   // Determine if the current view has FB credentials configured
   const viewingAccounts = viewingStaff ? viewingStaff.accounts : selectedAccounts;
