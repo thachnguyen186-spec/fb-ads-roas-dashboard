@@ -59,8 +59,8 @@ export async function fetchAdjustRevenueToday(
     dimensions: 'app,partner_name,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network',
     metrics: 'network_cost,all_revenue,cohort_all_revenue',
     ad_spend_mode: 'network',
-    // Pre-filter on the API side; we also re-check client-side below
-    filter_by: 'partner_name:facebook',
+    // Note: filter_by=partner_name:facebook causes a 400 "app_tokens required" error from Adjust.
+    // Facebook filtering is handled client-side below via partner_name.includes('facebook').
   });
 
   const res = await fetch(`${ADJUST_API_URL}?${params}`, {
