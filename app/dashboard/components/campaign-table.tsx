@@ -123,10 +123,10 @@ export default function CampaignTable({
   const colCount = 2 + fbColSpan + 1 + 2; // checkbox + Campaign + FB + Adjust + Result
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden h-full flex flex-col">
-      <div className="overflow-auto overscroll-contain flex-1">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200">
               <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />
               <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
@@ -144,17 +144,17 @@ export default function CampaignTable({
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-300 bg-white h-5 w-5 cursor-pointer" />
               </th>
               <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-200">Campaign</th>
-              {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/60">Account</th>}
-              <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/60">Status</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/60 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/60 cursor-pointer" onClick={() => onSort('impressions')}>Impr. <SortBtn col="impressions" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/60 cursor-pointer" onClick={() => onSort('clicks')}>Clicks <SortBtn col="clicks" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/60 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/60 cursor-pointer" onClick={() => onSort('cpc')}>CPC <SortBtn col="cpc" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/60 border-r border-blue-100">Budget</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50/60 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50/60">ID Match</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50/60 cursor-pointer" onClick={() => onSort('roas')}>ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Account</th>}
+              <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Status</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('impressions')}>Impr. <SortBtn col="impressions" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('clicks')}>Clicks <SortBtn col="clicks" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('cpc')}>CPC <SortBtn col="cpc" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 border-r border-blue-100">Budget</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('roas')}>ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
             </tr>
           </thead>
 
