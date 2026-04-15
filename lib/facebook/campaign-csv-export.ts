@@ -277,7 +277,8 @@ function generateTsv(rows: Row[]): Buffer {
 }
 
 // Ad fields for nested fetch inside adsets
-const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,image_file_name,video_id,call_to_action,link,instagram_actor_id,object_story_spec}';
+// image_file_name is not a valid FB API field — omit it; the TSV column will be blank
+const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,video_id,call_to_action,link,instagram_actor_id,object_story_spec}';
 
 export async function fetchCampaignForTsvExport(
   token: string,
