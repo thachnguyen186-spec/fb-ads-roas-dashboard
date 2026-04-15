@@ -70,10 +70,10 @@ export function mergeAdSets(
 
 /** Tailwind text-color class for a ROAS value */
 export function roasColorClass(roas: number | null): string {
-  if (roas === null) return 'text-gray-400';
-  if (roas >= 2) return 'text-green-600 font-medium';
-  if (roas >= 1) return 'text-yellow-600 font-medium';
-  return 'text-red-600 font-medium';
+  if (roas === null) return 'text-slate-500';
+  if (roas >= 2) return 'text-emerald-400 font-medium';
+  if (roas >= 1) return 'text-amber-400 font-medium';
+  return 'text-red-400 font-medium';
 }
 
 /** Display string for ROAS: null → "—", number → "2.45x" */

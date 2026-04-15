@@ -10,16 +10,11 @@ interface Props {
 }
 
 export default function RoasFilter({
-  roasMin,
-  roasMax,
-  onMinChange,
-  onMaxChange,
-  totalCount,
-  filteredCount,
+  roasMin, roasMax, onMinChange, onMaxChange, totalCount, filteredCount,
 }: Props) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex flex-wrap items-center gap-4">
-      <span className="text-sm font-medium text-gray-700">Filter by ROAS</span>
+    <div className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 flex flex-wrap items-center gap-4">
+      <span className="text-sm font-medium text-slate-200">Filter by ROAS</span>
 
       <div className="flex items-center gap-2">
         <input
@@ -29,9 +24,9 @@ export default function RoasFilter({
           placeholder="Min"
           value={roasMin}
           onChange={(e) => onMinChange(e.target.value)}
-          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-20 px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
-        <span className="text-gray-400 text-sm">–</span>
+        <span className="text-slate-500 text-sm">–</span>
         <input
           type="number"
           min="0"
@@ -39,20 +34,20 @@ export default function RoasFilter({
           placeholder="Max"
           value={roasMax}
           onChange={(e) => onMaxChange(e.target.value)}
-          className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-20 px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
       </div>
 
       {(roasMin || roasMax) && (
         <button
           onClick={() => { onMinChange(''); onMaxChange(''); }}
-          className="text-xs text-gray-400 hover:text-gray-600"
+          className="text-xs text-slate-500 hover:text-slate-300"
         >
           Clear
         </button>
       )}
 
-      <span className="ml-auto text-xs text-gray-400">
+      <span className="ml-auto text-xs text-slate-500">
         {filteredCount === totalCount
           ? `${totalCount} campaigns`
           : `${filteredCount} of ${totalCount} campaigns`}

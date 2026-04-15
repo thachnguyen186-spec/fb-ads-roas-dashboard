@@ -38,7 +38,6 @@ export default function SettingsPage() {
       const res = await fetch(`/api/settings/accounts?token=${encodeURIComponent(token.trim())}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch accounts');
-      // Preserve existing is_selected state for accounts already saved
       const fetched = (data.accounts as FbAdAccount[]).map((a) => {
         const existing = accounts.find((s) => s.account_id === a.account_id);
         return { ...a, is_selected: existing?.is_selected ?? true };
@@ -90,67 +89,65 @@ export default function SettingsPage() {
   }
 
   const statusLabel = (s: number | null) => {
-    if (s === 1) return { text: 'Active', cls: 'bg-green-100 text-green-700' };
-    if (s === 2) return { text: 'Disabled', cls: 'bg-red-100 text-red-700' };
-    return { text: 'Unknown', cls: 'bg-gray-100 text-gray-500' };
+    if (s === 1) return { text: 'Active', cls: 'bg-emerald-900/50 text-emerald-400' };
+    if (s === 2) return { text: 'Disabled', cls: 'bg-red-900/50 text-red-400' };
+    return { text: 'Unknown', cls: 'bg-slate-700 text-slate-400' };
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-950">
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          <span className="text-sm font-semibold text-gray-900">Settings</span>
+          <Link href="/dashboard" className="text-sm text-slate-400 hover:text-slate-200">← Dashboard</Link>
+          <span className="text-sm font-semibold text-slate-100">Settings</span>
         </div>
-        <button onClick={handleSignOut} className="text-sm text-gray-500 hover:text-gray-700">Sign out</button>
+        <button onClick={handleSignOut} className="text-sm text-slate-400 hover:text-slate-200">Sign out</button>
       </header>
 
       <main className="max-w-xl mx-auto px-6 py-10 space-y-6">
         {loading ? (
-          <p className="text-sm text-gray-400">Loading…</p>
+          <p className="text-sm text-slate-500">Loading…</p>
         ) : (
           <>
             {/* Token section */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 space-y-4">
               <div>
-                <h2 className="font-semibold text-gray-900">Facebook Access Token</h2>
-                <p className="text-xs text-gray-500 mt-1">
+                <h2 className="font-semibold text-slate-100">Facebook Access Token</h2>
+                <p className="text-xs text-slate-400 mt-1">
                   Generate a User Access Token from{' '}
-                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">
+                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline hover:text-indigo-300">
                     Graph API Explorer
                   </a>{' '}
-                  with <code className="bg-gray-100 px-1 rounded">ads_management</code> and{' '}
-                  <code className="bg-gray-100 px-1 rounded">ads_read</code> permissions.
+                  with <code className="bg-slate-800 text-slate-300 px-1 rounded">ads_management</code> and{' '}
+                  <code className="bg-slate-800 text-slate-300 px-1 rounded">ads_read</code> permissions.
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">User Access Token</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">User Access Token</label>
                 <input
                   type="password"
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm font-mono text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   placeholder="EAAxxxxxx…"
                 />
               </div>
               <button
                 onClick={handleFetchAccounts}
                 disabled={fetching || !token.trim()}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
                 {fetching ? 'Fetching…' : 'Fetch Ad Accounts'}
               </button>
-              {fetchError && (
-                <p className="text-sm text-red-600">{fetchError}</p>
-              )}
+              {fetchError && <p className="text-sm text-red-400">{fetchError}</p>}
             </div>
 
             {/* Accounts list */}
             {accounts.length > 0 && (
-              <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
-                <h2 className="font-semibold text-gray-900">Connected Ad Accounts</h2>
-                <p className="text-xs text-gray-500">Check the accounts you want to use in the dashboard.</p>
-                <ul className="divide-y divide-gray-100">
+              <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 space-y-3">
+                <h2 className="font-semibold text-slate-100">Connected Ad Accounts</h2>
+                <p className="text-xs text-slate-400">Check the accounts you want to use in the dashboard.</p>
+                <ul className="divide-y divide-slate-800">
                   {accounts.map((a) => {
                     const badge = statusLabel(a.account_status ?? null);
                     return (
@@ -160,23 +157,23 @@ export default function SettingsPage() {
                           id={a.account_id}
                           checked={a.is_selected}
                           onChange={() => toggleAccount(a.account_id)}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="h-4 w-4 rounded border-slate-600 text-indigo-600 focus:ring-indigo-500 bg-slate-800"
                         />
                         <label htmlFor={a.account_id} className="flex-1 min-w-0 cursor-pointer">
-                          <span className="block text-sm font-medium text-gray-900 truncate">{a.name}</span>
-                          <span className="block text-xs text-gray-500 font-mono">{a.account_id}</span>
+                          <span className="block text-sm font-medium text-slate-100 truncate">{a.name}</span>
+                          <span className="block text-xs text-slate-500 font-mono">{a.account_id}</span>
                         </label>
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.cls}`}>
                           {badge.text}
                         </span>
                         {a.currency && a.currency !== 'USD' && (
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-900/50 text-orange-300">
                             {a.currency}
                           </span>
                         )}
                         <button
                           onClick={() => handleRemoveAccount(a.account_id)}
-                          className="text-gray-400 hover:text-red-500 transition-colors text-sm ml-1"
+                          className="text-slate-600 hover:text-red-400 transition-colors text-sm ml-1"
                           title="Remove account"
                         >
                           ✕
@@ -190,16 +187,12 @@ export default function SettingsPage() {
 
             {/* Save */}
             <div className="space-y-2">
-              {saveError && (
-                <p className="text-sm text-red-600">{saveError}</p>
-              )}
-              {saveMsg && (
-                <p className="text-sm text-green-600">{saveMsg}</p>
-              )}
+              {saveError && <p className="text-sm text-red-400">{saveError}</p>}
+              {saveMsg && <p className="text-sm text-emerald-400">{saveMsg}</p>}
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Saving…' : 'Save Settings'}
               </button>

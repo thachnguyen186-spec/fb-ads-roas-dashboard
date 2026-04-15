@@ -41,23 +41,23 @@ export default async function AdminPage() {
   const assignments = (teamRes.data ?? []) as { leader_id: string; staff_id: string }[];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-slate-950">
+      <header className="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">← Dashboard</Link>
-          <span className="text-sm font-semibold text-gray-900">User Management</span>
+          <Link href="/dashboard" className="text-sm text-slate-400 hover:text-slate-200">← Dashboard</Link>
+          <span className="text-sm font-semibold text-slate-100">User Management</span>
         </div>
-        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
+        <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded-full font-medium">Admin</span>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-10">
         <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Users</h2>
+          <h2 className="text-base font-semibold text-slate-100 mb-4">Users</h2>
           <UserTable initialUsers={users} />
         </section>
 
         <section>
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Team assignments</h2>
+          <h2 className="text-base font-semibold text-slate-100 mb-4">Team assignments</h2>
           <TeamManager users={users} initialAssignments={assignments} />
         </section>
       </main>

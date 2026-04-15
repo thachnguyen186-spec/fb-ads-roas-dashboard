@@ -20,8 +20,8 @@ function SortBtn({ col, sortCol, sortDir, onSort }: {
   sortDir: 'asc' | 'desc'; onSort: (c: keyof MergedCampaign) => void;
 }) {
   return (
-    <button onClick={() => onSort(col)} className="hover:text-gray-900 select-none">
-      {col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span className="text-gray-300"> ↕</span>}
+    <button onClick={() => onSort(col)} className="hover:text-slate-100 select-none">
+      {col === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span className="text-slate-600"> ↕</span>}
     </button>
   );
 }
@@ -113,7 +113,7 @@ export default function CampaignTable({
 
   if (campaigns.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-xl p-10 text-center text-sm text-gray-400">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl p-10 text-center text-sm text-slate-500">
         No campaigns match the current filter.
       </div>
     );
@@ -123,104 +123,104 @@ export default function CampaignTable({
   const colCount = 2 + fbColSpan + 1 + 2; // checkbox + Campaign + FB + Adjust + Result
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b border-gray-200">
-              <th colSpan={2} className="bg-gray-50 border-r border-gray-200" />
-              <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
+            <tr className="border-b border-slate-700">
+              <th colSpan={2} className="bg-slate-800 border-r border-slate-700" />
+              <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-400 bg-blue-950/40 border-r border-blue-900 tracking-wide uppercase">
                 Facebook Ads Data
               </th>
-              <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
+              <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-400 bg-emerald-950/40 border-r border-emerald-900 tracking-wide uppercase">
                 Adjust CSV
               </th>
-              <th colSpan={2} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
+              <th colSpan={2} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-400 bg-purple-950/40 tracking-wide uppercase">
                 Result
               </th>
             </tr>
-            <tr className="border-b border-gray-200 bg-gray-50 text-gray-500 font-medium">
+            <tr className="border-b border-slate-700 bg-slate-800 text-slate-400 font-medium">
               <th className="w-10 px-4 py-2.5">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-gray-300" />
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-600 bg-slate-700" />
               </th>
-              <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-gray-200">Campaign</th>
-              {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/40">Account</th>}
-              <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50/40">Status</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('impressions')}>Impr. <SortBtn col="impressions" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('clicks')}>Clicks <SortBtn col="clicks" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 cursor-pointer" onClick={() => onSort('cpc')}>CPC <SortBtn col="cpc" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50/40 border-r border-blue-100">Budget</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50/40 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50/40">ID Match</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50/40 cursor-pointer" onClick={() => onSort('roas')}>ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-700">Campaign</th>
+              {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-950/20">Account</th>}
+              <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-950/20">Status</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-950/20 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-950/20 cursor-pointer" onClick={() => onSort('impressions')}>Impr. <SortBtn col="impressions" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-950/20 cursor-pointer" onClick={() => onSort('clicks')}>Clicks <SortBtn col="clicks" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-950/20 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-950/20 cursor-pointer" onClick={() => onSort('cpc')}>CPC <SortBtn col="cpc" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-950/20 border-r border-slate-700">Budget</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-950/20 cursor-pointer border-r border-slate-700" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-950/20">ID Match</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-950/20 cursor-pointer" onClick={() => onSort('roas')}>ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-slate-800">
             {campaigns.map((c) => {
               const isExpanded = expandedIds.has(c.campaign_id);
               const budgetVal = c.budget_type === 'daily' ? c.daily_budget : c.budget_type === 'lifetime' ? c.lifetime_budget : null;
 
               return (
                 <Fragment key={c.campaign_id}>
-                  <tr className={`hover:bg-gray-50 transition-colors ${selectedIds.has(c.campaign_id) ? 'bg-blue-50' : ''}`}>
+                  <tr className={`hover:bg-slate-800/50 transition-colors ${selectedIds.has(c.campaign_id) ? 'bg-indigo-950/40' : ''}`}>
                     <td className="px-4 py-2.5">
-                      <input type="checkbox" checked={selectedIds.has(c.campaign_id)} onChange={() => toggleOne(c.campaign_id)} className="rounded border-gray-300" />
+                      <input type="checkbox" checked={selectedIds.has(c.campaign_id)} onChange={() => toggleOne(c.campaign_id)} className="rounded border-slate-600 bg-slate-700" />
                     </td>
-                    <td className="px-3 py-2.5 max-w-xs border-r border-gray-100">
+                    <td className="px-3 py-2.5 max-w-xs border-r border-slate-800">
                       <div className="flex items-start gap-2">
-                        <button onClick={() => handleToggleExpand(c)} className="mt-0.5 flex-shrink-0 text-gray-400 hover:text-gray-700 text-xs w-4" title={isExpanded ? 'Collapse' : 'Expand ad sets'}>
+                        <button onClick={() => handleToggleExpand(c)} className="mt-0.5 flex-shrink-0 text-slate-500 hover:text-slate-300 text-xs w-4" title={isExpanded ? 'Collapse' : 'Expand ad sets'}>
                           {isExpanded ? '▼' : '▶'}
                         </button>
                         <div className="min-w-0">
-                          <div className="font-medium text-gray-900 truncate" title={c.campaign_name}>{c.campaign_name}</div>
-                          <div className="text-xs text-gray-400 font-mono">{c.campaign_id}</div>
+                          <div className="font-medium text-slate-100 truncate" title={c.campaign_name}>{c.campaign_name}</div>
+                          <div className="text-xs text-slate-500 font-mono">{c.campaign_id}</div>
                         </div>
                       </div>
                     </td>
 
                     {showAccountColumn && (
-                      <td className="px-3 py-2.5 bg-blue-50/20">
-                        <span className="text-xs text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">{c.account_name}</span>
+                      <td className="px-3 py-2.5 bg-blue-950/10">
+                        <span className="text-xs text-blue-400 bg-blue-900/40 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">{c.account_name}</span>
                       </td>
                     )}
-                    <td className="px-3 py-2.5 bg-blue-50/20">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">Active</span>
+                    <td className="px-3 py-2.5 bg-blue-950/10">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-900/50 text-emerald-400">Active</span>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-700 bg-blue-50/20">{fmtUsd(c.spend)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtNum(c.impressions)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtNum(c.clicks)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtUsd(c.cpm)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-600 bg-blue-50/20">{fmtUsd(c.cpc)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-300 bg-blue-950/10">{fmtUsd(c.spend)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtNum(c.impressions)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtNum(c.clicks)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtUsd(c.cpm)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-400 bg-blue-950/10">{fmtUsd(c.cpc)}</td>
 
                     {/* Budget */}
-                    <td className="px-3 py-2.5 text-right bg-blue-50/20 border-r border-blue-100">
+                    <td className="px-3 py-2.5 text-right bg-blue-950/10 border-r border-slate-700">
                       {c.budget_type === 'unknown' ? (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-slate-600">—</span>
                       ) : (
-                        <div className="flex items-center justify-end gap-1.5 tabular-nums text-gray-700">
+                        <div className="flex items-center justify-end gap-1.5 tabular-nums text-slate-300">
                           <span>{fmtUsd(budgetVal)}</span>
-                          <span className="text-gray-400 text-xs">{c.budget_type === 'daily' ? '/d' : ' lt'}</span>
+                          <span className="text-slate-500 text-xs">{c.budget_type === 'daily' ? '/d' : ' lt'}</span>
                           <button
                             onClick={() => setCampaignBudgetTarget({ id: c.campaign_id, name: c.campaign_name, budget_type: c.budget_type, daily_budget: c.daily_budget, lifetime_budget: c.lifetime_budget, entity_type: 'campaign', currency: c.currency, vndRate })}
-                            className="text-blue-400 hover:text-blue-600 transition-colors text-xs"
+                            className="text-indigo-400 hover:text-indigo-300 transition-colors text-xs"
                             title="Edit budget"
                           >✎</button>
                         </div>
                       )}
                     </td>
 
-                    <td className="px-3 py-2.5 text-right tabular-nums text-gray-700 bg-emerald-50/20 border-r border-emerald-100">
-                      {c.has_adjust_data ? fmtUsd(c.adjust_revenue) : <span className="text-gray-300">—</span>}
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-300 bg-emerald-950/10 border-r border-slate-700">
+                      {c.has_adjust_data ? fmtUsd(c.adjust_revenue) : <span className="text-slate-600">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-center bg-purple-50/20">
+                    <td className="px-3 py-2.5 text-center bg-purple-950/10">
                       {c.has_adjust_data
-                        ? <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">✓ Matched</span>
-                        : <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">✗ No match</span>}
+                        ? <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-900/40 px-2 py-0.5 rounded-full">✓ Matched</span>
+                        : <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 bg-slate-700/50 px-2 py-0.5 rounded-full">✗ No match</span>}
                     </td>
-                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums bg-purple-50/20 ${roasColorClass(c.roas)}`}>
+                    <td className={`px-3 py-2.5 text-right font-semibold tabular-nums bg-purple-950/10 ${roasColorClass(c.roas)}`}>
                       {formatRoas(c.roas)}
                     </td>
                   </tr>
@@ -251,9 +251,9 @@ export default function CampaignTable({
         />
       )}
       {campaignBudgetError && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-200 text-xs text-red-600 flex items-center justify-between">
+        <div className="px-4 py-2 bg-red-950/50 border-t border-red-900 text-xs text-red-400 flex items-center justify-between">
           <span>{campaignBudgetError}</span>
-          <button onClick={() => setCampaignBudgetError('')} className="text-red-400 hover:text-red-600 ml-4">✕</button>
+          <button onClick={() => setCampaignBudgetError('')} className="text-red-500 hover:text-red-300 ml-4">✕</button>
         </div>
       )}
     </div>
