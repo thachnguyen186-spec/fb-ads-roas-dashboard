@@ -187,7 +187,7 @@ export default function CampaignTable({
   return (
     <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="flex-1 min-h-0 overflow-x-scroll overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
-        <table className="w-full text-sm border-collapse" style={zoom !== 100 ? { zoom: zoom / 100 } : undefined}>
+        <table className="w-full text-sm" style={{ borderCollapse: 'separate', borderSpacing: 0, ...(zoom !== 100 ? { zoom: zoom / 100 } : {}) }}>
           <thead className="sticky top-0 z-10" style={{ boxShadow: '0 3px 10px rgba(0,0,0,0.12)' }}>
             {/* Group header row — borders on <th> cells (not <tr>) to fix Chrome sticky+border-collapse gap bug */}
             <tr>
