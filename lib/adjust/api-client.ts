@@ -66,9 +66,9 @@ export async function fetchAdjustRevenueToday(
     metrics: 'network_cost,all_revenue,cohort_all_revenue',
     ad_spend_mode: 'network',
   });
-  // Adjust requires app_token as a repeated param for each app
+  // Adjust Reports API uses bracket notation for array params: app_token[]=xxx&app_token[]=yyy
   for (const appToken of appTokens) {
-    params.append('app_token', appToken);
+    params.append('app_token[]', appToken);
   }
 
   const res = await fetch(`${ADJUST_API_URL}?${params}`, {
