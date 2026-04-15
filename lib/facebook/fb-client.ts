@@ -40,6 +40,12 @@ export function fbGet(path: string, params: Record<string, string>, token: strin
   return fbRequest('GET', path, params, null, token);
 }
 
+/**
+ * FB Graph API mutations must use POST with params in the URL query string.
+ * JSON bodies and PATCH method are not supported for campaign/adset updates.
+ */
 export function fbPatch(path: string, body: Record<string, unknown>, token: string) {
-  return fbRequest('PATCH', path, {}, body, token);
+  const params: Record<string, string> = {};
+  for (const [k, v] of Object.entries(body)) params[k] = String(v);
+  return fbRequest('POST', path, params, null, token);
 }
