@@ -134,11 +134,9 @@ interface FbCreative {
   body?: string;
   title?: string;
   image_hash?: string;
-  image_file_name?: string;
   video_id?: string;
-  call_to_action?: { type?: string };
-  link?: string;
   instagram_actor_id?: string;
+  // link and call_to_action are nested inside object_story_spec, not top-level
   object_story_spec?: {
     link_data?: { link?: string; call_to_action?: { type?: string } };
     video_data?: { video_id?: string; call_to_action?: { type?: string } };
@@ -162,18 +160,15 @@ function buildRow(
   const targeting = adSet.targeting ?? {};
   const promotedObj = adSet.promoted_object ?? {};
 
-  // Resolve call-to-action type
-  const ctaType = creative?.call_to_action?.type
-    ?? creative?.object_story_spec?.link_data?.call_to_action?.type
+  // CTA type lives inside object_story_spec (not a top-level creative field)
+  const ctaType = creative?.object_story_spec?.link_data?.call_to_action?.type
     ?? creative?.object_story_spec?.video_data?.call_to_action?.type
     ?? '';
 
-  // Resolve link
-  const link = creative?.link
-    ?? creative?.object_story_spec?.link_data?.link
-    ?? '';
+  // Link lives inside object_story_spec.link_data (not a top-level creative field)
+  const link = creative?.object_story_spec?.link_data?.link ?? '';
 
-  // Resolve video ID
+  // video_id is a valid top-level creative field; also available in object_story_spec
   const videoId = creative?.video_id
     ?? creative?.object_story_spec?.video_data?.video_id
     ?? '';
@@ -240,7 +235,7 @@ function buildRow(
     'Optimize text per person': '',
     'Optimized Ad Creative': '',
     'Image Hash': creative?.image_hash ?? '',
-    'Image File Name': creative?.image_file_name ?? '',
+    'Image File Name': '',   // image_file_name is not a valid FB API field
     'Creative Type': creativeType,
     'Video ID': videoId,
     'Video File Name': '',
@@ -277,8 +272,10 @@ function generateTsv(rows: Row[]): Buffer {
 }
 
 // Ad fields for nested fetch inside adsets
-// image_file_name is not a valid FB API field — omit it; the TSV column will be blank
-const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,video_id,call_to_action,link,instagram_actor_id,object_story_spec}';
+// Only top-level creative fields that FB Graph API actually exposes.
+// link and call_to_action are NOT top-level — they live inside object_story_spec.
+// buildRow already reads them from object_story_spec as the primary source.
+const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,video_id,instagram_actor_id,object_story_spec}';
 
 export async function fetchCampaignForTsvExport(
   token: string,
