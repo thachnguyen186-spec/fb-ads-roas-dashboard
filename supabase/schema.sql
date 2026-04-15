@@ -113,3 +113,8 @@ create policy "Users manage own snapshots"
   on public.campaign_snapshots for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- ─── Adjust API token ─────────────────────────────────────────────────────────
+-- Run this in Supabase SQL editor to add Adjust API token support.
+alter table public.profiles
+  add column if not exists adjust_api_token text;

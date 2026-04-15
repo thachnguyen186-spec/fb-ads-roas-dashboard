@@ -11,6 +11,9 @@ export default function SettingsPage() {
   const [token, setToken] = useState('');           // new token input (empty = keep existing)
   const [hasToken, setHasToken] = useState(false);  // whether a token is already saved
   const [removeToken, setRemoveToken] = useState(false); // user explicitly requested removal
+  const [adjustToken, setAdjustToken] = useState('');
+  const [hasAdjustToken, setHasAdjustToken] = useState(false);
+  const [removeAdjustToken, setRemoveAdjustToken] = useState(false);
   const [accounts, setAccounts] = useState<FbAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
@@ -25,6 +28,7 @@ export default function SettingsPage() {
       .then((data) => {
         // API returns has_token (boolean), never the raw token
         setHasToken(!!data.has_token);
+        setHasAdjustToken(!!data.has_adjust_token);
         if (Array.isArray(data.accounts) && data.accounts.length > 0) {
           setAccounts(data.accounts);
         }
@@ -75,10 +79,12 @@ export default function SettingsPage() {
     setSaving(true);
     setSaveMsg('');
     setSaveError('');
-    // Only touch the token field when user explicitly changed it
+    // Only touch token fields when user explicitly changed them
     const payload: Record<string, unknown> = { accounts };
     if (removeToken) payload.fb_access_token = null;
     else if (token.trim()) payload.fb_access_token = token.trim();
+    if (removeAdjustToken) payload.adjust_api_token = null;
+    else if (adjustToken.trim()) payload.adjust_api_token = adjustToken.trim();
     const res = await fetch('/api/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -91,6 +97,8 @@ export default function SettingsPage() {
       setSaveMsg('Settings saved.');
       if (token.trim()) { setHasToken(true); setToken(''); }
       if (removeToken) setRemoveToken(false);
+      if (adjustToken.trim()) { setHasAdjustToken(true); setAdjustToken(''); }
+      if (removeAdjustToken) { setHasAdjustToken(false); setRemoveAdjustToken(false); }
     }
     setSaving(false);
   }
@@ -172,6 +180,42 @@ export default function SettingsPage() {
                 {fetching ? 'Fetching…' : 'Fetch Ad Accounts'}
               </button>
               {fetchError && <p className="text-sm text-red-600">{fetchError}</p>}
+            </div>
+
+            {/* Adjust API Token section */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <div>
+                <h2 className="font-semibold text-slate-900">Adjust API Token</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Generate from Adjust Dashboard → Settings → API Tokens. Used to fetch today&apos;s revenue data automatically.
+                </p>
+              </div>
+              {hasAdjustToken && (
+                <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-600 text-sm">✓</span>
+                    <span className="text-sm text-emerald-800 font-medium">Token configured</span>
+                  </div>
+                  <button
+                    onClick={() => { setHasAdjustToken(false); setRemoveAdjustToken(true); setAdjustToken(''); }}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  {hasAdjustToken ? 'Replace token (leave blank to keep existing)' : 'API Token'}
+                </label>
+                <input
+                  type="password"
+                  value={adjustToken}
+                  onChange={(e) => setAdjustToken(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder={hasAdjustToken ? '••••••• (paste new token to replace)' : 'Paste Adjust API token…'}
+                />
+              </div>
             </div>
 
             {/* Accounts list */}

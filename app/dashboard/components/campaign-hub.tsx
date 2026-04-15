@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { parseAdjustCsv, aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateByAdSetId, aggregateAllRevByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
-import type { AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
+import type { AdjustRow, AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
 import CampaignTable from './campaign-table';
 import FilterBar from './filter-bar';
@@ -19,12 +19,14 @@ type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
 
 interface Props {
   hasToken: boolean;
+  /** Whether the user has configured an Adjust API token in Settings */
+  hasAdjustToken: boolean;
   selectedAccounts: FbAdAccount[];
   userRole: UserRole;
   staffList: StaffMember[];
 }
 
-export default function CampaignHub({ hasToken, selectedAccounts, userRole, staffList }: Props) {
+export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts, userRole, staffList }: Props) {
   const router = useRouter();
 
   // Leader/admin: which staff member to view (null = own data)
@@ -40,6 +42,10 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [adjustAdSetMapState, setAdjustAdSetMapState] = useState<Map<string, number>>(new Map());   // cohort_all_revenue by adset
   const [adjustAllRevAdSetMapState, setAdjustAllRevAdSetMapState] = useState<Map<string, number>>(new Map()); // all_revenue by adset
   const [adjustAppMapState, setAdjustAppMapState] = useState<Map<string, string>>(new Map());
+  // Adjust API fetch state
+  const [adjustApiRows, setAdjustApiRows] = useState<AdjustRow[] | null>(null); // non-null = API mode
+  const [apiFetching, setApiFetching] = useState(false);
+  const [apiFetchError, setApiFetchError] = useState('');
   // Adset-only flat view
   const [showAdsetOnly, setShowAdsetOnly] = useState(false);
   const [rawFlatAdSets, setRawFlatAdSets] = useState<Array<AdSetRow & { campaign_name: string }>>([]);
@@ -97,6 +103,9 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     setAdjustAdSetMapState(new Map());
     setAdjustAllRevAdSetMapState(new Map());
     setAdjustAppMapState(new Map());
+    setAdjustApiRows(null);
+    setApiFetching(false);
+    setApiFetchError('');
     setShowAdsetOnly(false);
     setRawFlatAdSets([]);
     setSelectedFlatAdsetIds(new Set());
@@ -118,6 +127,30 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     if (res.ok) {
       const data = await res.json();
       setSnapshots(data.snapshots ?? []);
+    }
+  }
+
+  /** Fetch today's Adjust revenue via API token (primary mode when token is configured) */
+  async function handleFetchFromApi() {
+    setApiFetching(true);
+    setApiFetchError('');
+    try {
+      const res = await fetch('/api/adjust/revenue');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch from Adjust API');
+      const rows = data.rows as AdjustRow[];
+      setAdjustApiRows(rows);
+      // Run aggregations — same functions as CSV path so both converge at handleAnalyze
+      setAdjustMapState(aggregateByCampaignId(rows));
+      setAdjustAllRevMapState(aggregateAllRevByCampaignId(rows));
+      setAdjustAdSetMapState(aggregateByAdSetId(rows));
+      setAdjustAllRevAdSetMapState(aggregateAllRevByAdSetId(rows));
+      setAdjustAppMapState(aggregateAppByCampaignId(rows));
+      setPhase('csv_ready'); // enables the "Fetch & Analyze" step 2 button
+    } catch (err) {
+      setApiFetchError(err instanceof Error ? err.message : 'Failed to fetch from Adjust API');
+    } finally {
+      setApiFetching(false);
     }
   }
 
@@ -231,7 +264,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   }
 
   async function handleAnalyze() {
-    if (!csvFile) return;
+    if (!adjustApiRows && !csvFile) return;
     setPhase('analyzing');
     setErrorMsg('');
     setSelectedIds(new Set());
@@ -241,26 +274,36 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       const url = new URL('/api/campaigns', window.location.origin);
       if (viewingStaffId) url.searchParams.set('viewAs', viewingStaffId);
 
-      const [fbRes, adjustRows] = await Promise.all([
-        fetch(url.toString()).then((r) => r.json()),
-        parseAdjustCsv(csvFile, appFilter),
-      ]);
-
-      if (fbRes.error) throw new Error(fbRes.error);
-      const adjustMap = aggregateByCampaignId(adjustRows);
-      const adjustAllRevMap = aggregateAllRevByCampaignId(adjustRows);
-      const adjustAdSetMap = aggregateByAdSetId(adjustRows);
-      const adjustAllRevAdSetMap = aggregateAllRevByAdSetId(adjustRows);
-      const adjustAppMap = aggregateAppByCampaignId(adjustRows);
-      const fbCampaigns = fbRes.campaigns as CampaignRow[];
-      setRawFbCampaigns(fbCampaigns);
-      setAdjustMapState(adjustMap);
-      setAdjustAllRevMapState(adjustAllRevMap);
-      setAdjustAdSetMapState(adjustAdSetMap);
-      setAdjustAllRevAdSetMapState(adjustAllRevAdSetMap);
-      setAdjustAppMapState(adjustAppMap);
-      const merged = mergeCampaigns(fbCampaigns, adjustMap, adjustAllRevMap, vndRate);
-      setMergedCampaigns(merged);
+      if (adjustApiRows) {
+        // API mode: aggregation maps already populated by handleFetchFromApi — just fetch FB
+        const fbRes = await fetch(url.toString()).then((r) => r.json());
+        if (fbRes.error) throw new Error(fbRes.error);
+        const fbCampaigns = fbRes.campaigns as CampaignRow[];
+        setRawFbCampaigns(fbCampaigns);
+        const merged = mergeCampaigns(fbCampaigns, adjustMapState, adjustAllRevMapState, vndRate);
+        setMergedCampaigns(merged);
+      } else {
+        // CSV mode: parse CSV + fetch FB in parallel
+        const [fbRes, adjustRows] = await Promise.all([
+          fetch(url.toString()).then((r) => r.json()),
+          parseAdjustCsv(csvFile!, appFilter),
+        ]);
+        if (fbRes.error) throw new Error(fbRes.error);
+        const adjustMap = aggregateByCampaignId(adjustRows);
+        const adjustAllRevMap = aggregateAllRevByCampaignId(adjustRows);
+        const adjustAdSetMap = aggregateByAdSetId(adjustRows);
+        const adjustAllRevAdSetMap = aggregateAllRevByAdSetId(adjustRows);
+        const adjustAppMap = aggregateAppByCampaignId(adjustRows);
+        const fbCampaigns = fbRes.campaigns as CampaignRow[];
+        setRawFbCampaigns(fbCampaigns);
+        setAdjustMapState(adjustMap);
+        setAdjustAllRevMapState(adjustAllRevMap);
+        setAdjustAdSetMapState(adjustAdSetMap);
+        setAdjustAllRevAdSetMapState(adjustAllRevAdSetMap);
+        setAdjustAppMapState(adjustAppMap);
+        const merged = mergeCampaigns(fbCampaigns, adjustMap, adjustAllRevMap, vndRate);
+        setMergedCampaigns(merged);
+      }
       setPhase('results');
       fetchSnapshots(); // load saved snapshots when results are ready
     } catch (err) {
@@ -451,14 +494,53 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               </div>
             )}
 
-            {/* Step 1: Upload Adjust CSV */}
+            {/* Step 1: Adjust Data */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-semibold">1</span>
-                <h2 className="font-medium text-slate-900">Upload Adjust CSV</h2>
+                <h2 className="font-medium text-slate-900">
+                  {hasAdjustToken ? 'Fetch Adjust Revenue' : 'Upload Adjust CSV'}
+                </h2>
               </div>
-              <p className="text-xs text-slate-500">Export from Adjust → Analytics → Campaign report</p>
-              <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
+
+              {hasAdjustToken ? (
+                <div className="space-y-3">
+                  {adjustApiRows ? (
+                    <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
+                      <span>✓</span>
+                      <span>Adjust data loaded ({adjustApiRows.length} row{adjustApiRows.length !== 1 ? 's' : ''})</span>
+                      <button
+                        onClick={() => { setAdjustApiRows(null); setPhase('idle'); }}
+                        className="ml-auto text-emerald-600 hover:text-emerald-800 underline"
+                      >
+                        Reload
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={handleFetchFromApi}
+                        disabled={apiFetching || !hasFbConfig}
+                        className="w-full py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        {apiFetching ? 'Fetching from Adjust…' : "Fetch Today's Data from Adjust API"}
+                      </button>
+                      {apiFetchError && <p className="text-xs text-red-600">{apiFetchError}</p>}
+                    </>
+                  )}
+                  <details className="text-xs text-slate-500">
+                    <summary className="cursor-pointer hover:text-slate-700 select-none">Use CSV instead (fallback)</summary>
+                    <div className="mt-2">
+                      <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
+                    </div>
+                  </details>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-slate-500">Export from Adjust → Analytics → Campaign report</p>
+                  <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
+                </>
+              )}
             </div>
 
             {phase === 'csv_ready' && (
@@ -639,7 +721,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       {phase === 'results' && selectedCampaigns.length > 0 && !showAdsetOnly && (
         <ActionBar
           selectedCampaigns={selectedCampaigns}
-          onActionComplete={() => { if (csvFile) { setPhase('analyzing'); handleAnalyze(); } }}
+          onActionComplete={() => { if (csvFile || adjustApiRows) { setPhase('analyzing'); handleAnalyze(); } }}
           onDeselect={() => setSelectedIds(new Set())}
           vndRate={vndRate}
         />

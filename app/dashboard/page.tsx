@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const service = createServiceClient();
 
   const [profileRes, accountsRes, role] = await Promise.all([
-    service.from('profiles').select('fb_access_token').eq('id', user.id).single(),
+    service.from('profiles').select('fb_access_token, adjust_api_token').eq('id', user.id).single(),
     service
       .from('fb_ad_accounts')
       .select('account_id,name,is_selected,account_status,currency')
@@ -21,7 +21,9 @@ export default async function DashboardPage() {
     getUserRole(user.id),
   ]);
 
-  const hasToken = !!(profileRes.data as { fb_access_token?: string | null } | null)?.fb_access_token;
+  const profile = profileRes.data as { fb_access_token?: string | null; adjust_api_token?: string | null } | null;
+  const hasToken = !!profile?.fb_access_token;
+  const hasAdjustToken = !!profile?.adjust_api_token;
   const selectedAccounts = (accountsRes.data ?? []) as FbAdAccount[];
   const userRole = (role ?? 'staff') as UserRole;
 
@@ -72,6 +74,7 @@ export default async function DashboardPage() {
   return (
     <CampaignHub
       hasToken={hasToken}
+      hasAdjustToken={hasAdjustToken}
       selectedAccounts={selectedAccounts}
       userRole={userRole}
       staffList={staffList}
