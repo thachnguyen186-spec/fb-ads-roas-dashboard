@@ -35,7 +35,9 @@ export async function GET(request: NextRequest, { params }: Params) {
   try {
     const tsvBuffer = await fetchCampaignForTsvExport(token, campaignId, newName);
 
-    return new Response(tsvBuffer.buffer as ArrayBuffer, {
+    // Use Uint8Array, not tsvBuffer.buffer — Buffer.buffer returns the full underlying
+    // ArrayBuffer which may include extra bytes before/after the actual data.
+    return new Response(new Uint8Array(tsvBuffer), {
       headers: {
         'Content-Type': 'text/tab-separated-values; charset=utf-16le',
         // FB Ads Manager expects .csv extension even though content is TSV
