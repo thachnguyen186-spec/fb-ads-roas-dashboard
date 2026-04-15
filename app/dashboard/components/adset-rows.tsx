@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { BudgetTarget, MergedAdSet } from '@/lib/types';
-import { roasColorClass, formatRoas } from '@/lib/adjust/merge';
+import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import BudgetModal from './budget-modal';
 
 function fmtUsd(v: number | null) {
@@ -166,9 +166,13 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
                 : <span className="inline-flex items-center gap-1 font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">✗</span>}
             </td>
 
-            {/* ROAS */}
+            {/* D0 ROAS */}
             <td className={`px-3 py-2 text-right font-semibold tabular-nums bg-purple-50/40 ${roasColorClass(adset.roas)}`}>
               {formatRoas(adset.roas)}
+            </td>
+            {/* %Profit */}
+            <td className={`px-3 py-2 text-right tabular-nums bg-purple-50/40 ${adset.profit_pct === null ? 'text-slate-300' : adset.profit_pct >= 0 ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}`}>
+              {formatProfit(adset.profit_pct)}
             </td>
           </tr>
         );

@@ -1,8 +1,8 @@
 'use client';
 
 import { Fragment, useState } from 'react';
-import { mergeAdSets, roasColorClass, formatRoas } from '@/lib/adjust/merge';
-import type { AdSetRow, BudgetTarget, MergedAdSet, MergedCampaign } from '@/lib/types';
+import { mergeAdSets, roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
+import type { AdSetRow, BudgetTarget, MergedCampaign } from '@/lib/types';
 import AdSetRows from './adset-rows';
 import BudgetModal from './budget-modal';
 
@@ -44,9 +44,9 @@ export default function CampaignTable({
 }: Props) {
   const allSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.campaign_id));
 
-  // Expansion state
+  // Expansion state — raw AdSetRow[] cached so re-merge applies when vndRate changes
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [adSetCache, setAdSetCache] = useState<Map<string, MergedAdSet[]>>(new Map());
+  const [adSetCache, setAdSetCache] = useState<Map<string, AdSetRow[]>>(new Map());
   const [loadingAdSets, setLoadingAdSets] = useState<Set<string>>(new Set());
   const [adSetErrors, setAdSetErrors] = useState<Map<string, string>>(new Map());
 
@@ -80,8 +80,8 @@ export default function CampaignTable({
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to load ad sets');
-      const merged = mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMap, vndRate);
-      setAdSetCache((prev) => new Map([...prev, [id, merged]]));
+      // Store raw adsets — merged on render so vndRate changes auto-apply
+      setAdSetCache((prev) => new Map([...prev, [id, data.adsets as AdSetRow[]]]));
     } catch (err) {
       setAdSetErrors((prev) => new Map([...prev, [id, err instanceof Error ? err.message : 'Error']]));
     } finally {
@@ -120,13 +120,13 @@ export default function CampaignTable({
   }
 
   const fbColSpan = showAccountColumn ? 8 : 7; // Account? + Status + Spend + Impr + Clicks + CPM + CPC + Budget
-  const colCount = 2 + fbColSpan + 1 + 2; // checkbox + Campaign + FB + Adjust + Result
+  const colCount = 2 + fbColSpan + 1 + 3; // checkbox + Campaign + FB + Adjust + (ID Match + D0 ROAS + %Profit)
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-scroll" style={{ scrollbarGutter: 'stable' }}>
         <table className="w-full text-sm border-collapse">
-          <thead className="sticky top-0 z-10">
+          <thead className="sticky top-11 z-10">
             <tr className="border-b border-slate-200">
               <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />
               <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
@@ -135,7 +135,7 @@ export default function CampaignTable({
               <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
                 Adjust CSV
               </th>
-              <th colSpan={2} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
+              <th colSpan={3} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
                 Result
               </th>
             </tr>
@@ -154,7 +154,8 @@ export default function CampaignTable({
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 border-r border-blue-100">Budget</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('roas')}>ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('roas')}>D0 ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('profit_pct')}>%Profit <SortBtn col="profit_pct" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
             </tr>
           </thead>
 
@@ -223,11 +224,14 @@ export default function CampaignTable({
                     <td className={`px-3 py-2.5 text-right font-semibold tabular-nums bg-purple-50/40 ${roasColorClass(c.roas)}`}>
                       {formatRoas(c.roas)}
                     </td>
+                    <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 text-sm ${c.profit_pct === null ? 'text-slate-300' : c.profit_pct >= 0 ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}`}>
+                      {formatProfit(c.profit_pct)}
+                    </td>
                   </tr>
 
                   {isExpanded && (
                     <AdSetRows
-                      adsets={adSetCache.get(c.campaign_id) ?? []}
+                      adsets={mergeAdSets(adSetCache.get(c.campaign_id) ?? [], adjustAdSetMap, vndRate)}
                       loading={loadingAdSets.has(c.campaign_id)}
                       error={adSetErrors.get(c.campaign_id) ?? null}
                       showAccountColumn={showAccountColumn}

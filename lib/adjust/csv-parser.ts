@@ -113,6 +113,20 @@ export function aggregateByCampaignId(rows: AdjustRow[]): Map<string, number> {
 }
 
 /**
+ * Returns a map of campaign_id → app_name from Adjust rows.
+ * Used to populate the App filter dropdown using CSV data (not FB API app_name which is often null).
+ */
+export function aggregateAppByCampaignId(rows: AdjustRow[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (row.app && !map.has(row.campaign_id)) {
+      map.set(row.campaign_id, row.app);
+    }
+  }
+  return map;
+}
+
+/**
  * Aggregates AdjustRows by adset_id, summing revenue.
  * Used to match Adjust ad set revenue to FB ad sets in the expanded view.
  */

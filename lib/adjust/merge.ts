@@ -11,6 +11,18 @@ export function computeRoas(revenue: number | null, spend: number): number | nul
   return revenue / spend;
 }
 
+/** %Profit = (revenue - spend) / spend * 100. Null when no data or spend === 0. */
+export function computeProfit(revenue: number | null, spend: number): number | null {
+  if (revenue === null || spend === 0) return null;
+  return ((revenue - spend) / spend) * 100;
+}
+
+/** Format profit as "35.50%" or "—" */
+export function formatProfit(pct: number | null): string {
+  if (pct === null) return '—';
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+}
+
 export function mergeCampaigns(
   fbCampaigns: CampaignRow[],
   adjustMap: Map<string, number>,
@@ -33,6 +45,7 @@ export function mergeCampaigns(
       budget_remaining: campaign.budget_remaining !== null ? campaign.budget_remaining * budgetFactor : null,
       adjust_revenue: adjustRevenue,
       roas: computeRoas(adjustRevenue, spendUsd),
+      profit_pct: computeProfit(adjustRevenue, spendUsd),
       has_adjust_data: adjustRevenue !== null,
     };
   });
@@ -63,6 +76,7 @@ export function mergeAdSets(
       budget_remaining: adset.budget_remaining !== null ? adset.budget_remaining * budgetFactor : null,
       adjust_revenue: adjustRevenue,
       roas: computeRoas(adjustRevenue, spendUsd),
+      profit_pct: computeProfit(adjustRevenue, spendUsd),
       has_adjust_data: adjustRevenue !== null,
     };
   });

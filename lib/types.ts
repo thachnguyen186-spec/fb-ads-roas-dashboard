@@ -82,6 +82,8 @@ export interface MergedCampaign extends CampaignRow {
   adjust_revenue: number | null;
   /** Revenue / Spend; null if no Adjust match or spend === 0 */
   roas: number | null;
+  /** (Revenue - Spend) / Spend * 100; null when no Adjust data or spend === 0 */
+  profit_pct: number | null;
   has_adjust_data: boolean;
 }
 
@@ -111,6 +113,8 @@ export interface AdSetRow {
 export interface MergedAdSet extends AdSetRow {
   adjust_revenue: number | null;
   roas: number | null;
+  /** (Revenue - Spend) / Spend * 100; null when no Adjust data or spend === 0 */
+  profit_pct: number | null;
   has_adjust_data: boolean;
 }
 

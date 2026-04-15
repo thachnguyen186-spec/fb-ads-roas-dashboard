@@ -4,13 +4,15 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { parseAdjustCsv, aggregateByCampaignId, aggregateByAdSetId } from '@/lib/adjust/csv-parser';
-import { mergeCampaigns } from '@/lib/adjust/merge';
-import type { CampaignRow, FbAdAccount, MergedCampaign, StaffMember, UserRole } from '@/lib/types';
+import { parseAdjustCsv, aggregateByCampaignId, aggregateByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
+import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
+import type { AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
 import CampaignTable from './campaign-table';
 import FilterBar from './filter-bar';
 import ActionBar from './action-bar';
+import AdsetFlatView, { type FlatAdSet } from './adset-flat-view';
+import AdsetBulkBudgetModal from './adset-bulk-budget-modal';
 
 type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
 
@@ -34,6 +36,13 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [rawFbCampaigns, setRawFbCampaigns] = useState<CampaignRow[]>([]);
   const [adjustMapState, setAdjustMapState] = useState<Map<string, number>>(new Map());
   const [adjustAdSetMapState, setAdjustAdSetMapState] = useState<Map<string, number>>(new Map());
+  const [adjustAppMapState, setAdjustAppMapState] = useState<Map<string, string>>(new Map());
+  // Adset-only flat view
+  const [showAdsetOnly, setShowAdsetOnly] = useState(false);
+  const [rawFlatAdSets, setRawFlatAdSets] = useState<Array<AdSetRow & { campaign_name: string }>>([]);
+  const [loadingAllAdsets, setLoadingAllAdsets] = useState(false);
+  const [selectedFlatAdsetIds, setSelectedFlatAdsetIds] = useState<Set<string>>(new Set());
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [mergedCampaigns, setMergedCampaigns] = useState<MergedCampaign[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [roasMin, setRoasMin] = useState('');
@@ -68,6 +77,10 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     setRawFbCampaigns([]);
     setAdjustMapState(new Map());
     setAdjustAdSetMapState(new Map());
+    setAdjustAppMapState(new Map());
+    setShowAdsetOnly(false);
+    setRawFlatAdSets([]);
+    setSelectedFlatAdsetIds(new Set());
     setMergedCampaigns([]);
     setSelectedIds(new Set());
     setAccountFilter('');
@@ -83,6 +96,26 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     if (isNaN(rate) || rate <= 0) return;
     setVndRate(rate);
     setMergedCampaigns(mergeCampaigns(rawFbCampaigns, adjustMapState, rate));
+  }
+
+  async function loadAllAdsets(campaigns: MergedCampaign[]) {
+    setLoadingAllAdsets(true);
+    setRawFlatAdSets([]);
+    setSelectedFlatAdsetIds(new Set());
+    try {
+      const results = await Promise.all(
+        campaigns.map(async (c) => {
+          const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (!res.ok) return [];
+          return (data.adsets as AdSetRow[]).map((a) => ({ ...a, campaign_name: c.campaign_name }));
+        }),
+      );
+      setRawFlatAdSets(results.flat());
+    } finally {
+      setLoadingAllAdsets(false);
+    }
   }
 
   function switchToStaff(staffId: string | null) {
@@ -115,10 +148,12 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       if (fbRes.error) throw new Error(fbRes.error);
       const adjustMap = aggregateByCampaignId(adjustRows);
       const adjustAdSetMap = aggregateByAdSetId(adjustRows);
+      const adjustAppMap = aggregateAppByCampaignId(adjustRows);
       const fbCampaigns = fbRes.campaigns as CampaignRow[];
       setRawFbCampaigns(fbCampaigns);
       setAdjustMapState(adjustMap);
       setAdjustAdSetMapState(adjustAdSetMap);
+      setAdjustAppMapState(adjustAppMap);
       const merged = mergeCampaigns(fbCampaigns, adjustMap, vndRate);
       setMergedCampaigns(merged);
       setPhase('results');
@@ -140,14 +175,28 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [mergedCampaigns]);
 
-  // Unique app names found in loaded campaigns (for filter dropdown)
+  // Unique app names from Adjust CSV (more reliable than FB app_name which is null for non-app campaigns)
   const appOptions = useMemo(() => {
     const seen = new Set<string>();
-    for (const c of mergedCampaigns) {
-      if (c.app_name) seen.add(c.app_name);
+    for (const appName of adjustAppMapState.values()) {
+      if (appName) seen.add(appName);
     }
     return Array.from(seen).sort((a, b) => a.localeCompare(b));
-  }, [mergedCampaigns]);
+  }, [adjustAppMapState]);
+
+  // Flat adset view: re-merge raw adsets whenever vndRate or adjustAdSetMap changes
+  const flatAdsets: FlatAdSet[] = useMemo(() => {
+    if (rawFlatAdSets.length === 0) return [];
+    return rawFlatAdSets.map((raw) => {
+      const merged = mergeAdSets([raw], adjustAdSetMapState, vndRate)[0]!;
+      return { ...merged, campaign_name: raw.campaign_name };
+    });
+  }, [rawFlatAdSets, adjustAdSetMapState, vndRate]);
+
+  const selectedFlatAdsets = useMemo(
+    () => flatAdsets.filter((a) => selectedFlatAdsetIds.has(a.adset_id)),
+    [flatAdsets, selectedFlatAdsetIds],
+  );
 
   const displayedCampaigns = useMemo(() => {
     let list = [...mergedCampaigns];
@@ -156,7 +205,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       list = list.filter((c) => c.campaign_name.toLowerCase().includes(q));
     }
     if (accountFilter) list = list.filter((c) => c.account_id === accountFilter);
-    if (appNameFilter) list = list.filter((c) => c.app_name === appNameFilter);
+    if (appNameFilter) list = list.filter((c) => adjustAppMapState.get(c.campaign_id) === appNameFilter);
     const roasMinN = roasMin !== '' ? parseFloat(roasMin) : null;
     const roasMaxN = roasMax !== '' ? parseFloat(roasMax) : null;
     if (roasMinN !== null) list = list.filter((c) => c.roas !== null && c.roas >= roasMinN);
@@ -181,7 +230,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       return sortDir === 'asc' ? av - bv : bv - av;
     });
     return list;
-  }, [mergedCampaigns, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax, sortCol, sortDir]);
+  }, [mergedCampaigns, adjustAppMapState, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax, sortCol, sortDir]);
 
   const selectedCampaigns = useMemo(
     () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
@@ -197,7 +246,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
   return (
     <div className="min-h-screen bg-slate-50" style={{ zoom: zoom / 100 }}>
-      <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-20 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold text-slate-900">FB Ads ROAS</h1>
           {/* Leader/admin: staff switcher */}
@@ -349,53 +398,109 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               </div>
             )}
 
-            {/* Unified filter bar */}
-            <FilterBar
-              campaignName={campaignNameFilter}
-              onCampaignNameChange={setCampaignNameFilter}
-              appFilter={appNameFilter}
-              onAppFilterChange={setAppNameFilter}
-              appOptions={appOptions}
-              accountFilter={accountFilter}
-              onAccountFilterChange={setAccountFilter}
-              accountOptions={accountOptions}
-              roasMin={roasMin} roasMax={roasMax}
-              onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
-              spendMin={spendMin} spendMax={spendMax}
-              onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
-              budgetMin={budgetMin} budgetMax={budgetMax}
-              onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
-              totalCount={mergedCampaigns.length}
-              filteredCount={displayedCampaigns.length}
-              onClearAll={() => {
-                setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
-                setRoasMin(''); setRoasMax('');
-                setSpendMin(''); setSpendMax('');
-                setBudgetMin(''); setBudgetMax('');
-              }}
-            />
+            {/* View toggle: campaigns vs flat adsets */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const next = !showAdsetOnly;
+                  setShowAdsetOnly(next);
+                  if (next) loadAllAdsets(displayedCampaigns);
+                }}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${showAdsetOnly ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+              >
+                {showAdsetOnly ? '← Show Campaigns' : 'Show Ad Sets Only'}
+              </button>
+              {showAdsetOnly && selectedFlatAdsets.length > 0 && (
+                <button
+                  onClick={() => setShowBulkModal(true)}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg border bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 transition-colors"
+                >
+                  Change Budget ({selectedFlatAdsets.length} ad set{selectedFlatAdsets.length !== 1 ? 's' : ''})
+                </button>
+              )}
+            </div>
 
-            <CampaignTable
-              campaigns={displayedCampaigns}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-              sortCol={sortCol}
-              sortDir={sortDir}
-              onSort={handleSort}
-              showAccountColumn={accountOptions.length > 1}
-              adjustAdSetMap={adjustAdSetMapState}
-              vndRate={vndRate}
-            />
+            {/* Unified filter bar — shown in campaign view only */}
+            {!showAdsetOnly && (
+              <FilterBar
+                campaignName={campaignNameFilter}
+                onCampaignNameChange={setCampaignNameFilter}
+                appFilter={appNameFilter}
+                onAppFilterChange={setAppNameFilter}
+                appOptions={appOptions}
+                accountFilter={accountFilter}
+                onAccountFilterChange={setAccountFilter}
+                accountOptions={accountOptions}
+                roasMin={roasMin} roasMax={roasMax}
+                onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
+                spendMin={spendMin} spendMax={spendMax}
+                onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
+                budgetMin={budgetMin} budgetMax={budgetMax}
+                onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
+                totalCount={mergedCampaigns.length}
+                filteredCount={displayedCampaigns.length}
+                onClearAll={() => {
+                  setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
+                  setRoasMin(''); setRoasMax('');
+                  setSpendMin(''); setSpendMax('');
+                  setBudgetMin(''); setBudgetMax('');
+                }}
+              />
+            )}
+
+            {/* Campaign table */}
+            {!showAdsetOnly && (
+              <CampaignTable
+                campaigns={displayedCampaigns}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                sortCol={sortCol}
+                sortDir={sortDir}
+                onSort={handleSort}
+                showAccountColumn={accountOptions.length > 1}
+                adjustAdSetMap={adjustAdSetMapState}
+                vndRate={vndRate}
+              />
+            )}
+
+            {/* Flat adset view */}
+            {showAdsetOnly && (
+              loadingAllAdsets ? (
+                <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-400">
+                  Loading ad sets from {displayedCampaigns.length} campaign{displayedCampaigns.length !== 1 ? 's' : ''}…
+                </div>
+              ) : (
+                <AdsetFlatView
+                  adsets={flatAdsets}
+                  selectedIds={selectedFlatAdsetIds}
+                  onSelectionChange={setSelectedFlatAdsetIds}
+                  vndRate={vndRate}
+                  showAccountColumn={accountOptions.length > 1}
+                />
+              )
+            )}
           </div>
         )}
       </main>
 
-      {phase === 'results' && selectedCampaigns.length > 0 && (
+      {phase === 'results' && selectedCampaigns.length > 0 && !showAdsetOnly && (
         <ActionBar
           selectedCampaigns={selectedCampaigns}
           onActionComplete={() => { if (csvFile) { setPhase('analyzing'); handleAnalyze(); } }}
           onDeselect={() => setSelectedIds(new Set())}
           vndRate={vndRate}
+        />
+      )}
+
+      {showBulkModal && selectedFlatAdsets.length > 0 && (
+        <AdsetBulkBudgetModal
+          adsets={selectedFlatAdsets}
+          vndRate={vndRate}
+          onClose={() => setShowBulkModal(false)}
+          onApplied={() => {
+            setShowBulkModal(false);
+            loadAllAdsets(displayedCampaigns);
+          }}
         />
       )}
     </div>
