@@ -81,7 +81,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
           <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200">
               <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />
-              <th colSpan={showAccountColumn ? 8 : 7} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
+              <th colSpan={showAccountColumn ? 6 : 5} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
                 Facebook Ads Data
               </th>
               <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
@@ -104,10 +104,8 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Account</th>}
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Status</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">Spend</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">Impr.</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">Clicks</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">CPM</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">CPC</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">CTR (all)</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 border-r border-blue-100">Budget</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50 border-r border-emerald-100">Revenue</th>
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
@@ -147,10 +145,10 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 bg-blue-50/40">{fmtUsd(a.spend)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(a.impressions)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(a.clicks)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(a.cpm)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(a.cpc)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">
+                    {a.impressions > 0 ? `${((a.clicks / a.impressions) * 100).toFixed(2)}%` : '—'}
+                  </td>
                   <td className="px-3 py-2.5 text-right bg-blue-50/40 border-r border-blue-100">
                     {a.budget_type === 'cbo' ? (
                       <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">CBO</span>

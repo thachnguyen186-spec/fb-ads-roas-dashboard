@@ -112,14 +112,12 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
 
             {/* Spend */}
             <td className="px-3 py-2 text-right tabular-nums text-slate-700 bg-blue-50/40">{fmtUsd(adset.spend)}</td>
-            {/* Impr */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(adset.impressions)}</td>
-            {/* Clicks */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(adset.clicks)}</td>
             {/* CPM */}
             <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(adset.cpm)}</td>
-            {/* CPC */}
-            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(adset.cpc)}</td>
+            {/* CTR (all) */}
+            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">
+              {adset.impressions > 0 ? `${((adset.clicks / adset.impressions) * 100).toFixed(2)}%` : '—'}
+            </td>
 
             {/* Budget */}
             <td className="px-3 py-2 text-right tabular-nums bg-blue-50/40 border-r border-slate-200">

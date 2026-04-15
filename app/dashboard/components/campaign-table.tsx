@@ -137,7 +137,7 @@ export default function CampaignTable({
     );
   }
 
-  const fbColSpan = showAccountColumn ? 8 : 7; // Account? + Status + Spend + Impr + Clicks + CPM + CPC + Budget
+  const fbColSpan = showAccountColumn ? 6 : 5; // Account? + Status + Spend + CPM + CTR + Budget
   const hasSnapshot = snapshotCampaignMap !== null;
   // Result group: ID Match + D0 ROAS + %Profit + Profit = 4 cols; snapshot: Old ROAS + Old Profit + Δ ROAS + Δ Profit = 4 cols
   const colCount = 2 + fbColSpan + 1 + 4 + (hasSnapshot ? 4 : 0);
@@ -172,10 +172,8 @@ export default function CampaignTable({
               {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Account</th>}
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Status</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('impressions')}>Impr. <SortBtn col="impressions" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('clicks')}>Clicks <SortBtn col="clicks" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer" onClick={() => onSort('cpc')}>CPC <SortBtn col="cpc" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">CTR (all)</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 border-r border-blue-100">Budget</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50 cursor-pointer border-r border-emerald-100" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
@@ -225,10 +223,10 @@ export default function CampaignTable({
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">Active</span>
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 bg-blue-50/40">{fmtUsd(c.spend)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(c.impressions)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtNum(c.clicks)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(c.cpm)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(c.cpc)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">
+                      {c.impressions > 0 ? `${((c.clicks / c.impressions) * 100).toFixed(2)}%` : '—'}
+                    </td>
 
                     {/* Budget */}
                     <td className="px-3 py-2.5 text-right bg-blue-50/40 border-r border-blue-100">
