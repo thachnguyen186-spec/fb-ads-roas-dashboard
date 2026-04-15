@@ -25,6 +25,10 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
   const [results, setResults] = useState<CopyResult[] | null>(null);
   // tracks which copy indices have been downloaded (cross-account)
   const [downloadedIndices, setDownloadedIndices] = useState<Set<number>>(new Set());
+  // per-copy download errors (cross-account) — index → error message
+  const [downloadErrors, setDownloadErrors] = useState<Record<number, string>>({});
+  // which indices are currently fetching
+  const [downloadingIndices, setDownloadingIndices] = useState<Set<number>>(new Set());
 
   const isCrossAccount = destAccountId !== campaign.account_id;
   const destAccount = allAccounts.find((a) => a.account_id === destAccountId) ?? allAccounts[0];
@@ -81,17 +85,44 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
     }
   }
 
-  function handleCsvDownload(index: number) {
+  async function handleCsvDownload(index: number) {
     const newName = copies[index].name;
     const url = `/api/campaigns/${campaign.campaign_id}/export-csv?newName=${encodeURIComponent(newName)}`;
-    const a = document.createElement('a');
-    a.href = url;
-    // filename includes index so browser doesn't deduplicate them
-    a.download = `campaign-export${copies.length > 1 ? `-${index + 1}` : ''}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setDownloadedIndices((prev) => new Set([...prev, index]));
+
+    // Clear previous error for this index and mark as loading
+    setDownloadErrors((prev) => { const next = { ...prev }; delete next[index]; return next; });
+    setDownloadingIndices((prev) => new Set([...prev, index]));
+
+    try {
+      const res = await fetch(url);
+
+      if (!res.ok) {
+        // Parse the JSON error body so the user sees the actual reason
+        let errMsg = `HTTP ${res.status}`;
+        try {
+          const data = await res.json() as { error?: string };
+          if (data.error) errMsg = data.error;
+        } catch { /* ignore parse error */ }
+        setDownloadErrors((prev) => ({ ...prev, [index]: errMsg }));
+        return;
+      }
+
+      // Success — convert to blob and trigger browser download
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `campaign-export${copies.length > 1 ? `-${index + 1}` : ''}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      setDownloadedIndices((prev) => new Set([...prev, index]));
+    } catch (err) {
+      setDownloadErrors((prev) => ({ ...prev, [index]: err instanceof Error ? err.message : 'Network error' }));
+    } finally {
+      setDownloadingIndices((prev) => { const next = new Set(prev); next.delete(index); return next; });
+    }
   }
 
   return (
@@ -114,7 +145,7 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
           <label className="block text-xs font-medium text-slate-600 mb-1">Destination account</label>
           <select
             value={destAccountId}
-            onChange={(e) => { setDestAccountId(e.target.value); setResults(null); setDownloadedIndices(new Set()); }}
+            onChange={(e) => { setDestAccountId(e.target.value); setResults(null); setDownloadedIndices(new Set()); setDownloadErrors({}); }}
             className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {allAccounts.map((a) => (
@@ -215,22 +246,27 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
             </div>
 
             {/* Per-copy name + download button */}
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
               {copies.map((copy, i) => (
-                <div key={i} className="flex gap-2 items-center">
-                  <input
-                    value={copy.name}
-                    onChange={(e) => updateCopy(i, 'name', e.target.value)}
-                    placeholder="Campaign name"
-                    className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    onClick={() => handleCsvDownload(i)}
-                    disabled={!copy.name.trim()}
-                    className="px-3 py-1.5 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors whitespace-nowrap"
-                  >
-                    {downloadedIndices.has(i) ? '✓ Done' : '↓ CSV'}
-                  </button>
+                <div key={i} className="space-y-1">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      value={copy.name}
+                      onChange={(e) => updateCopy(i, 'name', e.target.value)}
+                      placeholder="Campaign name"
+                      className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                    <button
+                      onClick={() => handleCsvDownload(i)}
+                      disabled={!copy.name.trim() || downloadingIndices.has(i)}
+                      className="px-3 py-1.5 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-900 disabled:opacity-50 transition-colors whitespace-nowrap"
+                    >
+                      {downloadingIndices.has(i) ? '…' : downloadedIndices.has(i) ? '✓ Done' : '↓ CSV'}
+                    </button>
+                  </div>
+                  {downloadErrors[i] && (
+                    <p className="text-xs text-red-600 pl-1">Error: {downloadErrors[i]}</p>
+                  )}
                 </div>
               ))}
             </div>
