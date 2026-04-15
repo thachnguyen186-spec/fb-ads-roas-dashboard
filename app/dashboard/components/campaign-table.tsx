@@ -184,7 +184,7 @@ export default function CampaignTable({
     <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
       <div className="flex-1 min-h-0 overflow-x-scroll overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <table className="w-full text-sm border-collapse" style={zoom !== 100 ? { zoom: zoom / 100 } : undefined}>
-          <thead className="sticky top-0 z-10">
+          <thead className="sticky top-0 z-10 bg-white" style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.08)' }}>
             <tr className="border-b border-slate-200">
               <th colSpan={2} className="bg-slate-50 border-r border-slate-200" />
               <th colSpan={fbColSpan} className="px-3 py-1.5 text-center text-xs font-semibold text-blue-700 bg-blue-50 border-r border-blue-100 tracking-wide uppercase">
@@ -227,56 +227,56 @@ export default function CampaignTable({
                 </>
               )}
             </tr>
-            {/* Subtotal row — aligned to data columns */}
+            {/* Subtotal row — aligned to data columns, fully opaque backgrounds */}
             <tr className="border-b-2 border-slate-300 bg-slate-50 text-xs font-semibold text-slate-600">
-              <th className="w-10 px-4 py-1.5" />
-              <th className="px-3 py-1.5 text-left text-slate-400 font-medium border-r border-slate-200 whitespace-nowrap">
+              <th className="w-10 px-4 py-1.5 bg-slate-50" />
+              <th className="px-3 py-1.5 text-left text-slate-400 font-medium bg-slate-50 border-r border-slate-200 whitespace-nowrap">
                 {campaigns.length} campaigns · {matchedCount} matched
               </th>
-              {showAccountColumn && <th className="px-3 py-1.5 bg-blue-50/60" />}
-              <th className="px-3 py-1.5 bg-blue-50/60" />
+              {showAccountColumn && <th className="px-3 py-1.5 bg-blue-50" />}
+              <th className="px-3 py-1.5 bg-blue-50" />
               {/* Spend */}
-              <th className="px-3 py-1.5 text-right tabular-nums bg-blue-50/60 text-slate-700">{fmtUsd(totalSpend)}</th>
+              <th className="px-3 py-1.5 text-right tabular-nums bg-blue-50 text-slate-700">{fmtUsd(totalSpend)}</th>
               {/* CPM */}
-              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50/60">—</th>
+              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50">—</th>
               {/* CTR */}
-              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50/60">—</th>
+              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50">—</th>
               {/* Budget */}
-              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50/60 border-r border-blue-100">—</th>
+              <th className="px-3 py-1.5 text-right text-slate-300 bg-blue-50 border-r border-blue-100">—</th>
               {/* Revenue */}
-              <th className="px-3 py-1.5 text-right tabular-nums bg-emerald-50/60 text-emerald-700 border-r border-emerald-100">
+              <th className="px-3 py-1.5 text-right tabular-nums bg-emerald-50 text-emerald-700 border-r border-emerald-100">
                 {totalRevenue > 0 ? fmtUsd(totalRevenue) : <span className="text-slate-300">—</span>}
               </th>
               {/* ID Match */}
-              <th className="px-3 py-1.5 text-center text-slate-400 bg-purple-50/60">—</th>
+              <th className="px-3 py-1.5 text-center text-slate-400 bg-purple-50">—</th>
               {/* Avg ROAS */}
-              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50/60 ${avgRoas === null ? 'text-slate-300' : avgRoas >= 2 ? 'text-emerald-600' : avgRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
+              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50 ${avgRoas === null ? 'text-slate-300' : avgRoas >= 2 ? 'text-emerald-600' : avgRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
                 {avgRoas !== null ? `${avgRoas.toFixed(2)}x` : '—'}
               </th>
               {/* Avg %Profit */}
-              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50/60 ${avgProfitPct === null ? 'text-slate-300' : avgProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50 ${avgProfitPct === null ? 'text-slate-300' : avgProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {avgProfitPct !== null ? `${avgProfitPct >= 0 ? '+' : ''}${avgProfitPct.toFixed(1)}%` : '—'}
               </th>
               {/* Total Profit */}
-              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50/60 ${totalProfit === 0 ? 'text-slate-300' : totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              <th className={`px-3 py-1.5 text-right tabular-nums bg-purple-50 ${totalProfit === 0 ? 'text-slate-300' : totalProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                 {totalRevenue > 0 ? fmtUsd(totalProfit) : <span className="text-slate-300">—</span>}
               </th>
               {hasSnapshot && (
                 <>
                   {/* Avg Old ROAS */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50/60 border-l border-amber-100 text-xs font-semibold ${avgSnapRoas === null ? 'text-slate-300' : avgSnapRoas >= 2 ? 'text-emerald-600' : avgSnapRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 border-l border-amber-100 text-xs font-semibold ${avgSnapRoas === null ? 'text-slate-300' : avgSnapRoas >= 2 ? 'text-emerald-600' : avgSnapRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
                     {avgSnapRoas !== null ? `${avgSnapRoas.toFixed(2)}x` : '—'}
                   </th>
                   {/* Total Old Profit */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50/60 text-xs font-semibold ${totalSnapProfit === null ? 'text-slate-300' : totalSnapProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 text-xs font-semibold ${totalSnapProfit === null ? 'text-slate-300' : totalSnapProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalSnapProfit !== null ? fmtUsd(totalSnapProfit) : '—'}
                   </th>
                   {/* Avg Δ ROAS */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50/60 text-xs font-semibold ${avgDeltaRoas === null ? 'text-slate-300' : avgDeltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 text-xs font-semibold ${avgDeltaRoas === null ? 'text-slate-300' : avgDeltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {avgDeltaRoas !== null ? `${avgDeltaRoas >= 0 ? '+' : ''}${avgDeltaRoas.toFixed(2)}x` : '—'}
                   </th>
                   {/* Total Δ Profit */}
-                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50/60 text-xs font-semibold ${totalDeltaProfit === null ? 'text-slate-300' : totalDeltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-1.5 text-right tabular-nums bg-amber-50 text-xs font-semibold ${totalDeltaProfit === null ? 'text-slate-300' : totalDeltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalDeltaProfit !== null ? `${totalDeltaProfit >= 0 ? '+' : '-'}$${Math.abs(totalDeltaProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                   </th>
                 </>
