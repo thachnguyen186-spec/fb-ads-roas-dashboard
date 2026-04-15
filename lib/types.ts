@@ -118,6 +118,38 @@ export interface MergedAdSet extends AdSetRow {
   has_adjust_data: boolean;
 }
 
+// ─── Snapshots ────────────────────────────────────────────────────────────────
+
+/** Minimal campaign record stored inside a snapshot */
+export interface SnapshotRow {
+  campaign_id: string;
+  campaign_name: string;
+  roas: number | null;
+  profit_pct: number | null;
+}
+
+/** Minimal adset record stored inside a snapshot */
+export interface SnapshotAdSetRow {
+  adset_id: string;
+  campaign_id: string;
+  adset_name: string;
+  roas: number | null;
+  profit_pct: number | null;
+}
+
+/** Full snapshot payload stored in the `snapshot_data` JSONB column */
+export interface SnapshotData {
+  campaigns: SnapshotRow[];
+  adsets: SnapshotAdSetRow[];
+}
+
+/** Lightweight snapshot list entry (no data blob) */
+export interface SnapshotMeta {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
 /** Generic budget-bearing entity passed to BudgetModal — works for campaigns and ad sets */
 export interface BudgetTarget {
   id: string;

@@ -6,13 +6,14 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { parseAdjustCsv, aggregateByCampaignId, aggregateByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
-import type { AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, StaffMember, UserRole } from '@/lib/types';
+import type { AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
 import CampaignTable from './campaign-table';
 import FilterBar from './filter-bar';
 import ActionBar from './action-bar';
 import AdsetFlatView, { type FlatAdSet } from './adset-flat-view';
 import AdsetBulkBudgetModal from './adset-bulk-budget-modal';
+import SnapshotToolbar from './snapshot-toolbar';
 
 type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
 
@@ -59,6 +60,12 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [vndRate, setVndRate] = useState(26000);
   const [rateInput, setRateInput] = useState('26000');
+  // Snapshots
+  const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
+  const [activeSnapshot, setActiveSnapshot] = useState<SnapshotData | null>(null);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+
   // Auto-select zoom based on available viewport height so small monitors show as many rows as large ones
   const [zoom, setZoom] = useState<number>(() => {
     if (typeof window === 'undefined') return 100;
@@ -96,6 +103,75 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     setSpendMin(''); setSpendMax('');
     setBudgetMin(''); setBudgetMax('');
     setRoasMin(''); setRoasMax('');
+    setSnapshots([]);
+    setSelectedSnapshotId(null);
+    setActiveSnapshot(null);
+  }
+
+  async function fetchSnapshots() {
+    const res = await fetch('/api/snapshots');
+    if (res.ok) {
+      const data = await res.json();
+      setSnapshots(data.snapshots ?? []);
+    }
+  }
+
+  async function handleSelectSnapshot(id: string | null) {
+    setSelectedSnapshotId(id);
+    if (!id) { setActiveSnapshot(null); return; }
+    const res = await fetch(`/api/snapshots/${id}`);
+    if (res.ok) {
+      const data = await res.json();
+      setActiveSnapshot(data.snapshot_data as SnapshotData);
+    }
+  }
+
+  async function handleSaveSnapshot(name: string) {
+    setSavingSnapshot(true);
+    try {
+      // Collect current campaign metrics
+      const campaigns: SnapshotRow[] = mergedCampaigns.map((c) => ({
+        campaign_id: c.campaign_id,
+        campaign_name: c.campaign_name,
+        roas: c.roas,
+        profit_pct: c.profit_pct,
+      }));
+      // Fetch and merge all adsets in parallel
+      const adsetResults = await Promise.all(
+        mergedCampaigns.map(async (c) => {
+          const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (!res.ok) return [] as SnapshotAdSetRow[];
+          return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
+            adset_id: a.adset_id,
+            campaign_id: c.campaign_id,
+            adset_name: a.adset_name,
+            roas: a.roas,
+            profit_pct: a.profit_pct,
+          }));
+        }),
+      );
+      const adsets = adsetResults.flat();
+      const snapshot_data: SnapshotData = { campaigns, adsets };
+      await fetch('/api/snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, snapshot_data }),
+      });
+      await fetchSnapshots();
+    } finally {
+      setSavingSnapshot(false);
+    }
+  }
+
+  async function handleDeleteSnapshot(id: string) {
+    await fetch(`/api/snapshots/${id}`, { method: 'DELETE' });
+    if (selectedSnapshotId === id) {
+      setSelectedSnapshotId(null);
+      setActiveSnapshot(null);
+    }
+    await fetchSnapshots();
   }
 
   function handleRecalculate() {
@@ -164,6 +240,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
       const merged = mergeCampaigns(fbCampaigns, adjustMap, vndRate);
       setMergedCampaigns(merged);
       setPhase('results');
+      fetchSnapshots(); // load saved snapshots when results are ready
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Unknown error');
       setPhase('error');
@@ -243,6 +320,17 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
     [displayedCampaigns, selectedIds],
   );
+
+  // Derive snapshot lookup maps — null when no snapshot is selected
+  const snapshotCampaignMap = useMemo<Map<string, SnapshotRow> | null>(() => {
+    if (!activeSnapshot) return null;
+    return new Map(activeSnapshot.campaigns.map((r) => [r.campaign_id, r]));
+  }, [activeSnapshot]);
+
+  const snapshotAdSetMap = useMemo<Map<string, SnapshotAdSetRow> | null>(() => {
+    if (!activeSnapshot) return null;
+    return new Map(activeSnapshot.adsets.map((r) => [r.adset_id, r]));
+  }, [activeSnapshot]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -441,6 +529,16 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                 )}
               </div>
 
+              {/* Snapshot save + compare selector */}
+              <SnapshotToolbar
+                snapshots={snapshots}
+                selectedId={selectedSnapshotId}
+                onSelect={handleSelectSnapshot}
+                onSave={handleSaveSnapshot}
+                onDelete={handleDeleteSnapshot}
+                saving={savingSnapshot}
+              />
+
               {/* Unified filter bar — shown in campaign view only */}
               {!showAdsetOnly && (
                 <FilterBar
@@ -484,6 +582,8 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                   showAccountColumn={accountOptions.length > 1}
                   adjustAdSetMap={adjustAdSetMapState}
                   vndRate={vndRate}
+                  snapshotCampaignMap={snapshotCampaignMap}
+                  snapshotAdSetMap={snapshotAdSetMap}
                 />
               )}
 
@@ -500,6 +600,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                     onSelectionChange={setSelectedFlatAdsetIds}
                     vndRate={vndRate}
                     showAccountColumn={accountOptions.length > 1}
+                    snapshotAdSetMap={snapshotAdSetMap}
                   />
                 )
               )}

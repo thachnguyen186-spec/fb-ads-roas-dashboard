@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
-import type { BudgetTarget, MergedAdSet } from '@/lib/types';
+import type { BudgetTarget, MergedAdSet, SnapshotAdSetRow } from '@/lib/types';
 import BudgetModal from './budget-modal';
 
 function fmtUsd(v: number | null) {
@@ -25,9 +25,11 @@ interface Props {
   onSelectionChange: (ids: Set<string>) => void;
   vndRate: number;
   showAccountColumn: boolean;
+  /** Snapshot compare: map adset_id → saved metrics. Null = no snapshot selected. */
+  snapshotAdSetMap: Map<string, SnapshotAdSetRow> | null;
 }
 
-export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn }: Props) {
+export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn, snapshotAdSetMap }: Props) {
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -88,6 +90,11 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th colSpan={3} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
                 Result
               </th>
+              {snapshotAdSetMap !== null && (
+                <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-100 tracking-wide uppercase">
+                  Snapshot Compare
+                </th>
+              )}
             </tr>
             <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-medium text-xs">
               <th className="w-10 px-4 py-2.5">
@@ -106,6 +113,14 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">D0 ROAS</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">%Profit</th>
+              {snapshotAdSetMap !== null && (
+                <>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-l border-amber-100">Old ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ %Profit</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -168,6 +183,28 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                   <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 ${a.profit_pct === null ? 'text-slate-300' : a.profit_pct >= 0 ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}`}>
                     {formatProfit(a.profit_pct)}
                   </td>
+                  {/* Snapshot compare columns */}
+                  {snapshotAdSetMap !== null && (() => {
+                    const snap = snapshotAdSetMap.get(a.adset_id) ?? null;
+                    const deltaRoas = snap && a.roas !== null && snap.roas !== null ? a.roas - snap.roas : null;
+                    const deltaProfit = snap && a.profit_pct !== null && snap.profit_pct !== null ? a.profit_pct - snap.profit_pct : null;
+                    return (
+                      <>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
+                          {snap ? formatRoas(snap.roas) : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs ${snap === null || snap.profit_pct === null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {snap ? formatProfit(snap.profit_pct) : '—'}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
+                        </td>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : ''}${deltaProfit.toFixed(2)}%` : '—'}
+                        </td>
+                      </>
+                    );
+                  })()}
                 </tr>
               );
             })}

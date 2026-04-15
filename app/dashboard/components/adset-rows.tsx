@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { BudgetTarget, MergedAdSet } from '@/lib/types';
+import type { BudgetTarget, MergedAdSet, SnapshotAdSetRow } from '@/lib/types';
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import BudgetModal from './budget-modal';
 
@@ -25,9 +25,11 @@ interface Props {
   onBudgetUpdate: () => void;
   /** VND→USD rate from parent, needed for original-currency budget display */
   vndRate: number;
+  /** Snapshot compare: map adset_id → saved metrics. Null = no snapshot selected. */
+  snapshotAdSetMap: Map<string, SnapshotAdSetRow> | null;
 }
 
-export default function AdSetRows({ adsets, loading, error, showAccountColumn, colCount, onBudgetUpdate, vndRate }: Props) {
+export default function AdSetRows({ adsets, loading, error, showAccountColumn, colCount, onBudgetUpdate, vndRate, snapshotAdSetMap }: Props) {
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -174,6 +176,28 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
             <td className={`px-3 py-2 text-right tabular-nums bg-purple-50/40 ${adset.profit_pct === null ? 'text-slate-300' : adset.profit_pct >= 0 ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}`}>
               {formatProfit(adset.profit_pct)}
             </td>
+            {/* Snapshot compare columns */}
+            {snapshotAdSetMap !== null && (() => {
+              const snap = snapshotAdSetMap.get(adset.adset_id) ?? null;
+              const deltaRoas = snap && adset.roas !== null && snap.roas !== null ? adset.roas - snap.roas : null;
+              const deltaProfit = snap && adset.profit_pct !== null && snap.profit_pct !== null ? adset.profit_pct - snap.profit_pct : null;
+              return (
+                <>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
+                    {snap ? formatRoas(snap.roas) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs ${snap === null || snap.profit_pct === null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {snap ? formatProfit(snap.profit_pct) : '—'}
+                  </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
+                  </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : ''}${deltaProfit.toFixed(2)}%` : '—'}
+                  </td>
+                </>
+              );
+            })()}
           </tr>
         );
       })}

@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react';
 import { mergeAdSets, roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
-import type { AdSetRow, BudgetTarget, MergedCampaign } from '@/lib/types';
+import type { AdSetRow, BudgetTarget, MergedCampaign, SnapshotAdSetRow, SnapshotRow } from '@/lib/types';
 import AdSetRows from './adset-rows';
 import BudgetModal from './budget-modal';
 
@@ -36,11 +36,16 @@ interface Props {
   showAccountColumn?: boolean;
   adjustAdSetMap: Map<string, number>;
   vndRate: number;
+  /** Snapshot compare: map campaign_id → saved metrics. Null = no snapshot selected. */
+  snapshotCampaignMap: Map<string, SnapshotRow> | null;
+  /** Passed through to AdSetRows for adset-level compare columns. */
+  snapshotAdSetMap: Map<string, SnapshotAdSetRow> | null;
 }
 
 export default function CampaignTable({
   campaigns, selectedIds, onSelectionChange, sortCol, sortDir, onSort,
   showAccountColumn = false, adjustAdSetMap, vndRate,
+  snapshotCampaignMap, snapshotAdSetMap,
 }: Props) {
   const allSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.campaign_id));
 
@@ -133,7 +138,8 @@ export default function CampaignTable({
   }
 
   const fbColSpan = showAccountColumn ? 8 : 7; // Account? + Status + Spend + Impr + Clicks + CPM + CPC + Budget
-  const colCount = 2 + fbColSpan + 1 + 3; // checkbox + Campaign + FB + Adjust + (ID Match + D0 ROAS + %Profit)
+  const hasSnapshot = snapshotCampaignMap !== null;
+  const colCount = 2 + fbColSpan + 1 + 3 + (hasSnapshot ? 4 : 0); // + snapshot cols when active
 
   return (
     <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -148,9 +154,14 @@ export default function CampaignTable({
               <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
                 Adjust CSV
               </th>
-              <th colSpan={3} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
+              <th colSpan={3} className={`px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase ${hasSnapshot ? '' : ''}`}>
                 Result
               </th>
+              {hasSnapshot && (
+                <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-100 tracking-wide uppercase">
+                  Snapshot Compare
+                </th>
+              )}
             </tr>
             <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-medium">
               <th className="w-10 px-4 py-2.5">
@@ -169,6 +180,14 @@ export default function CampaignTable({
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('roas')}>D0 ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('profit_pct')}>%Profit <SortBtn col="profit_pct" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              {hasSnapshot && (
+                <>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-l border-amber-100 text-xs">Old ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Old %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Δ ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Δ %Profit</th>
+                </>
+              )}
             </tr>
           </thead>
 
@@ -240,6 +259,28 @@ export default function CampaignTable({
                     <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 text-sm ${c.profit_pct === null ? 'text-slate-300' : c.profit_pct >= 0 ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}`}>
                       {formatProfit(c.profit_pct)}
                     </td>
+                    {/* Snapshot compare columns */}
+                    {hasSnapshot && (() => {
+                      const snap = snapshotCampaignMap?.get(c.campaign_id) ?? null;
+                      const deltaRoas = snap && c.roas !== null && snap.roas !== null ? c.roas - snap.roas : null;
+                      const deltaProfit = snap && c.profit_pct !== null && snap.profit_pct !== null ? c.profit_pct - snap.profit_pct : null;
+                      return (
+                        <>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
+                            {snap ? formatRoas(snap.roas) : <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs ${snap === null || snap.profit_pct === null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {snap ? formatProfit(snap.profit_pct) : '—'}
+                          </td>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
+                          </td>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : ''}${deltaProfit.toFixed(2)}%` : '—'}
+                          </td>
+                        </>
+                      );
+                    })()}
                   </tr>
 
                   {isExpanded && (
@@ -251,6 +292,7 @@ export default function CampaignTable({
                       colCount={colCount}
                       onBudgetUpdate={() => refetchAdSets(c)}
                       vndRate={vndRate}
+                      snapshotAdSetMap={snapshotAdSetMap}
                     />
                   )}
                 </Fragment>

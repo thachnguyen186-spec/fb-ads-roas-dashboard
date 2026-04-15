@@ -94,3 +94,22 @@ alter table public.team_members enable row level security;
 create policy "Team members can read own rows"
   on public.team_members for select
   using (auth.uid() = leader_id or auth.uid() = staff_id);
+
+-- ─── campaign_snapshots: named metric snapshots for compare feature ────────────
+-- Run this block in Supabase SQL editor to enable the snapshot/compare feature.
+
+create table if not exists public.campaign_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  -- { campaigns: SnapshotRow[], adsets: SnapshotAdSetRow[] }
+  snapshot_data jsonb not null,
+  created_at timestamptz default now() not null
+);
+
+alter table public.campaign_snapshots enable row level security;
+
+create policy "Users manage own snapshots"
+  on public.campaign_snapshots for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
