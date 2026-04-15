@@ -87,7 +87,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
                 Adjust CSV
               </th>
-              <th colSpan={3} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
+              <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
                 Result
               </th>
               {snapshotAdSetMap !== null && (
@@ -113,12 +113,13 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">D0 ROAS</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">%Profit</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">Profit</th>
               {snapshotAdSetMap !== null && (
                 <>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-l border-amber-100">Old ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old Profit</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ Profit</th>
                 </>
               )}
             </tr>
@@ -183,24 +184,27 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                   <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 ${a.profit_pct === null ? 'text-slate-300' : a.profit_pct >= 0 ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}`}>
                     {formatProfit(a.profit_pct)}
                   </td>
-                  {/* Snapshot compare columns */}
+                  <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 font-medium ${a.profit === null ? 'text-slate-300' : a.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {a.profit !== null ? fmtUsd(a.profit) : '—'}
+                  </td>
+                  {/* Snapshot compare: Old ROAS | Old Profit | Δ ROAS | Δ Profit */}
                   {snapshotAdSetMap !== null && (() => {
                     const snap = snapshotAdSetMap.get(a.adset_id) ?? null;
                     const deltaRoas = snap && a.roas !== null && snap.roas !== null ? a.roas - snap.roas : null;
-                    const deltaProfit = snap && a.profit_pct !== null && snap.profit_pct !== null ? a.profit_pct - snap.profit_pct : null;
+                    const deltaProfit = snap && a.profit !== null && snap.profit !== null ? a.profit - snap.profit : null;
                     return (
                       <>
                         <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
                           {snap ? formatRoas(snap.roas) : <span className="text-slate-300">—</span>}
                         </td>
-                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs ${snap === null || snap.profit_pct === null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {snap ? formatProfit(snap.profit_pct) : '—'}
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap === null || snap.profit === null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {snap?.profit !== null && snap?.profit !== undefined ? fmtUsd(snap.profit) : '—'}
                         </td>
                         <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
                         </td>
                         <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : ''}${deltaProfit.toFixed(2)}%` : '—'}
+                          {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : '-'}$${Math.abs(deltaProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                         </td>
                       </>
                     );

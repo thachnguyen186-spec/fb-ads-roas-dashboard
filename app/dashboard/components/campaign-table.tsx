@@ -139,7 +139,8 @@ export default function CampaignTable({
 
   const fbColSpan = showAccountColumn ? 8 : 7; // Account? + Status + Spend + Impr + Clicks + CPM + CPC + Budget
   const hasSnapshot = snapshotCampaignMap !== null;
-  const colCount = 2 + fbColSpan + 1 + 3 + (hasSnapshot ? 4 : 0); // + snapshot cols when active
+  // Result group: ID Match + D0 ROAS + %Profit + Profit = 4 cols; snapshot: Old ROAS + Old Profit + Δ ROAS + Δ Profit = 4 cols
+  const colCount = 2 + fbColSpan + 1 + 4 + (hasSnapshot ? 4 : 0);
 
   return (
     <div className="h-full flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -154,7 +155,7 @@ export default function CampaignTable({
               <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-100 tracking-wide uppercase">
                 Adjust CSV
               </th>
-              <th colSpan={3} className={`px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase ${hasSnapshot ? '' : ''}`}>
+              <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 tracking-wide uppercase">
                 Result
               </th>
               {hasSnapshot && (
@@ -180,12 +181,13 @@ export default function CampaignTable({
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('roas')}>D0 ROAS <SortBtn col="roas" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('profit_pct')}>%Profit <SortBtn col="profit_pct" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer" onClick={() => onSort('profit')}>Profit <SortBtn col="profit" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               {hasSnapshot && (
                 <>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-l border-amber-100 text-xs">Old ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Old %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Old Profit</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Δ ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Δ %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 text-xs">Δ Profit</th>
                 </>
               )}
             </tr>
@@ -259,24 +261,27 @@ export default function CampaignTable({
                     <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 text-sm ${c.profit_pct === null ? 'text-slate-300' : c.profit_pct >= 0 ? 'text-emerald-600 font-medium' : 'text-red-600 font-medium'}`}>
                       {formatProfit(c.profit_pct)}
                     </td>
-                    {/* Snapshot compare columns */}
+                    <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 text-sm font-medium ${c.profit === null ? 'text-slate-300' : c.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {c.profit !== null ? fmtUsd(c.profit) : '—'}
+                    </td>
+                    {/* Snapshot compare columns: Old ROAS | Old Profit | Δ ROAS | Δ Profit */}
                     {hasSnapshot && (() => {
                       const snap = snapshotCampaignMap?.get(c.campaign_id) ?? null;
                       const deltaRoas = snap && c.roas !== null && snap.roas !== null ? c.roas - snap.roas : null;
-                      const deltaProfit = snap && c.profit_pct !== null && snap.profit_pct !== null ? c.profit_pct - snap.profit_pct : null;
+                      const deltaProfit = snap && c.profit !== null && snap.profit !== null ? c.profit - snap.profit : null;
                       return (
                         <>
                           <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
                             {snap ? formatRoas(snap.roas) : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs ${snap === null || snap.profit_pct === null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {snap ? formatProfit(snap.profit_pct) : '—'}
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap === null || snap.profit === null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {snap?.profit !== null && snap?.profit !== undefined ? fmtUsd(snap.profit) : '—'}
                           </td>
                           <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
                           </td>
                           <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : ''}${deltaProfit.toFixed(2)}%` : '—'}
+                            {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : '-'}$${Math.abs(deltaProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                           </td>
                         </>
                       );

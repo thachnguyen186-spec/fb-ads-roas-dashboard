@@ -84,6 +84,8 @@ export interface MergedCampaign extends CampaignRow {
   roas: number | null;
   /** (Revenue - Spend) / Spend * 100; null when no Adjust data or spend === 0 */
   profit_pct: number | null;
+  /** Revenue - Spend in USD; null when no Adjust data */
+  profit: number | null;
   has_adjust_data: boolean;
 }
 
@@ -115,6 +117,8 @@ export interface MergedAdSet extends AdSetRow {
   roas: number | null;
   /** (Revenue - Spend) / Spend * 100; null when no Adjust data or spend === 0 */
   profit_pct: number | null;
+  /** Revenue - Spend in USD; null when no Adjust data */
+  profit: number | null;
   has_adjust_data: boolean;
 }
 
@@ -126,6 +130,7 @@ export interface SnapshotRow {
   campaign_name: string;
   roas: number | null;
   profit_pct: number | null;
+  profit: number | null;
 }
 
 /** Minimal adset record stored inside a snapshot */
@@ -135,6 +140,7 @@ export interface SnapshotAdSetRow {
   adset_name: string;
   roas: number | null;
   profit_pct: number | null;
+  profit: number | null;
 }
 
 /** Full snapshot payload stored in the `snapshot_data` JSONB column */

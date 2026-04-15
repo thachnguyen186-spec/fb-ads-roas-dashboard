@@ -17,6 +17,12 @@ export function computeProfit(revenue: number | null, spend: number): number | n
   return ((revenue - spend) / spend) * 100;
 }
 
+/** Profit amount = revenue - spend. Null when no Adjust data. */
+export function computeProfitAmount(revenue: number | null, spend: number): number | null {
+  if (revenue === null) return null;
+  return revenue - spend;
+}
+
 /** Format profit as "35.50%" or "—" */
 export function formatProfit(pct: number | null): string {
   if (pct === null) return '—';
@@ -46,6 +52,7 @@ export function mergeCampaigns(
       adjust_revenue: adjustRevenue,
       roas: computeRoas(adjustRevenue, spendUsd),
       profit_pct: computeProfit(adjustRevenue, spendUsd),
+      profit: computeProfitAmount(adjustRevenue, spendUsd),
       has_adjust_data: adjustRevenue !== null,
     };
   });
@@ -77,6 +84,7 @@ export function mergeAdSets(
       adjust_revenue: adjustRevenue,
       roas: computeRoas(adjustRevenue, spendUsd),
       profit_pct: computeProfit(adjustRevenue, spendUsd),
+      profit: computeProfitAmount(adjustRevenue, spendUsd),
       has_adjust_data: adjustRevenue !== null,
     };
   });

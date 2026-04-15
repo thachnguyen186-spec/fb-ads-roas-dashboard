@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -135,6 +135,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
         campaign_name: c.campaign_name,
         roas: c.roas,
         profit_pct: c.profit_pct,
+        profit: c.profit,
       }));
       // Fetch and merge all adsets in parallel
       const adsetResults = await Promise.all(
@@ -149,6 +150,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
             adset_name: a.adset_name,
             roas: a.roas,
             profit_pct: a.profit_pct,
+            profit: a.profit,
           }));
         }),
       );
@@ -341,9 +343,20 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
   const isResults = phase === 'results';
 
+  // Lock page scroll in results mode — prevents page scroll when inner zoom div overflows layout
+  useEffect(() => {
+    if (isResults) {
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.documentElement.style.overflow = '';
+    }
+    return () => { document.documentElement.style.overflow = ''; };
+  }, [isResults]);
+
   return (
-    // Outer: no zoom, fixed-height in results so table scroll is contained inside the page
-    <div className={`flex flex-col bg-slate-50 ${isResults ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
+    // Outer: fixed-height in results mode; overflow NOT hidden here (body scroll locked instead)
+    // so that zoom-compensated inner div's scroll containers are never clipped
+    <div className={`flex flex-col bg-slate-50 ${isResults ? 'h-dvh' : 'min-h-screen'}`}>
     {/* Inner: zoomed. Height compensated so zoom never shrinks below viewport (e.g. zoom=80 → height=125%) */}
     <div
       style={{
