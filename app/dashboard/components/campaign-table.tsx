@@ -228,7 +228,7 @@ export default function CampaignTable({
               )}
             </tr>
             {/* Subtotal row — aligned to data columns, fully opaque backgrounds */}
-            <tr className="border-b-2 border-slate-300 bg-slate-50 text-xs font-semibold text-slate-600">
+            <tr className="border-b-2 border-slate-300 bg-slate-50 text-sm font-semibold text-slate-600">
               <th className="w-10 px-4 py-1.5 bg-slate-50" />
               <th className="px-3 py-1.5 text-left text-slate-400 font-medium bg-slate-50 border-r border-slate-200 whitespace-nowrap">
                 {campaigns.length} campaigns · {matchedCount} matched
