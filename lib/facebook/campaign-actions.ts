@@ -29,8 +29,8 @@ export async function enableCampaign(token: string, campaignId: string): Promise
 
 /**
  * Duplicates a campaign within the same account via FB Copies API.
- * Copies campaign + ad sets + ads (deep_copy=true), starts PAUSED.
- * Then patches the copy with a custom name and optional budget override.
+ * Strategy: shallow campaign copy + per-adset copies (avoids `deep_copy=1` which
+ * requires elevated FB app permissions and causes OAuthException for standard tokens).
  * Returns the new campaign ID.
  */
 function stepError(step: string, err: unknown): Error {
@@ -45,13 +45,11 @@ export async function duplicateCampaignSameAccount(
   budgetOverride?: { amount: number; type: 'daily' | 'lifetime'; currency: string },
   adsetBudgets?: AdsetBudgetSpec[],
 ): Promise<string> {
-  // Step 1: Deep-copy the campaign (creates new campaign + adsets + ads, starts PAUSED).
-  // Uses fbPostForm (form-encoded body) because the /copies endpoint rejects URL-only params.
-  // rename_options omitted — requires elevated API access; name is patched in step 2.
+  // Step 1: Shallow-copy the campaign (no deep_copy — it requires elevated FB app permissions).
+  // rename_options also omitted for the same reason; name is patched in step 2.
   let newId: string;
   try {
     const copyRes = await fbPostForm(`/${campaignId}/copies`, {
-      deep_copy: '1',
       status_option: 'PAUSED',
     }, token) as { copied_campaign_id: string };
     newId = copyRes.copied_campaign_id;
@@ -79,28 +77,44 @@ export async function duplicateCampaignSameAccount(
     }
   }
 
-  // Step 4: Patch adset-level budgets — match new adsets by name (deep copy preserves names)
-  if (adsetBudgets && adsetBudgets.length > 0) {
-    let newAdSets: Array<{ id: string; name: string }>;
-    try {
-      const adSetsRes = await fbGet(`/${newId}/adsets`, {
-        fields: 'id,name',
-        limit: '200',
-      }, token) as { data: Array<{ id: string; name: string }> };
-      newAdSets = adSetsRes.data ?? [];
-    } catch (err) {
-      throw stepError('fetch new adsets for budget patch', err);
-    }
+  // Step 4: Fetch original ad sets and copy each one into the new campaign.
+  // POST /{adset_id}/copies with campaign_id works with standard ads_management permission.
+  let originalAdSets: Array<{ id: string; name: string }>;
+  try {
+    const res = await fbGet(`/${campaignId}/adsets`, {
+      fields: 'id,name',
+      limit: '200',
+    }, token) as { data: Array<{ id: string; name: string }> };
+    originalAdSets = res.data ?? [];
+  } catch (err) {
+    throw stepError('fetch original adsets', err);
+  }
 
+  // Copy each adset into the new campaign; track original_name → new_adset_id for budget patching
+  const copiedAdSetIds = new Map<string, string>();
+  for (const adset of originalAdSets) {
+    try {
+      const copyRes = await fbPostForm(`/${adset.id}/copies`, {
+        campaign_id: newId,
+        status_option: 'PAUSED',
+      }, token) as { copied_adset_id: string };
+      copiedAdSetIds.set(adset.name, copyRes.copied_adset_id);
+    } catch (err) {
+      throw stepError(`copy adset "${adset.name}"`, err);
+    }
+  }
+
+  // Step 5: Patch adset-level budgets using the copied adset IDs (same names preserved)
+  if (adsetBudgets && adsetBudgets.length > 0) {
     for (const budget of adsetBudgets) {
-      const match = newAdSets.find((a) => a.name === budget.name);
-      if (!match) continue;
+      const newAdSetId = copiedAdSetIds.get(budget.name);
+      if (!newAdSetId) continue;
       const fbValue = budget.currency === 'VND'
         ? Math.round(budget.amount)
         : Math.round(budget.amount * 100);
       const field = budget.type === 'daily' ? 'daily_budget' : 'lifetime_budget';
       try {
-        await fbPatch(`/${match.id}`, { [field]: String(fbValue) }, token);
+        await fbPatch(`/${newAdSetId}`, { [field]: String(fbValue) }, token);
       } catch (err) {
         throw stepError(`set adset budget for "${budget.name}"`, err);
       }
