@@ -421,7 +421,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     <div className="flex flex-col bg-slate-50 min-h-screen">
       <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold text-slate-900">FB Ads ROAS</h1>
+          <h1 className="text-sm font-semibold text-slate-900">🔥 It&apos;s Cooking Time</h1>
           {/* Leader/admin: staff switcher */}
           {(userRole === 'leader' || userRole === 'admin') && staffList.length > 0 && (
             <select
@@ -585,32 +585,35 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
           <div className="flex flex-col gap-3">
             {/* Controls */}
             <div className="flex flex-col gap-3">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center justify-between">
-                <span>⚠ Today&apos;s FB spend may be incomplete — insights delayed 6–48h. Active campaigns only.</span>
-                <button onClick={handleStartOver} className="ml-4 text-amber-800 underline hover:no-underline whitespace-nowrap">Start over</button>
+              {/* VND/USD rate control — always shown; Start Over is right-aligned here */}
+              <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
+                {hasVndAccounts && (
+                  <>
+                    <span className="text-orange-800 font-medium whitespace-nowrap">VND → USD rate:</span>
+                    <input
+                      type="number"
+                      value={rateInput}
+                      onChange={(e) => setRateInput(e.target.value)}
+                      min="1"
+                      className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      placeholder="26000"
+                    />
+                    <button
+                      onClick={handleRecalculate}
+                      className="px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded hover:bg-orange-600 transition-colors whitespace-nowrap"
+                    >
+                      Recalculate
+                    </button>
+                    <span className="text-xs text-orange-600">Current: 1 USD = {vndRate.toLocaleString()} VND</span>
+                  </>
+                )}
+                <button
+                  onClick={handleStartOver}
+                  className="ml-auto px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded transition-colors whitespace-nowrap"
+                >
+                  Start Over
+                </button>
               </div>
-
-              {/* VND/USD rate control — only shown when VND accounts are present */}
-              {hasVndAccounts && (
-                <div className="flex items-center gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg text-sm">
-                  <span className="text-orange-800 font-medium whitespace-nowrap">VND → USD rate:</span>
-                  <input
-                    type="number"
-                    value={rateInput}
-                    onChange={(e) => setRateInput(e.target.value)}
-                    min="1"
-                    className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-orange-400"
-                    placeholder="26000"
-                  />
-                  <button
-                    onClick={handleRecalculate}
-                    className="px-3 py-1 bg-orange-500 text-white text-sm font-medium rounded hover:bg-orange-600 transition-colors whitespace-nowrap"
-                  >
-                    Recalculate
-                  </button>
-                  <span className="text-xs text-orange-600">Current: 1 USD = {vndRate.toLocaleString()} VND</span>
-                </div>
-              )}
 
               {/* View toggle: campaigns vs flat adsets */}
               <div className="flex items-center gap-2">
