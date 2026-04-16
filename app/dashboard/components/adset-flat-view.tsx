@@ -20,7 +20,8 @@ export interface FlatAdSet extends MergedAdSet {
   campaign_name: string;
 }
 
-type SortCol = 'spend' | 'roas' | 'profit_pct' | 'profit' | 'adjust_revenue' | 'cpm' | 'ctr' | 'budget';
+/** Live column sort keys, or 'snap:{compId}:{field}' / 'delta:{compId}:{field}' for snapshot columns */
+type SortCol = string;
 
 interface Props {
   adsets: FlatAdSet[];
@@ -40,12 +41,12 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
   const [sortCol, setSortCol] = useState<SortCol>('spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  function handleSort(col: SortCol) {
+  function handleSort(col: string) {
     if (col === sortCol) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortCol(col); setSortDir('desc'); }
   }
 
-  function sortArrow(col: SortCol) {
+  function sortArrow(col: string) {
     if (col !== sortCol) return <span className="ml-0.5 text-slate-300">↕</span>;
     return <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>;
   }
@@ -54,14 +55,40 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
     return a.budget_type === 'cbo' ? 0 : (a.daily_budget ?? a.lifetime_budget ?? 0);
   }
 
+  /** Get sort value for snap or delta columns. Format: 'snap:{compId}:{field}' | 'delta:{compId}:{field}' */
+  function getSnapSortValue(a: FlatAdSet, col: string): number {
+    const [type, compId, field] = col.split(':');
+    const comp = snapshotComparisons.find((c) => c.id === compId);
+    if (!comp) return 0;
+    const snap = comp.adsetMap.get(a.adset_id);
+    if (!snap) return 0;
+    if (type === 'snap') {
+      return (snap[field as keyof SnapshotAdSetRow] as number | null) ?? 0;
+    }
+    // delta: prevVal − snapVal
+    const snapVal = (snap[field as keyof SnapshotAdSetRow] as number | null) ?? null;
+    if (snapVal == null) return 0;
+    const prevVal = comp.prevAdsetMap
+      ? ((comp.prevAdsetMap.get(a.adset_id)?.[field as keyof SnapshotAdSetRow] as number | null) ?? null)
+      : ((a as unknown as Record<string, number | null>)[field] ?? null);
+    return prevVal != null ? prevVal - snapVal : 0;
+  }
+
   const sortedAdsets = useMemo(() => {
     return [...adsets].sort((a, b) => {
-      const av = sortCol === 'budget' ? budgetVal(a) : ((a[sortCol] as number | null) ?? 0);
-      const bv = sortCol === 'budget' ? budgetVal(b) : ((b[sortCol] as number | null) ?? 0);
+      let av: number, bv: number;
+      if (sortCol.startsWith('snap:') || sortCol.startsWith('delta:')) {
+        av = getSnapSortValue(a, sortCol);
+        bv = getSnapSortValue(b, sortCol);
+      } else {
+        const liveCol = sortCol as keyof FlatAdSet;
+        av = sortCol === 'budget' ? budgetVal(a) : ((a[liveCol] as number | null) ?? 0);
+        bv = sortCol === 'budget' ? budgetVal(b) : ((b[liveCol] as number | null) ?? 0);
+      }
       return sortDir === 'asc' ? av - bv : bv - av;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adsets, sortCol, sortDir]);
+  }, [adsets, sortCol, sortDir, snapshotComparisons]);
 
   const allSelected = adsets.length > 0 && adsets.every((a) => selectedIds.has(a.adset_id));
 
@@ -280,18 +307,18 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-100 border-b border-blue-200">Status</th>
               {snapshotComparisons.map((comp) => (
                 <Fragment key={comp.id}>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs">Old Spend</th>
+                  <th onClick={() => handleSort(`snap:${comp.id}:spend`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Spend{sortArrow(`snap:${comp.id}:spend`)}</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CPM</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CTR</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Revenue</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old %Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-l border-sky-200 border-b border-sky-200 text-xs">Δ Spend</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ Revenue</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ %Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ Profit</th>
+                  <th onClick={() => handleSort(`snap:${comp.id}:adjust_revenue`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Revenue{sortArrow(`snap:${comp.id}:adjust_revenue`)}</th>
+                  <th onClick={() => handleSort(`snap:${comp.id}:roas`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old ROAS{sortArrow(`snap:${comp.id}:roas`)}</th>
+                  <th onClick={() => handleSort(`snap:${comp.id}:profit_pct`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old %Profit{sortArrow(`snap:${comp.id}:profit_pct`)}</th>
+                  <th onClick={() => handleSort(`snap:${comp.id}:profit`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Profit{sortArrow(`snap:${comp.id}:profit`)}</th>
+                  <th onClick={() => handleSort(`delta:${comp.id}:spend`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-l border-sky-200 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ Spend{sortArrow(`delta:${comp.id}:spend`)}</th>
+                  <th onClick={() => handleSort(`delta:${comp.id}:adjust_revenue`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ Revenue{sortArrow(`delta:${comp.id}:adjust_revenue`)}</th>
+                  <th onClick={() => handleSort(`delta:${comp.id}:roas`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ ROAS{sortArrow(`delta:${comp.id}:roas`)}</th>
+                  <th onClick={() => handleSort(`delta:${comp.id}:profit_pct`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ %Profit{sortArrow(`delta:${comp.id}:profit_pct`)}</th>
+                  <th onClick={() => handleSort(`delta:${comp.id}:profit`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ Profit{sortArrow(`delta:${comp.id}:profit`)}</th>
                 </Fragment>
               ))}
               <th onClick={() => handleSort('spend')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-l border-blue-200 border-b border-blue-200 cursor-pointer hover:bg-blue-200 select-none">Spend{sortArrow('spend')}</th>
