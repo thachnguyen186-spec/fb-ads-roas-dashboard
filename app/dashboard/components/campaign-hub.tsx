@@ -479,6 +479,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     <div className="flex flex-col bg-slate-50 min-h-screen">
       <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
+          <Link href="/tools" className="text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors flex items-center gap-1 mr-1">← Tools</Link>
           <h1 className="text-sm font-semibold text-slate-900">🔥 It&apos;s Cooking Time</h1>
           {/* Leader/admin: staff switcher */}
           {(userRole === 'leader' || userRole === 'admin') && staffList.length > 0 && (

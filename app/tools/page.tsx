@@ -16,8 +16,8 @@ interface Tool {
 const TOOLS: Tool[] = [
   {
     id: 'fb-ads-roas',
-    name: "FB Ads ROAS Dashboard",
-    description: "Track live campaign & adset performance. Compare snapshots, filter by status, and manage budgets — all in one view.",
+    name: "🔥 It's Cooking Time",
+    description: "Manage ads campaign. Track live performance, compare snapshots, filter by status, and manage budgets — all in one view.",
     href: '/dashboard',
     image: '/images/morphin-time.png',
     status: 'active',
@@ -40,18 +40,18 @@ export default async function ToolsPage() {
   if (!user) redirect('/login');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
-      <header className="px-8 py-6 border-b border-white/10">
+      <header className="px-8 py-5 border-b border-slate-200 bg-white">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">⚡ Tool Hub</h1>
-            <p className="text-slate-400 text-sm mt-0.5">Select a tool to get started</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">⚡ Tool Hub</h1>
+            <p className="text-slate-500 text-sm mt-0.5">Select a tool to get started</p>
           </div>
           <div className="flex items-center gap-3">
             <Link
               href="/settings"
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-white/20 text-slate-300 hover:bg-white/10 transition-colors"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
             >
               Settings
             </Link>
@@ -68,7 +68,7 @@ export default async function ToolsPage() {
         </div>
       </main>
 
-      <footer className="px-8 py-4 border-t border-white/10 text-center text-xs text-slate-600">
+      <footer className="px-8 py-4 border-t border-slate-200 bg-white text-center text-xs text-slate-400">
         More tools coming soon
       </footer>
     </div>
@@ -82,8 +82,8 @@ function ToolCard({ tool }: { tool: Tool }) {
     <div
       className={`group relative rounded-2xl overflow-hidden border transition-all duration-200 flex flex-col
         ${isLocked
-          ? 'border-white/10 bg-white/5 cursor-not-allowed opacity-70'
-          : 'border-white/20 bg-white/10 hover:bg-white/15 hover:border-indigo-400/50 hover:shadow-lg hover:shadow-indigo-500/10 cursor-pointer'
+          ? 'border-slate-200 bg-slate-100 cursor-not-allowed opacity-60'
+          : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-100 cursor-pointer'
         }`}
     >
       {/* Image area */}
@@ -124,7 +124,7 @@ function ToolCard({ tool }: { tool: Tool }) {
 
       {/* Content */}
       <div className="p-5 flex flex-col flex-1">
-        <h2 className="text-sm font-bold text-white mb-1.5 group-hover:text-indigo-300 transition-colors">
+        <h2 className="text-sm font-bold text-slate-900 mb-1.5 group-hover:text-indigo-600 transition-colors">
           {tool.name}
         </h2>
         <p className="text-xs text-slate-400 leading-relaxed flex-1">{tool.description}</p>
