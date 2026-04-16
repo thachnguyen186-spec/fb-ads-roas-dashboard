@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { parseAdjustCsv, aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateByAdSetId, aggregateAllRevByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
-import type { AdjustRow, AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
+import type { AdjustRow, AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotComparison, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
 import CampaignTable from './campaign-table';
 import FilterBar from './filter-bar';
@@ -68,12 +68,16 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [vndRate, setVndRate] = useState(26000);
   const [rateInput, setRateInput] = useState('26000');
-  // Snapshots
+  // Snapshots — multi-compare support
   const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
-  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
-  const [activeSnapshot, setActiveSnapshot] = useState<SnapshotData | null>(null);
+  /** Ordered list of snapshot IDs added to comparison (index 0 = first added) */
+  const [comparedSnapshotIds, setComparedSnapshotIds] = useState<string[]>([]);
+  /** Cached snapshot data by ID — avoids re-fetching when toggling comparisons */
+  const [snapshotsCache, setSnapshotsCache] = useState<Map<string, SnapshotData>>(new Map());
   const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [snapshotError, setSnapshotError] = useState('');
+  // Status filter: 'all' shows active + paused-with-spend; 'active'/'inactive' are explicit
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Auto-select zoom based on available viewport height so small monitors show as many rows as large ones
   const [zoom, setZoom] = useState<number>(() => {
@@ -118,8 +122,9 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     setBudgetMin(''); setBudgetMax('');
     setRoasMin(''); setRoasMax('');
     setSnapshots([]);
-    setSelectedSnapshotId(null);
-    setActiveSnapshot(null);
+    setComparedSnapshotIds([]);
+    setSnapshotsCache(new Map());
+    setStatusFilter('all');
   }
 
   async function fetchSnapshots() {
@@ -154,14 +159,20 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     }
   }
 
-  async function handleSelectSnapshot(id: string | null) {
-    setSelectedSnapshotId(id);
-    if (!id) { setActiveSnapshot(null); return; }
-    const res = await fetch(`/api/snapshots/${id}`);
-    if (res.ok) {
-      const data = await res.json();
-      setActiveSnapshot(data.snapshot_data as SnapshotData);
+  async function handleAddSnapshot(id: string) {
+    // Fetch and cache if not already loaded
+    if (!snapshotsCache.has(id)) {
+      const res = await fetch(`/api/snapshots/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSnapshotsCache((prev) => new Map([...prev, [id, data.snapshot_data as SnapshotData]]));
+      }
     }
+    setComparedSnapshotIds((prev) => prev.includes(id) ? prev : [...prev, id]);
+  }
+
+  function handleRemoveSnapshot(id: string) {
+    setComparedSnapshotIds((prev) => prev.filter((sid) => sid !== id));
   }
 
   async function handleSaveSnapshot(name: string) {
@@ -244,10 +255,9 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
 
   async function handleDeleteSnapshot(id: string) {
     await fetch(`/api/snapshots/${id}`, { method: 'DELETE' });
-    if (selectedSnapshotId === id) {
-      setSelectedSnapshotId(null);
-      setActiveSnapshot(null);
-    }
+    // Remove from comparison and cache
+    setComparedSnapshotIds((prev) => prev.filter((sid) => sid !== id));
+    setSnapshotsCache((prev) => { const m = new Map(prev); m.delete(id); return m; });
     await fetchSnapshots();
   }
 
@@ -375,8 +385,10 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
 
   const displayedCampaigns = useMemo(() => {
     let list = [...mergedCampaigns];
-    // Always show active; show paused/inactive only if they have today's spend > 0
-    list = list.filter((c) => c.effective_status === 'ACTIVE' || c.spend > 0);
+    // Status filter: 'active' = only ACTIVE; 'inactive' = only non-ACTIVE; 'all' = active + paused-with-spend
+    if (statusFilter === 'active') list = list.filter((c) => c.effective_status === 'ACTIVE');
+    else if (statusFilter === 'inactive') list = list.filter((c) => c.effective_status !== 'ACTIVE');
+    else list = list.filter((c) => c.effective_status === 'ACTIVE' || c.spend > 0);
     if (campaignNameFilter) {
       const q = campaignNameFilter.toLowerCase();
       list = list.filter((c) => c.campaign_name.toLowerCase().includes(q));
@@ -407,7 +419,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
       return sortDir === 'asc' ? av - bv : bv - av;
     });
     return list;
-  }, [mergedCampaigns, adjustAppMapState, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax, sortCol, sortDir]);
+  }, [mergedCampaigns, adjustAppMapState, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax, sortCol, sortDir, statusFilter]);
 
   const selectedCampaigns = useMemo(
     () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
@@ -415,16 +427,36 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   );
 
 
-  // Derive snapshot lookup maps — null when no snapshot is selected
-  const snapshotCampaignMap = useMemo<Map<string, SnapshotRow> | null>(() => {
-    if (!activeSnapshot) return null;
-    return new Map(activeSnapshot.campaigns.map((r) => [r.campaign_id, r]));
-  }, [activeSnapshot]);
+  /**
+   * Ordered array of snapshot comparisons for the table components.
+   * Index 0 (first added): delta = current live data − snapshot
+   * Index i > 0: delta = snapshot[i-1] − snapshot[i]
+   */
+  const snapshotComparisons = useMemo<SnapshotComparison[]>(() => {
+    return comparedSnapshotIds.flatMap((id, i) => {
+      const data = snapshotsCache.get(id);
+      const meta = snapshots.find((s) => s.id === id);
+      if (!data || !meta) return [];
+      const prevId = i > 0 ? comparedSnapshotIds[i - 1] : null;
+      const prevData = prevId ? snapshotsCache.get(prevId) : null;
+      return [{
+        id,
+        name: meta.name,
+        campaignMap: new Map(data.campaigns.map((r) => [r.campaign_id, r])),
+        adsetMap: new Map(data.adsets.map((r) => [r.adset_id, r])),
+        prevCampaignMap: prevData ? new Map(prevData.campaigns.map((r) => [r.campaign_id, r])) : null,
+        prevAdsetMap: prevData ? new Map(prevData.adsets.map((r) => [r.adset_id, r])) : null,
+      } satisfies SnapshotComparison];
+    });
+  }, [comparedSnapshotIds, snapshotsCache, snapshots]);
 
-  const snapshotAdSetMap = useMemo<Map<string, SnapshotAdSetRow> | null>(() => {
-    if (!activeSnapshot) return null;
-    return new Map(activeSnapshot.adsets.map((r) => [r.adset_id, r]));
-  }, [activeSnapshot]);
+  /** Flat adsets filtered by statusFilter at the adset level (used in Show Adset Only view) */
+  const displayedFlatAdsets = useMemo(() => {
+    if (statusFilter === 'active') return flatAdsets.filter((a) => a.effective_status === 'ACTIVE');
+    if (statusFilter === 'inactive') return flatAdsets.filter((a) => a.effective_status !== 'ACTIVE');
+    // 'all': filter out zero-spend paused adsets (mirrors campaign 'all' logic)
+    return flatAdsets.filter((a) => a.effective_status === 'ACTIVE' || a.spend > 0);
+  }, [flatAdsets, statusFilter]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -659,11 +691,12 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                 )}
               </div>
 
-              {/* Snapshot save + compare selector */}
+              {/* Snapshot save + multi-compare selector */}
               <SnapshotToolbar
                 snapshots={snapshots}
-                selectedId={selectedSnapshotId}
-                onSelect={handleSelectSnapshot}
+                comparedIds={comparedSnapshotIds}
+                onAdd={handleAddSnapshot}
+                onRemove={handleRemoveSnapshot}
                 onSave={handleSaveSnapshot}
                 onDelete={handleDeleteSnapshot}
                 saving={savingSnapshot}
@@ -679,6 +712,8 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
               <FilterBar
                 campaignName={campaignNameFilter}
                 onCampaignNameChange={setCampaignNameFilter}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
                 appFilter={appNameFilter}
                 onAppFilterChange={setAppNameFilter}
                 appOptions={appOptions}
@@ -698,6 +733,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                   setRoasMin(''); setRoasMax('');
                   setSpendMin(''); setSpendMax('');
                   setBudgetMin(''); setBudgetMax('');
+                  setStatusFilter('all');
                 }}
               />
 
@@ -718,8 +754,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                   adjustAdSetMap={adjustAdSetMapState}
                   adjustAllRevAdSetMap={adjustAllRevAdSetMapState}
                   vndRate={vndRate}
-                  snapshotCampaignMap={snapshotCampaignMap}
-                  snapshotAdSetMap={snapshotAdSetMap}
+                  snapshotComparisons={snapshotComparisons}
                   zoom={zoom}
                 />
               )}
@@ -732,12 +767,12 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                   </div>
                 ) : (
                   <AdsetFlatView
-                    adsets={flatAdsets}
+                    adsets={displayedFlatAdsets}
                     selectedIds={selectedFlatAdsetIds}
                     onSelectionChange={setSelectedFlatAdsetIds}
                     vndRate={vndRate}
                     showAccountColumn={accountOptions.length > 1}
-                    snapshotAdSetMap={snapshotAdSetMap}
+                    snapshotComparisons={snapshotComparisons}
                     zoom={zoom}
                   />
                 )

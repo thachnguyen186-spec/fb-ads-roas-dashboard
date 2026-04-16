@@ -5,17 +5,25 @@ import type { SnapshotMeta } from '@/lib/types';
 
 interface Props {
   snapshots: SnapshotMeta[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  /** Ordered list of snapshot IDs currently being compared */
+  comparedIds: string[];
+  onAdd: (id: string) => void;
+  onRemove: (id: string) => void;
   onSave: (name: string) => Promise<void>;
+  /** Permanently deletes a snapshot (also removes it from comparison) */
   onDelete: (id: string) => Promise<void>;
   saving: boolean;
 }
 
-export default function SnapshotToolbar({ snapshots, selectedId, onSelect, onSave, onDelete, saving }: Props) {
+function formatDate(iso: string) {
+  const d = new Date(iso);
+  return `${d.getHours()}h${String(d.getMinutes()).padStart(2, '0')} (${d.getDate()}/${d.getMonth() + 1})`;
+}
+
+export default function SnapshotToolbar({ snapshots, comparedIds, onAdd, onRemove, onSave, onDelete, saving }: Props) {
   const [showInput, setShowInput] = useState(false);
   const [nameInput, setNameInput] = useState('');
-  const [deleting, setDeleting] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   async function handleSave() {
     const name = nameInput.trim();
@@ -25,12 +33,15 @@ export default function SnapshotToolbar({ snapshots, selectedId, onSelect, onSav
     setShowInput(false);
   }
 
-  async function handleDelete() {
-    if (!selectedId) return;
-    setDeleting(true);
-    await onDelete(selectedId);
-    setDeleting(false);
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this snapshot permanently?')) return;
+    setDeleting(id);
+    await onDelete(id);
+    setDeleting(null);
   }
+
+  /** Snapshots not yet added to the comparison list */
+  const availableSnapshots = snapshots.filter((s) => !comparedIds.includes(s.id));
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
@@ -53,12 +64,7 @@ export default function SnapshotToolbar({ snapshots, selectedId, onSelect, onSav
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
-          <button
-            onClick={() => setShowInput(false)}
-            className="px-2 py-1 text-xs text-slate-500 hover:text-slate-800"
-          >
-            ✕
-          </button>
+          <button onClick={() => setShowInput(false)} className="px-2 py-1 text-xs text-slate-500 hover:text-slate-800">✕</button>
         </div>
       ) : (
         <button
@@ -69,34 +75,75 @@ export default function SnapshotToolbar({ snapshots, selectedId, onSelect, onSav
         </button>
       )}
 
-      {/* Snapshot selector + delete */}
-      {snapshots.length > 0 && (
-        <div className="flex items-center gap-1.5">
+      {/* Currently compared snapshots — chips with remove-from-compare (×) and permanent-delete (🗑) */}
+      {comparedIds.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-slate-400">Compare:</span>
+          {comparedIds.map((id, idx) => {
+            const meta = snapshots.find((s) => s.id === id);
+            if (!meta) return null;
+            return (
+              <span
+                key={id}
+                className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200"
+              >
+                <span className="text-amber-400 font-bold mr-0.5">#{idx + 1}</span>
+                {meta.name}
+                <span className="text-amber-500 text-[10px] ml-0.5">({formatDate(meta.created_at)})</span>
+                {/* Remove from comparison */}
+                <button
+                  onClick={() => onRemove(id)}
+                  className="ml-0.5 text-amber-500 hover:text-slate-700 transition-colors leading-none px-0.5 rounded"
+                  title="Remove from comparison"
+                >
+                  ×
+                </button>
+                {/* Permanent delete */}
+                <button
+                  onClick={() => handleDelete(id)}
+                  disabled={deleting === id}
+                  className="text-amber-400 hover:text-red-600 transition-colors leading-none px-0.5 rounded disabled:opacity-40"
+                  title="Delete snapshot permanently"
+                >
+                  {deleting === id ? '…' : '🗑'}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add snapshot selector — only shows snapshots not yet in comparison */}
+      {availableSnapshots.length > 0 && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-slate-400">{comparedIds.length > 0 ? '+' : 'Compare:'}</span>
           <select
-            value={selectedId ?? ''}
-            onChange={(e) => onSelect(e.target.value || null)}
-            className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[200px]"
+            value=""
+            onChange={(e) => { if (e.target.value) onAdd(e.target.value); }}
+            className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[220px]"
           >
-            <option value="">— none —</option>
-            {snapshots.map((s) => (
+            <option value="">Add snapshot…</option>
+            {availableSnapshots.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.name} ({new Date(s.created_at).toLocaleDateString()})
+                {s.name} ({formatDate(s.created_at)})
               </option>
             ))}
           </select>
-          {selectedId && (
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              title="Delete this snapshot"
-              className="text-slate-400 hover:text-red-600 transition-colors text-sm disabled:opacity-50"
-            >
-              🗑
-            </button>
-          )}
         </div>
       )}
+
+      {/* Allow deleting snapshots that are NOT in comparison (visible in available list) */}
+      {snapshots.filter((s) => !comparedIds.includes(s.id)).map((s) => (
+        <button
+          key={s.id}
+          onClick={() => handleDelete(s.id)}
+          disabled={deleting === s.id}
+          title={`Delete "${s.name}" permanently`}
+          className="text-slate-300 hover:text-red-500 transition-colors text-xs disabled:opacity-40"
+        >
+          {deleting === s.id ? '…' : ''}
+        </button>
+      ))}
     </div>
   );
 }

@@ -178,6 +178,26 @@ export interface SnapshotMeta {
   created_at: string;
 }
 
+/**
+ * A single snapshot comparison entry passed to table components.
+ * Delta calculation rule:
+ *   - prevCampaignMap/prevAdsetMap === null → delta = current live data − snapshot
+ *   - otherwise → delta = prevSnapshot − snapshot
+ */
+export interface SnapshotComparison {
+  id: string;
+  /** Display name from SnapshotMeta */
+  name: string;
+  /** campaign_id → snapshot metrics */
+  campaignMap: Map<string, SnapshotRow>;
+  /** adset_id → snapshot metrics */
+  adsetMap: Map<string, SnapshotAdSetRow>;
+  /** null = compare delta against current live data (first added snapshot) */
+  prevCampaignMap: Map<string, SnapshotRow> | null;
+  /** null = compare delta against current live data (first added snapshot) */
+  prevAdsetMap: Map<string, SnapshotAdSetRow> | null;
+}
+
 /** Generic budget-bearing entity passed to BudgetModal — works for campaigns and ad sets */
 export interface BudgetTarget {
   id: string;
