@@ -178,8 +178,9 @@ interface FbCreative {
   image_hash?: string;
   video_id?: string;
   instagram_actor_id?: string;
-  // link and call_to_action are nested inside object_story_spec, not top-level
+  // link, call_to_action, and page_id are nested inside object_story_spec, not top-level
   object_story_spec?: {
+    page_id?: string;  // Facebook Page running the ad — maps to Link Object ID for page post ads
     link_data?: { link?: string; call_to_action?: { type?: string } };
     video_data?: { video_id?: string; call_to_action?: { type?: string } };
   };
@@ -257,12 +258,14 @@ function buildRow(
     'Ad Set Lifetime Budget': budgetCents(adSet.lifetime_budget),
     'Is Budget Scheduling Enabled For Ad Set': '',
     'Ad Set High Demand Periods': '',
-    'Link Object ID': promotedObj.pixel_id ?? '',
+    // pixel_id for conversion campaigns; page_id for page post ads (mutually exclusive)
+    'Link Object ID': promotedObj.pixel_id ?? creative?.object_story_spec?.page_id ?? '',
     'Optimized Event': promotedObj.custom_event_type ?? '',
     'Link': link,
     'Application ID': promotedObj.application_id ?? '',
     'Object Store URL': promotedObj.object_store_url ?? '',
-    'Global Regions': '',
+    // Countries targeted (ISO codes comma-separated, e.g. "US,VN") — FB importer reads from Global Regions
+    'Global Regions': countries,
     'Location Types': '',
     'Excluded Countries': excludedCountries,
     'Age Min': targeting.age_min ? String(targeting.age_min) : '',
@@ -339,11 +342,10 @@ function generateTsv(rows: Row[]): Buffer {
   return Buffer.from('\uFEFF' + content, 'utf16le');
 }
 
-// Ad fields for nested fetch inside adsets
-// Only top-level creative fields that FB Graph API actually exposes.
-// link and call_to_action are NOT top-level — they live inside object_story_spec.
-// buildRow already reads them from object_story_spec as the primary source.
-const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,video_id,instagram_actor_id,object_story_spec}';
+// Ad fields for nested fetch inside adsets.
+// object_story_spec sub-fields are explicitly listed so FB returns page_id, link, and call_to_action.
+// Omitting sub-fields causes FB to return a default minimal set that excludes page_id.
+const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,video_id,instagram_actor_id,object_story_spec{page_id,link_data{link,call_to_action{type}},video_data{video_id,call_to_action{type}}}}';
 
 /**
  * Fetches campaign structure once, then generates a single TSV where the rows

@@ -272,10 +272,21 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
             {results && (
               <div className="space-y-1">
                 {results.map((r, i) => (
-                  <div key={i} className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg ${r.success ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
-                    <span>{r.success ? '✓' : '✗'}</span>
-                    <span className="truncate">{r.name}</span>
-                    {r.error && <span className="text-xs ml-auto">{r.error}</span>}
+                  <div key={i} className={`flex flex-col gap-1 text-sm px-3 py-1.5 rounded-lg ${r.success ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+                    <div className="flex items-center gap-2">
+                      <span>{r.success ? '✓' : '✗'}</span>
+                      <span className="truncate font-medium">{r.name}</span>
+                    </div>
+                    {r.error && (
+                      <div className="text-xs pl-5 space-y-0.5">
+                        <p>{r.error}</p>
+                        {/permission/i.test(r.error) && (
+                          <p className="text-red-500">
+                            Requires <strong>ads_management</strong> write permission + Advertiser/Admin role on this ad account. Check your Facebook token settings.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
