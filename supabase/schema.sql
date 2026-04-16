@@ -63,6 +63,14 @@ create policy "Users manage own fb ad accounts"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- ─── spending limit monitor: per-account alert threshold + dedup flag ─────────
+-- Run in Supabase SQL editor to enable the Spending Limit Monitor tool.
+alter table public.fb_ad_accounts
+  add column if not exists alert_threshold numeric;
+
+alter table public.fb_ad_accounts
+  add column if not exists alert_sent boolean not null default false;
+
 -- ─── RBAC: role column on profiles ────────────────────────────────────────────
 alter table public.profiles
   add column if not exists role text not null default 'staff'

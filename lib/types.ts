@@ -32,6 +32,10 @@ export interface FbAdAccount {
   is_selected: boolean;
   account_status: number | null; // 1=Active, 2=Disabled
   currency: string;              // e.g. 'USD', 'VND'
+  /** Alert threshold in FB-native unit (USD cents, VND units). null = alerting disabled. */
+  alert_threshold?: number | null;
+  /** Cron-managed dedup flag: true after alert sent, reset when remaining recovers. */
+  alert_sent?: boolean;
 }
 
 // ─── Campaigns / ROAS Dashboard ───────────────────────────────────────────────

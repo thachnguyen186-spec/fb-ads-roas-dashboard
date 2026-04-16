@@ -28,6 +28,15 @@ const TOOLS: Tool[] = [
     badge: 'Live',
   },
   {
+    id: 'spending-limit-monitor',
+    name: 'Account Spending Limit Monitor',
+    description: 'Track FB ad account spend caps in real time. Set per-account thresholds and get Telegram alerts when remaining budget runs low.',
+    href: '/spending-limit-monitor',
+    image: '',
+    status: 'active',
+    badge: 'Live',
+  },
+  {
     id: 'ads-creative-testing',
     name: "Ads Creative Testing",
     description: "A/B test ad creatives, measure performance across audiences, and identify winning visuals before scaling.",

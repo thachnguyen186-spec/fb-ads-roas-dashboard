@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/check-spending-limits",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
