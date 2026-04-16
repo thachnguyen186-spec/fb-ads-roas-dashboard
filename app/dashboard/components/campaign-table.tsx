@@ -16,8 +16,8 @@ function fmtNum(v: number | null) {
 }
 
 function SortBtn({ col, sortCol, sortDir, onSort }: {
-  col: keyof MergedCampaign; sortCol: keyof MergedCampaign;
-  sortDir: 'asc' | 'desc'; onSort: (c: keyof MergedCampaign) => void;
+  col: string; sortCol: string;
+  sortDir: 'asc' | 'desc'; onSort: (c: string) => void;
 }) {
   return (
     <button onClick={() => onSort(col)} className="hover:text-slate-800 select-none">
@@ -30,9 +30,9 @@ interface Props {
   campaigns: MergedCampaign[];
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
-  sortCol: keyof MergedCampaign;
+  sortCol: string;
   sortDir: 'asc' | 'desc';
-  onSort: (col: keyof MergedCampaign) => void;
+  onSort: (col: string) => void;
   showAccountColumn?: boolean;
   adjustAdSetMap: Map<string, number>;
   adjustAllRevAdSetMap: Map<string, number>;
@@ -326,18 +326,18 @@ export default function CampaignTable({
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-100 border-b border-blue-200">Status</th>
               {snapshotComparisons.map((comp) => (
                 <Fragment key={comp.id}>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs">Old Spend</th>
+                  <th onClick={() => onSort(`snap:${comp.id}:spend`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Spend <SortBtn col={`snap:${comp.id}:spend`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CPM</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CTR</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Revenue</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old %Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-l border-sky-200 border-b border-sky-200 text-xs">Δ Spend</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ Revenue</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ %Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ Profit</th>
+                  <th onClick={() => onSort(`snap:${comp.id}:adjust_revenue`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Revenue <SortBtn col={`snap:${comp.id}:adjust_revenue`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`snap:${comp.id}:roas`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old ROAS <SortBtn col={`snap:${comp.id}:roas`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`snap:${comp.id}:profit_pct`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old %Profit <SortBtn col={`snap:${comp.id}:profit_pct`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`snap:${comp.id}:profit`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Profit <SortBtn col={`snap:${comp.id}:profit`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`delta:${comp.id}:spend`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-l border-sky-200 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ Spend <SortBtn col={`delta:${comp.id}:spend`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`delta:${comp.id}:adjust_revenue`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ Revenue <SortBtn col={`delta:${comp.id}:adjust_revenue`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`delta:${comp.id}:roas`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ ROAS <SortBtn col={`delta:${comp.id}:roas`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`delta:${comp.id}:profit_pct`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ %Profit <SortBtn col={`delta:${comp.id}:profit_pct`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
+                  <th onClick={() => onSort(`delta:${comp.id}:profit`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs cursor-pointer hover:bg-sky-200 select-none">Δ Profit <SortBtn col={`delta:${comp.id}:profit`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
                 </Fragment>
               ))}
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-l border-blue-200 border-b border-blue-200 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>

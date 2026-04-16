@@ -72,7 +72,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const [spendMax, setSpendMax] = useState('');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
-  const [sortCol, setSortCol] = useState<keyof MergedCampaign>('spend');
+  const [sortCol, setSortCol] = useState<string>('spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [vndRate, setVndRate] = useState(26000);
@@ -358,7 +358,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     }
   }
 
-  function handleSort(col: keyof MergedCampaign) {
+  function handleSort(col: string) {
     if (col === sortCol) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else { setSortCol(col); setSortDir('desc'); }
   }
@@ -439,19 +439,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     return list;
   }, [filteredCampaignsBase, statusFilter]);
 
-  /** Campaign view: campaignsForStatus + sort */
-  const displayedCampaigns = useMemo(() => {
-    return [...campaignsForStatus].sort((a, b) => {
-      const av = (a[sortCol] ?? 0) as number;
-      const bv = (b[sortCol] ?? 0) as number;
-      return sortDir === 'asc' ? av - bv : bv - av;
-    });
-  }, [campaignsForStatus, sortCol, sortDir]);
-
-  const selectedCampaigns = useMemo(
-    () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
-    [displayedCampaigns, selectedIds],
-  );
+  // displayedCampaigns and selectedCampaigns are defined after snapshotComparisons below
 
 
   /**
@@ -477,6 +465,37 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
       } satisfies SnapshotComparison];
     });
   }, [comparedSnapshotIds, snapshotsCache, snapshots]);
+
+  /** Campaign view: campaignsForStatus + sort. Defined after snapshotComparisons so snap/delta keys work. */
+  const displayedCampaigns = useMemo(() => {
+    return [...campaignsForStatus].sort((a, b) => {
+      let av: number, bv: number;
+      if (sortCol.startsWith('snap:') || sortCol.startsWith('delta:')) {
+        const [type, compId, field] = sortCol.split(':');
+        const comp = snapshotComparisons.find((c) => c.id === compId);
+        const getVal = (c: MergedCampaign): number => {
+          const snap = comp?.campaignMap.get(c.campaign_id);
+          const snapVal = (snap?.[field as keyof typeof snap] as number | null) ?? null;
+          if (snapVal == null) return 0;
+          if (type === 'snap') return snapVal;
+          const prevVal = comp?.prevCampaignMap
+            ? ((comp.prevCampaignMap.get(c.campaign_id)?.[field as keyof SnapshotRow] as number | null) ?? null)
+            : ((c[field as keyof MergedCampaign] as number | null) ?? null);
+          return prevVal != null ? prevVal - snapVal : 0;
+        };
+        av = getVal(a); bv = getVal(b);
+      } else {
+        av = ((a[sortCol as keyof MergedCampaign] as number | null) ?? 0);
+        bv = ((b[sortCol as keyof MergedCampaign] as number | null) ?? 0);
+      }
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+  }, [campaignsForStatus, sortCol, sortDir, snapshotComparisons]);
+
+  const selectedCampaigns = useMemo(
+    () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
+    [displayedCampaigns, selectedIds],
+  );
 
   /**
    * Adsets to display in the adset-only view.
