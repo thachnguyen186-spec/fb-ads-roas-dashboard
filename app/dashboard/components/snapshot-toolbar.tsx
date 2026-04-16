@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SnapshotMeta } from '@/lib/types';
 
 interface Props {
@@ -24,6 +24,19 @@ export default function SnapshotToolbar({ snapshots, comparedIds, onAdd, onRemov
   const [showInput, setShowInput] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  /** Close dropdown when clicking outside */
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    if (dropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [dropdownOpen]);
 
   async function handleSave() {
     const name = nameInput.trim();
@@ -113,37 +126,50 @@ export default function SnapshotToolbar({ snapshots, comparedIds, onAdd, onRemov
         </div>
       )}
 
-      {/* Add snapshot selector — only shows snapshots not yet in comparison */}
+      {/* Custom dropdown — shows available snapshots with inline delete button */}
       {availableSnapshots.length > 0 && (
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-slate-400">{comparedIds.length > 0 ? '+' : 'Compare:'}</span>
-          <select
-            value=""
-            onChange={(e) => { if (e.target.value) onAdd(e.target.value); }}
-            className="text-xs border border-slate-300 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[220px]"
-          >
-            <option value="">Add snapshot…</option>
-            {availableSnapshots.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({formatDate(s.created_at)})
-              </option>
-            ))}
-          </select>
+          <div ref={dropdownRef} className="relative">
+            <button
+              onClick={() => setDropdownOpen((o) => !o)}
+              className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 flex items-center gap-1.5 min-w-[160px] justify-between"
+            >
+              <span>Add snapshot…</span>
+              <span className="text-slate-400 text-[10px]">{dropdownOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {dropdownOpen && (
+              <div className="absolute z-50 left-0 top-full mt-1 w-72 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                {availableSnapshots.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                  >
+                    {/* Add to compare on name click */}
+                    <button
+                      onClick={() => { onAdd(s.id); setDropdownOpen(false); }}
+                      className="flex-1 text-left text-xs text-slate-700 hover:text-indigo-600 transition-colors min-w-0"
+                    >
+                      <span className="font-medium truncate block">{s.name}</span>
+                      <span className="text-slate-400 text-[10px]">{formatDate(s.created_at)}</span>
+                    </button>
+                    {/* Delete permanently */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
+                      disabled={deleting === s.id}
+                      className="ml-3 w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors disabled:opacity-40 text-sm"
+                      title={`Delete "${s.name}" permanently`}
+                    >
+                      {deleting === s.id ? '…' : '🗑'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
-
-      {/* Allow deleting snapshots that are NOT in comparison (visible in available list) */}
-      {snapshots.filter((s) => !comparedIds.includes(s.id)).map((s) => (
-        <button
-          key={s.id}
-          onClick={() => handleDelete(s.id)}
-          disabled={deleting === s.id}
-          title={`Delete "${s.name}" permanently`}
-          className="text-slate-300 hover:text-red-500 transition-colors text-xs disabled:opacity-40"
-        >
-          {deleting === s.id ? '…' : ''}
-        </button>
-      ))}
     </div>
   );
 }
