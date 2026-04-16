@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import type { BudgetTarget, MergedAdSet, SnapshotAdSetRow } from '@/lib/types';
 import BudgetModal from './budget-modal';
@@ -19,6 +19,8 @@ export interface FlatAdSet extends MergedAdSet {
   campaign_name: string;
 }
 
+type SortCol = 'spend' | 'roas' | 'profit_pct' | 'profit' | 'adjust_revenue' | 'cpm' | 'ctr' | 'budget';
+
 interface Props {
   adsets: FlatAdSet[];
   selectedIds: Set<string>;
@@ -34,6 +36,38 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [sortCol, setSortCol] = useState<SortCol>('spend');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  function handleSort(col: SortCol) {
+    if (col === sortCol) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortCol(col); setSortDir('desc'); }
+  }
+
+  function sortArrow(col: SortCol) {
+    if (col !== sortCol) return <span className="ml-0.5 text-slate-300">↕</span>;
+    return <span className="ml-0.5">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  }
+
+  /** Resolve a virtual 'budget' key to a numeric value for comparison */
+  function budgetVal(a: FlatAdSet): number {
+    return a.budget_type === 'cbo' ? 0 : (a.daily_budget ?? a.lifetime_budget ?? 0);
+  }
+
+  const sortedAdsets = useMemo(() => {
+    return [...adsets].sort((a, b) => {
+      let av: number, bv: number;
+      if (sortCol === 'budget') {
+        av = budgetVal(a);
+        bv = budgetVal(b);
+      } else {
+        av = (a[sortCol] as number | null) ?? 0;
+        bv = (b[sortCol] as number | null) ?? 0;
+      }
+      return sortDir === 'asc' ? av - bv : bv - av;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adsets, sortCol, sortDir]);
 
   const allSelected = adsets.length > 0 && adsets.every((a) => selectedIds.has(a.adset_id));
 
@@ -104,15 +138,15 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th className="px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-200">Ad Set / Campaign</th>
               {showAccountColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Account</th>}
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-blue-50">Status</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">Spend</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">CPM</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50">CTR (all)</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 border-r border-blue-100">Budget</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50 border-r border-emerald-100">Revenue</th>
+              <th onClick={() => handleSort('spend')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer hover:bg-blue-100 select-none">Spend{sortArrow('spend')}</th>
+              <th onClick={() => handleSort('cpm')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer hover:bg-blue-100 select-none">CPM{sortArrow('cpm')}</th>
+              <th onClick={() => handleSort('ctr')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 cursor-pointer hover:bg-blue-100 select-none">CTR (all){sortArrow('ctr')}</th>
+              <th onClick={() => handleSort('budget')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-50 border-r border-blue-100 cursor-pointer hover:bg-blue-100 select-none">Budget{sortArrow('budget')}</th>
+              <th onClick={() => handleSort('adjust_revenue')} className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-50 border-r border-emerald-100 cursor-pointer hover:bg-emerald-100 select-none">Revenue{sortArrow('adjust_revenue')}</th>
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-50">ID Match</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">D0 ROAS</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">%Profit</th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50">Profit</th>
+              <th onClick={() => handleSort('roas')} className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer hover:bg-purple-100 select-none">D0 ROAS{sortArrow('roas')}</th>
+              <th onClick={() => handleSort('profit_pct')} className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer hover:bg-purple-100 select-none">%Profit{sortArrow('profit_pct')}</th>
+              <th onClick={() => handleSort('profit')} className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer hover:bg-purple-100 select-none">Profit{sortArrow('profit')}</th>
               {snapshotAdSetMap !== null && (
                 <>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-l border-amber-100">Old ROAS</th>
@@ -124,8 +158,8 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {adsets.map((a) => {
-              const budgetVal = a.budget_type === 'daily' ? a.daily_budget : a.budget_type === 'lifetime' ? a.lifetime_budget : null;
+            {sortedAdsets.map((a) => {
+              const budgetAmount = a.budget_type === 'daily' ? a.daily_budget : a.budget_type === 'lifetime' ? a.lifetime_budget : null;
               const isSelected = selectedIds.has(a.adset_id);
               return (
                 <tr key={a.adset_id} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}>
@@ -155,7 +189,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                       <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">CBO</span>
                     ) : (
                       <div className="flex items-center justify-end gap-1.5 tabular-nums text-slate-700">
-                        <span>{fmtUsd(budgetVal)}</span>
+                        <span>{fmtUsd(budgetAmount)}</span>
                         <span className="text-slate-400 text-xs">{a.budget_type === 'daily' ? '/d' : ' lt'}</span>
                         {saving ? (
                           <span className="text-slate-400 text-xs">…</span>
