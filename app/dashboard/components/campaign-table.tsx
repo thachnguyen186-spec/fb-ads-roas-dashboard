@@ -223,9 +223,14 @@ export default function CampaignTable({
                 Result
               </th>
               {hasSnapshot && (
-                <th colSpan={12} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase">
-                  Snapshot Compare
-                </th>
+                <>
+                  <th colSpan={7} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase">
+                    Old Snapshot
+                  </th>
+                  <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-sky-700 bg-sky-50 border-l border-sky-200 border-b border-sky-200 tracking-wide uppercase">
+                    Δ Change
+                  </th>
+                </>
               )}
             </tr>
             {/* Column header row — borders on <th> cells */}
@@ -254,11 +259,11 @@ export default function CampaignTable({
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old ROAS</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old %Profit</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ Spend</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ Revenue</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ %Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-l border-sky-200 border-b border-sky-200 text-xs">Δ Spend</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ Revenue</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-b border-sky-200 text-xs">Δ Profit</th>
                 </>
               )}
             </tr>
@@ -323,23 +328,23 @@ export default function CampaignTable({
                     {totalSnapProfit !== null ? fmtUsd(totalSnapProfit) : '—'}
                   </th>
                   {/* Δ Spend */}
-                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalDeltaSpend === null ? 'text-slate-400' : totalDeltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-sky-100 border-l border-sky-200 border-b-2 border-sky-300 text-xs font-semibold ${totalDeltaSpend === null ? 'text-slate-400' : totalDeltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalDeltaSpend !== null ? `${totalDeltaSpend >= 0 ? '+' : '-'}$${Math.abs(totalDeltaSpend).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                   </th>
                   {/* Δ Revenue */}
-                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalDeltaRevenue === null ? 'text-slate-400' : totalDeltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-sky-100 border-b-2 border-sky-300 text-xs font-semibold ${totalDeltaRevenue === null ? 'text-slate-400' : totalDeltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalDeltaRevenue !== null ? `${totalDeltaRevenue >= 0 ? '+' : '-'}$${Math.abs(totalDeltaRevenue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                   </th>
                   {/* Avg Δ ROAS */}
-                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${avgDeltaRoas === null ? 'text-slate-400' : avgDeltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-sky-100 border-b-2 border-sky-300 text-xs font-semibold ${avgDeltaRoas === null ? 'text-slate-400' : avgDeltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {avgDeltaRoas !== null ? `${avgDeltaRoas >= 0 ? '+' : ''}${avgDeltaRoas.toFixed(2)}x` : '—'}
                   </th>
                   {/* Avg Δ %Profit */}
-                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${avgDeltaProfitPct === null ? 'text-slate-400' : avgDeltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-sky-100 border-b-2 border-sky-300 text-xs font-semibold ${avgDeltaProfitPct === null ? 'text-slate-400' : avgDeltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {avgDeltaProfitPct !== null ? `${avgDeltaProfitPct >= 0 ? '+' : ''}${avgDeltaProfitPct.toFixed(1)}%` : '—'}
                   </th>
                   {/* Total Δ Profit */}
-                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalDeltaProfit === null ? 'text-slate-400' : totalDeltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-sky-100 border-b-2 border-sky-300 text-xs font-semibold ${totalDeltaProfit === null ? 'text-slate-400' : totalDeltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalDeltaProfit !== null ? `${totalDeltaProfit >= 0 ? '+' : '-'}$${Math.abs(totalDeltaProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
                   </th>
                 </>
@@ -460,23 +465,23 @@ export default function CampaignTable({
                             {snap?.profit != null ? fmtUsd(snap.profit) : '—'}
                           </td>
                           {/* Δ Spend */}
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 border-l border-sky-100 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {fmtDelta(deltaSpend)}
                           </td>
                           {/* Δ Revenue */}
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {fmtDelta(deltaRevenue)}
                           </td>
                           {/* Δ ROAS */}
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
                           </td>
                           {/* Δ %Profit */}
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {deltaProfitPct !== null ? `${deltaProfitPct >= 0 ? '+' : ''}${deltaProfitPct.toFixed(1)}%` : '—'}
                           </td>
                           {/* Δ Profit */}
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {fmtDelta(deltaProfit)}
                           </td>
                         </>

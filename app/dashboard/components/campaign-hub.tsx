@@ -180,32 +180,50 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
         profit_pct: c.profit_pct,
         profit: c.profit,
       }));
-      // Fetch and merge all adsets in parallel (errors per-campaign are silenced → return [])
-      const adsetResults = await Promise.all(
-        mergedCampaigns.map(async (c) => {
-          try {
-            const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (!res.ok) return [] as SnapshotAdSetRow[];
-            return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
-              adset_id: a.adset_id,
-              campaign_id: c.campaign_id,
-              adset_name: a.adset_name,
-              spend: a.spend,
-              cpm: a.cpm,
-              ctr: a.ctr,
-              adjust_revenue: a.adjust_revenue,
-              roas: a.roas,
-              profit_pct: a.profit_pct,
-              profit: a.profit,
-            }));
-          } catch {
-            return [] as SnapshotAdSetRow[];
-          }
-        }),
-      );
-      const adsets = adsetResults.flat();
+      // If flat adsets are already loaded (user is in Show Adset Only view), use them directly.
+      // This avoids 3000+ parallel API calls which commonly fail under rate limits.
+      let adsets: SnapshotAdSetRow[];
+      if (flatAdsets.length > 0) {
+        adsets = flatAdsets.map((a): SnapshotAdSetRow => ({
+          adset_id: a.adset_id,
+          campaign_id: a.campaign_id,
+          adset_name: a.adset_name,
+          spend: a.spend,
+          cpm: a.cpm,
+          ctr: a.ctr,
+          adjust_revenue: a.adjust_revenue,
+          roas: a.roas,
+          profit_pct: a.profit_pct,
+          profit: a.profit,
+        }));
+      } else {
+        // Campaign view: fetch adsets per campaign in parallel (errors per-campaign silenced → [])
+        const adsetResults = await Promise.all(
+          mergedCampaigns.map(async (c) => {
+            try {
+              const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
+              const res = await fetch(url);
+              const data = await res.json();
+              if (!res.ok) return [] as SnapshotAdSetRow[];
+              return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
+                adset_id: a.adset_id,
+                campaign_id: c.campaign_id,
+                adset_name: a.adset_name,
+                spend: a.spend,
+                cpm: a.cpm,
+                ctr: a.ctr,
+                adjust_revenue: a.adjust_revenue,
+                roas: a.roas,
+                profit_pct: a.profit_pct,
+                profit: a.profit,
+              }));
+            } catch {
+              return [] as SnapshotAdSetRow[];
+            }
+          }),
+        );
+        adsets = adsetResults.flat();
+      }
       const snapshot_data: SnapshotData = { campaigns, adsets };
       const postRes = await fetch('/api/snapshots', {
         method: 'POST',
