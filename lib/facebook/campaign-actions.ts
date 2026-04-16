@@ -4,7 +4,7 @@
  * Budget values are converted from USD to cents (FB API expects cents).
  */
 
-import { fbGet, fbPatch } from './fb-client';
+import { fbGet, fbPatch, fbPostForm } from './fb-client';
 
 export type AdsetBudgetSpec = {
   name: string;
@@ -45,12 +45,13 @@ export async function duplicateCampaignSameAccount(
   budgetOverride?: { amount: number; type: 'daily' | 'lifetime'; currency: string },
   adsetBudgets?: AdsetBudgetSpec[],
 ): Promise<string> {
-  // Step 1: Deep-copy the campaign (creates new campaign + adsets + ads, starts PAUSED)
-  // rename_options omitted — requires elevated API access; name is patched in step 2
+  // Step 1: Deep-copy the campaign (creates new campaign + adsets + ads, starts PAUSED).
+  // Uses fbPostForm (form-encoded body) because the /copies endpoint rejects URL-only params.
+  // rename_options omitted — requires elevated API access; name is patched in step 2.
   let newId: string;
   try {
-    const copyRes = await fbPatch(`/${campaignId}/copies`, {
-      deep_copy: 'true',
+    const copyRes = await fbPostForm(`/${campaignId}/copies`, {
+      deep_copy: '1',
       status_option: 'PAUSED',
     }, token) as { copied_campaign_id: string };
     newId = copyRes.copied_campaign_id;
