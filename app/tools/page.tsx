@@ -32,7 +32,7 @@ const TOOLS: Tool[] = [
     name: 'Account Spending Limit Monitor',
     description: 'Track FB ad account spend caps in real time. Set per-account thresholds and get Telegram alerts when remaining budget runs low.',
     href: '/spending-limit-monitor',
-    image: '',
+    image: '/images/kids_monitor.png',
     status: 'active',
     badge: 'Live',
   },
