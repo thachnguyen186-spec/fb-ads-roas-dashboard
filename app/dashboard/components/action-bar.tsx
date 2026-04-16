@@ -102,7 +102,7 @@ export default function ActionBar({ selectedCampaigns, allAccounts, onActionComp
 
   return (
     <>
-      <div className="sticky bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex items-center gap-3 shadow-md">
+      <div className="sticky bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 px-6 py-3 flex items-center gap-3 shadow-md">
         <span className="text-sm font-medium text-slate-700">
           {count} campaign{count !== 1 ? 's' : ''} selected
         </span>
