@@ -110,7 +110,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-800">← Dashboard</Link>
+          <Link href="/tools" className="text-sm text-slate-500 hover:text-slate-800">← Tool Hub</Link>
           <span className="text-sm font-semibold text-slate-900">Settings</span>
         </div>
         <button onClick={handleSignOut} className="text-sm text-slate-500 hover:text-slate-800">Sign out</button>

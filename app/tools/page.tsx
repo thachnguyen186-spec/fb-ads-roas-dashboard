@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getUserRole } from '@/lib/auth-guards';
+import ToolsNavActions from './tools-nav-actions';
+import type { UserRole } from '@/lib/types';
 
 interface Tool {
   id: string;
@@ -39,6 +42,8 @@ export default async function ToolsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  const userRole = ((await getUserRole(user.id)) ?? 'staff') as UserRole;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Header */}
@@ -48,14 +53,7 @@ export default async function ToolsPage() {
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">⚡ Tool Hub</h1>
             <p className="text-slate-500 text-sm mt-0.5">Select a tool to get started</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/settings"
-              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              Settings
-            </Link>
-          </div>
+          <ToolsNavActions userRole={userRole} />
         </div>
       </header>
 
