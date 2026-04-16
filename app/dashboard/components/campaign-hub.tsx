@@ -392,12 +392,13 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     [flatAdsets, selectedFlatAdsetIds],
   );
 
-  const displayedCampaigns = useMemo(() => {
+  /**
+   * Campaigns matching all non-status filters.
+   * Used as the source for adset loading so that status filter applies at adset level,
+   * allowing inactive adsets within active campaigns (and vice versa) to appear correctly.
+   */
+  const filteredCampaignsBase = useMemo(() => {
     let list = [...mergedCampaigns];
-    // Status filter: 'active' = only ACTIVE; 'inactive' = only non-ACTIVE; 'all' = active + paused-with-spend
-    if (statusFilter === 'active') list = list.filter((c) => c.effective_status === 'ACTIVE');
-    else if (statusFilter === 'inactive') list = list.filter((c) => c.effective_status !== 'ACTIVE');
-    else list = list.filter((c) => c.effective_status === 'ACTIVE' || c.spend > 0);
     if (campaignNameFilter) {
       const q = campaignNameFilter.toLowerCase();
       list = list.filter((c) => c.campaign_name.toLowerCase().includes(q));
@@ -422,13 +423,29 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
       const b = c.daily_budget ?? c.lifetime_budget ?? 0;
       return b <= budgetMaxN;
     });
-    list.sort((a, b) => {
+    return list;
+  }, [mergedCampaigns, adjustAppMapState, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax]);
+
+  /**
+   * Campaigns filtered by campaign status. Used by both campaign view and adset loading.
+   * Status filter is campaign-level in both views — adsets shown = adsets belonging to these campaigns.
+   */
+  const campaignsForStatus = useMemo(() => {
+    let list = [...filteredCampaignsBase];
+    if (statusFilter === 'active') list = list.filter((c) => c.effective_status === 'ACTIVE');
+    else if (statusFilter === 'inactive') list = list.filter((c) => c.effective_status !== 'ACTIVE');
+    else list = list.filter((c) => c.effective_status === 'ACTIVE' || c.spend > 0);
+    return list;
+  }, [filteredCampaignsBase, statusFilter]);
+
+  /** Campaign view: campaignsForStatus + sort */
+  const displayedCampaigns = useMemo(() => {
+    return [...campaignsForStatus].sort((a, b) => {
       const av = (a[sortCol] ?? 0) as number;
       const bv = (b[sortCol] ?? 0) as number;
       return sortDir === 'asc' ? av - bv : bv - av;
     });
-    return list;
-  }, [mergedCampaigns, adjustAppMapState, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax, sortCol, sortDir, statusFilter]);
+  }, [campaignsForStatus, sortCol, sortDir]);
 
   const selectedCampaigns = useMemo(
     () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)),
@@ -459,13 +476,12 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     });
   }, [comparedSnapshotIds, snapshotsCache, snapshots]);
 
-  /** Flat adsets filtered by statusFilter at the adset level (used in Show Adset Only view) */
-  const displayedFlatAdsets = useMemo(() => {
-    if (statusFilter === 'active') return flatAdsets.filter((a) => a.effective_status === 'ACTIVE');
-    if (statusFilter === 'inactive') return flatAdsets.filter((a) => a.effective_status !== 'ACTIVE');
-    // 'all': filter out zero-spend paused adsets (mirrors campaign 'all' logic)
-    return flatAdsets.filter((a) => a.effective_status === 'ACTIVE' || a.spend > 0);
-  }, [flatAdsets, statusFilter]);
+  /**
+   * Adsets to display in the adset-only view.
+   * Status filter is applied at campaign level (via campaignsForStatus → loadAllAdsets),
+   * so all loaded adsets belong to the status-filtered campaigns — no additional adset-level filter needed.
+   */
+  const displayedFlatAdsets = flatAdsets;
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -476,13 +492,15 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
 
   const isResults = phase === 'results';
 
-  // Reload adsets when filters change while in adset-only view
+  // Reload adsets when status-filtered campaigns change or adset view is toggled.
+  // campaignsForStatus = filteredCampaignsBase + campaign status filter (no sort),
+  // so sort changes don't trigger unnecessary re-fetches.
   useEffect(() => {
-    if (showAdsetOnly && displayedCampaigns.length > 0) {
-      loadAllAdsets(displayedCampaigns);
+    if (showAdsetOnly && campaignsForStatus.length > 0) {
+      loadAllAdsets(campaignsForStatus);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayedCampaigns, showAdsetOnly]);
+  }, [campaignsForStatus, showAdsetOnly]);
 
   return (
     <div className="flex flex-col bg-slate-50 min-h-screen">
@@ -783,7 +801,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
               {showAdsetOnly && (
                 loadingAllAdsets ? (
                   <div className="h-full flex items-center justify-center bg-white border border-slate-200 rounded-xl text-sm text-slate-400">
-                    Loading ad sets from {displayedCampaigns.length} campaign{displayedCampaigns.length !== 1 ? 's' : ''}…
+                    Loading ad sets from {campaignsForStatus.length} campaign{campaignsForStatus.length !== 1 ? 's' : ''}…
                   </div>
                 ) : (
                   <AdsetFlatView

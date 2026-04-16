@@ -110,8 +110,8 @@ export async function fetchAdSets(
   do {
     const params: Record<string, string> = {
       fields: `${ADSET_FIELDS},${insightFields}`,
-      // Include paused adsets too — they may still have spend if paused mid-day
-      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED'] }]),
+      // Include paused adsets and campaign-paused adsets — they may still have spend if paused mid-day
+      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED'] }]),
       limit: '100',
     };
     if (after) params.after = after;
