@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { pauseCampaign, enableCampaign, updateBudget, duplicateCampaignSameAccount } from '@/lib/facebook/campaign-actions';
+import { pauseCampaign, enableCampaign, updateBudget, duplicateCampaignSameAccount, type AdsetBudgetSpec } from '@/lib/facebook/campaign-actions';
 
 type Params = { params: Promise<{ campaignId: string }> };
 
@@ -23,6 +23,8 @@ type DuplicateBody = {
   source_account_id: string;
   currency: string;
   copies: CopySpec[];
+  /** Per-adset budget overrides applied to every copy — keyed by adset name */
+  adset_budgets?: Array<{ name: string; amount: number; type: 'daily' | 'lifetime' }>;
 };
 
 export async function PATCH(request: NextRequest, { params }: Params) {
@@ -102,13 +104,18 @@ export async function POST(request: NextRequest, { params }: Params) {
 
   if (body.action !== 'duplicate') return errorResponse('Unknown action');
 
-  const { copies, currency } = body;
+  const { copies, currency, adset_budgets } = body;
   if (!Array.isArray(copies) || copies.length < 1 || copies.length > 10) {
     return errorResponse('copies must be an array of 1-10 items');
   }
   if (copies.some((c) => !c.name?.trim())) {
     return errorResponse('All copies must have a non-empty name');
   }
+
+  // Build adset budget specs with currency for all copies
+  const adsetBudgetSpecs: AdsetBudgetSpec[] | undefined = adset_budgets?.length
+    ? adset_budgets.map((b) => ({ name: b.name, amount: b.amount, type: b.type, currency }))
+    : undefined;
 
   const results: Array<{ name: string; success: boolean; campaign_id?: string; error?: string }> = [];
 
@@ -117,7 +124,9 @@ export async function POST(request: NextRequest, { params }: Params) {
       const budgetOverride = copy.budget_amount && copy.budget_type
         ? { amount: copy.budget_amount, type: copy.budget_type, currency }
         : undefined;
-      const newId = await duplicateCampaignSameAccount(token, campaignId, copy.name.trim(), budgetOverride);
+      const newId = await duplicateCampaignSameAccount(
+        token, campaignId, copy.name.trim(), budgetOverride, adsetBudgetSpecs,
+      );
       results.push({ name: copy.name, success: true, campaign_id: newId });
     } catch (err) {
       results.push({ name: copy.name, success: false, error: err instanceof Error ? err.message : 'FB API error' });

@@ -9,10 +9,36 @@
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { fetchCampaignForTsvExport } from '@/lib/facebook/campaign-csv-export';
+import { fetchCampaignForTsvExport, type AdsetBudgetOverride } from '@/lib/facebook/campaign-csv-export';
 
 type Params = { params: Promise<{ campaignId: string }> };
 
+type ExportBody = {
+  names: string[];
+  adset_budgets?: Array<{ name: string; amount: number; type: 'daily' | 'lifetime'; currency: string }>;
+};
+
+async function getToken(userId: string) {
+  const service = createServiceClient();
+  const { data: profile } = await service
+    .from('profiles')
+    .select('fb_access_token')
+    .eq('id', userId)
+    .single();
+  return (profile as { fb_access_token?: string | null })?.fb_access_token ?? null;
+}
+
+function buildTsvResponse(tsvBuffer: Buffer) {
+  return new Response(new Uint8Array(tsvBuffer), {
+    headers: {
+      'Content-Type': 'text/tab-separated-values; charset=utf-16le',
+      'Content-Disposition': `attachment; filename="campaign-export.csv"`,
+      'Content-Length': String(tsvBuffer.length),
+    },
+  });
+}
+
+/** Legacy GET — kept for backward compatibility (no adset budget overrides) */
 export async function GET(request: NextRequest, { params }: Params) {
   const { campaignId } = await params;
 
@@ -20,33 +46,53 @@ export async function GET(request: NextRequest, { params }: Params) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  const service = createServiceClient();
-  const { data: profile } = await service
-    .from('profiles')
-    .select('fb_access_token')
-    .eq('id', user.id)
-    .single();
-
-  const token = (profile as { fb_access_token?: string | null })?.fb_access_token;
+  const token = await getToken(user.id);
   if (!token) return errorResponse('Facebook token not configured', 400);
 
-  // Accept repeated ?name= params: ?name=Copy+1&name=Copy+2
   const names = request.nextUrl.searchParams.getAll('name').map((n) => n.trim()).filter(Boolean);
   if (names.length === 0) return errorResponse('At least one ?name= query parameter is required', 400);
 
   try {
     const tsvBuffer = await fetchCampaignForTsvExport(token, campaignId, names);
+    return buildTsvResponse(tsvBuffer);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'FB API error';
+    return errorResponse(message, 502);
+  }
+}
 
-    // Use Uint8Array, not tsvBuffer.buffer — Buffer.buffer returns the full underlying
-    // ArrayBuffer which may include extra bytes before/after the actual data.
-    return new Response(new Uint8Array(tsvBuffer), {
-      headers: {
-        'Content-Type': 'text/tab-separated-values; charset=utf-16le',
-        // FB Ads Manager expects .csv extension even though content is TSV
-        'Content-Disposition': `attachment; filename="campaign-export.csv"`,
-        'Content-Length': String(tsvBuffer.length),
-      },
-    });
+/** POST — supports adset budget overrides in JSON body */
+export async function POST(request: NextRequest, { params }: Params) {
+  const { campaignId } = await params;
+
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) return errorResponse('Unauthorized', 401);
+
+  const token = await getToken(user.id);
+  if (!token) return errorResponse('Facebook token not configured', 400);
+
+  let body: ExportBody;
+  try {
+    body = await request.json() as ExportBody;
+  } catch {
+    return errorResponse('Invalid JSON body');
+  }
+
+  const names = (body.names ?? []).map((n) => n.trim()).filter(Boolean);
+  if (names.length === 0) return errorResponse('At least one name is required', 400);
+
+  // Build budget overrides map keyed by adset name
+  let overridesMap: Map<string, AdsetBudgetOverride> | undefined;
+  if (body.adset_budgets && body.adset_budgets.length > 0) {
+    overridesMap = new Map(
+      body.adset_budgets.map((b) => [b.name, { amount: b.amount, type: b.type, currency: b.currency }]),
+    );
+  }
+
+  try {
+    const tsvBuffer = await fetchCampaignForTsvExport(token, campaignId, names, overridesMap);
+    return buildTsvResponse(tsvBuffer);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'FB API error';
     return errorResponse(message, 502);

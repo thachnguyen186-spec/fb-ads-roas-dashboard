@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { MergedCampaign, FbAdAccount } from '@/lib/types';
+import type { AdSetBudgetInfo } from '@/lib/facebook/adsets';
 
 interface Props {
   campaign: MergedCampaign;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 type CopyRow = { name: string; budget: string };
+type AdsetBudgetRow = { name: string; budget: string; budget_type: 'daily' | 'lifetime' | 'cbo' };
 type CopyResult = { name: string; success: boolean; campaign_id?: string; error?: string };
 
 function makeCopyName(baseName: string, index: number, total: number) {
@@ -21,17 +23,44 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
   const [destAccountId, setDestAccountId] = useState(campaign.account_id);
   const [copyCount, setCopyCount] = useState(1);
   const [copies, setCopies] = useState<CopyRow[]>([{ name: `Copy of ${campaign.campaign_name}`, budget: '' }]);
+  const [adsetBudgets, setAdsetBudgets] = useState<AdsetBudgetRow[]>([]);
+  const [loadingAdsets, setLoadingAdsets] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<CopyResult[] | null>(null);
-  // cross-account download state
   const [csvDownloading, setCsvDownloading] = useState(false);
   const [csvDownloaded, setCsvDownloaded] = useState(false);
   const [csvError, setCsvError] = useState('');
 
-  // '__cross__' sentinel means cross-account mode (no specific destination needed)
   const isCrossAccount = destAccountId === '__cross__';
   const hasBudget = campaign.budget_type !== 'unknown';
   const currency = campaign.currency ?? 'USD';
+
+  // Fetch adsets for budget pre-fill on mount
+  useEffect(() => {
+    async function load() {
+      setLoadingAdsets(true);
+      try {
+        const res = await fetch(`/api/campaigns/${campaign.campaign_id}/adsets?all=true`);
+        if (!res.ok) return;
+        const data = await res.json() as { adsets: AdSetBudgetInfo[] };
+        const rows: AdsetBudgetRow[] = (data.adsets ?? [])
+          .filter((a) => a.budget_type !== 'cbo')
+          .map((a) => ({
+            name: a.name,
+            budget_type: a.budget_type,
+            budget: a.budget_type === 'daily'
+              ? String(a.daily_budget ?? '')
+              : String(a.lifetime_budget ?? ''),
+          }));
+        setAdsetBudgets(rows);
+      } catch {
+        // Non-fatal — user can still duplicate without budget overrides
+      } finally {
+        setLoadingAdsets(false);
+      }
+    }
+    load();
+  }, [campaign.campaign_id]);
 
   function handleCopyCountChange(n: number) {
     setCopyCount(n);
@@ -42,7 +71,6 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
       while (next.length < n) {
         next.push({ name: makeCopyName(campaign.campaign_name, next.length, n), budget: '' });
       }
-      // Rename existing entries when count changes
       return next.map((c, i) => ({ ...c, name: makeCopyName(campaign.campaign_name, i, n) }));
     });
   }
@@ -51,10 +79,21 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
     setCopies((prev) => prev.map((c, idx) => (idx === i ? { ...c, [field]: val } : c)));
   }
 
+  function updateAdsetBudget(i: number, val: string) {
+    setAdsetBudgets((prev) => prev.map((a, idx) => (idx === i ? { ...a, budget: val } : a)));
+  }
+
+  function buildAdsetBudgetPayload() {
+    return adsetBudgets
+      .filter((a) => a.budget.trim() && parseFloat(a.budget) > 0)
+      .map((a) => ({ name: a.name, amount: parseFloat(a.budget), type: a.budget_type }));
+  }
+
   async function handleSameAccountSubmit() {
     setSubmitting(true);
     setResults(null);
     try {
+      const adset_budgets = buildAdsetBudgetPayload();
       const res = await fetch(`/api/campaigns/${campaign.campaign_id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,6 +108,7 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
               budget_type: campaign.budget_type === 'daily' ? 'daily' : 'lifetime',
             } : {}),
           })),
+          ...(adset_budgets.length > 0 ? { adset_budgets } : {}),
         }),
       });
       const data = await res.json() as { results?: CopyResult[] };
@@ -85,31 +125,31 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
   }
 
   async function handleCsvDownload() {
-    // Build one URL with all copy names as repeated ?name= params
-    const params = new URLSearchParams();
-    for (const copy of copies) {
-      if (copy.name.trim()) params.append('name', copy.name.trim());
-    }
-    const url = `/api/campaigns/${campaign.campaign_id}/export-csv?${params.toString()}`;
-
     setCsvError('');
     setCsvDownloading(true);
     setCsvDownloaded(false);
 
     try {
-      const res = await fetch(url);
+      const adset_budgets = buildAdsetBudgetPayload();
+      const res = await fetch(`/api/campaigns/${campaign.campaign_id}/export-csv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          names: copies.map((c) => c.name.trim()).filter(Boolean),
+          ...(adset_budgets.length > 0 ? { adset_budgets: adset_budgets.map((b) => ({ ...b, currency })) } : {}),
+        }),
+      });
 
       if (!res.ok) {
         let errMsg = `HTTP ${res.status}`;
         try {
           const data = await res.json() as { error?: string };
           if (data.error) errMsg = data.error;
-        } catch { /* ignore parse error */ }
+        } catch { /* ignore */ }
         setCsvError(errMsg);
         return;
       }
 
-      // Success — one CSV with all copy names as separate campaign blocks
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -126,6 +166,8 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
       setCsvDownloading(false);
     }
   }
+
+  const showAdsetBudgets = adsetBudgets.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -158,7 +200,7 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
           </button>
         </div>
 
-        {/* Copy count — shared by both modes */}
+        {/* Copy count */}
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Number of copies</label>
           <select
@@ -172,8 +214,8 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
           </select>
         </div>
 
-        {/* Copy name rows — shared by both modes */}
-        <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+        {/* Campaign name rows */}
+        <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
           {copies.map((copy, i) => (
             <div key={i} className="flex gap-2 items-center">
               <input
@@ -195,8 +237,33 @@ export default function DuplicateCampaignModal({ campaign, allAccounts, onClose,
             </div>
           ))}
         </div>
-        {!isCrossAccount && !hasBudget && (
-          <p className="text-xs text-slate-500">Budget managed at ad set level — no campaign budget override available.</p>
+
+        {/* Ad Set Budgets */}
+        {loadingAdsets && (
+          <p className="text-xs text-slate-400">Loading ad set budgets…</p>
+        )}
+        {showAdsetBudgets && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-slate-600">
+              Ad Set Budgets <span className="text-slate-400 font-normal">(applied to all copies · {currency})</span>
+            </p>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {adsetBudgets.map((adset, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="flex-1 text-xs text-slate-700 truncate" title={adset.name}>{adset.name}</span>
+                  <span className="text-xs text-slate-400 shrink-0">{adset.budget_type === 'daily' ? 'daily' : 'lifetime'}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={adset.budget}
+                    onChange={(e) => updateAdsetBudget(i, e.target.value)}
+                    placeholder={currency}
+                    className="w-28 px-2.5 py-1 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Same-account results + footer */}

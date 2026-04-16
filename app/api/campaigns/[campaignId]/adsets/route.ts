@@ -7,7 +7,7 @@
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { fetchAdSets } from '@/lib/facebook/adsets';
+import { fetchAdSets, fetchAdSetsForDuplicate } from '@/lib/facebook/adsets';
 
 type Params = { params: Promise<{ campaignId: string }> };
 
@@ -23,6 +23,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const accountId = sp.get('accountId') ?? '';
   const accountName = sp.get('accountName') ?? '';
   const currency = sp.get('currency') ?? 'USD';
+  const all = sp.get('all') === 'true';
 
   const service = createServiceClient();
   const { data: profile } = await service
@@ -35,6 +36,11 @@ export async function GET(request: NextRequest, { params }: Params) {
   if (!token) return errorResponse('Facebook access token not configured.', 400);
 
   try {
+    // ?all=true — lightweight fetch for duplicate modal (no spend filter, no insights)
+    if (all) {
+      const adsets = await fetchAdSetsForDuplicate(token, campaignId);
+      return Response.json({ adsets });
+    }
     const adsets = await fetchAdSets(token, campaignId, accountId, accountName, currency);
     return Response.json({ adsets });
   } catch (err) {

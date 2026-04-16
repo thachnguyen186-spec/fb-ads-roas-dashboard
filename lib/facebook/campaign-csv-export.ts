@@ -192,11 +192,18 @@ interface FbAd {
   creative?: FbCreative;
 }
 
+export type AdsetBudgetOverride = {
+  amount: number;  // in account currency (USD or VND)
+  type: 'daily' | 'lifetime';
+  currency: string;
+};
+
 function buildRow(
   campaign: FbCampaign,
   adSet: FbAdSet,
   ad: FbAd | null,
   newCampaignName: string,
+  adsetBudgetOverrides?: Map<string, AdsetBudgetOverride>,
 ): Row {
   const creative = ad?.creative;
   const targeting = adSet.targeting ?? {};
@@ -307,6 +314,21 @@ function buildRow(
     row['Ad Set Lifetime Budget'] = '';
   }
 
+  // Apply adset-level budget override if provided for this adset
+  const budgetOverride = adsetBudgetOverrides?.get(adSet.name);
+  if (budgetOverride && adSet.name) {
+    const centsValue = budgetOverride.currency === 'VND'
+      ? Math.round(budgetOverride.amount)
+      : Math.round(budgetOverride.amount * 100);
+    if (budgetOverride.type === 'daily') {
+      row['Ad Set Daily Budget'] = String(centsValue);
+      row['Ad Set Lifetime Budget'] = '';
+    } else {
+      row['Ad Set Daily Budget'] = '';
+      row['Ad Set Lifetime Budget'] = String(centsValue);
+    }
+  }
+
   return row;
 }
 
@@ -329,11 +351,13 @@ const AD_FIELDS = 'name,status,creative{id,body,title,image_hash,video_id,instag
  * FB's importer treats each unique Campaign Name as a separate campaign to create.
  *
  * @param newCampaignNames - 1-10 names; each produces its own campaign block in the TSV
+ * @param adsetBudgetOverrides - optional per-adset budget overrides keyed by adset name
  */
 export async function fetchCampaignForTsvExport(
   token: string,
   campaignId: string,
   newCampaignNames: string[],
+  adsetBudgetOverrides?: Map<string, AdsetBudgetOverride>,
 ): Promise<Buffer> {
   if (newCampaignNames.length === 0) throw new Error('At least one campaign name is required');
 
@@ -361,16 +385,16 @@ export async function fetchCampaignForTsvExport(
   // Build base rows for the campaign structure (using a placeholder name — will be replaced per copy)
   function buildRowsForName(name: string): Row[] {
     if (adSets.length === 0) {
-      return [buildRow(campaignRes, { id: '', name: '', status: '' }, null, name)];
+      return [buildRow(campaignRes, { id: '', name: '', status: '' }, null, name, adsetBudgetOverrides)];
     }
     const rows: Row[] = [];
     for (const adSet of adSets) {
       const ads = adSet.ads?.data ?? [];
       if (ads.length === 0) {
-        rows.push(buildRow(campaignRes, adSet, null, name));
+        rows.push(buildRow(campaignRes, adSet, null, name, adsetBudgetOverrides));
       } else {
         for (const ad of ads) {
-          rows.push(buildRow(campaignRes, adSet, ad, name));
+          rows.push(buildRow(campaignRes, adSet, ad, name, adsetBudgetOverrides));
         }
       }
     }

@@ -4,7 +4,14 @@
  * Budget values are converted from USD to cents (FB API expects cents).
  */
 
-import { fbPatch } from './fb-client';
+import { fbGet, fbPatch } from './fb-client';
+
+export type AdsetBudgetSpec = {
+  name: string;
+  amount: number;
+  type: 'daily' | 'lifetime';
+  currency: string;
+};
 
 /**
  * Pauses a campaign by setting its status to PAUSED.
@@ -31,11 +38,12 @@ export async function duplicateCampaignSameAccount(
   campaignId: string,
   name: string,
   budgetOverride?: { amount: number; type: 'daily' | 'lifetime'; currency: string },
+  adsetBudgets?: AdsetBudgetSpec[],
 ): Promise<string> {
+  // Note: rename_options omitted — it requires elevated API access and the name is patched below anyway
   const copyRes = await fbPatch(`/${campaignId}/copies`, {
     deep_copy: 'true',
     status_option: 'PAUSED',
-    rename_options: JSON.stringify({ rename_strategy: 'ONLY_TOP_LEVEL_RENAME' }),
   }, token) as { copied_campaign_id: string };
 
   const newId = copyRes.copied_campaign_id;
@@ -43,13 +51,32 @@ export async function duplicateCampaignSameAccount(
   // Set the user-specified name on the copy
   await fbPatch(`/${newId}`, { name }, token);
 
-  // Apply budget override if provided
+  // Apply campaign-level budget override if provided
   if (budgetOverride) {
     const fbValue = budgetOverride.currency === 'VND'
       ? Math.round(budgetOverride.amount)
       : Math.round(budgetOverride.amount * 100);
     const field = budgetOverride.type === 'daily' ? 'daily_budget' : 'lifetime_budget';
     await fbPatch(`/${newId}`, { [field]: String(fbValue) }, token);
+  }
+
+  // Patch adset-level budgets if provided — match new adsets by name (deep copy preserves names)
+  if (adsetBudgets && adsetBudgets.length > 0) {
+    const adSetsRes = await fbGet(`/${newId}/adsets`, {
+      fields: 'id,name',
+      limit: '200',
+    }, token) as { data: Array<{ id: string; name: string }> };
+
+    const newAdSets = adSetsRes.data ?? [];
+    for (const budget of adsetBudgets) {
+      const match = newAdSets.find((a) => a.name === budget.name);
+      if (!match) continue;
+      const fbValue = budget.currency === 'VND'
+        ? Math.round(budget.amount)
+        : Math.round(budget.amount * 100);
+      const field = budget.type === 'daily' ? 'daily_budget' : 'lifetime_budget';
+      await fbPatch(`/${match.id}`, { [field]: String(fbValue) }, token);
+    }
   }
 
   return newId;

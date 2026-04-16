@@ -92,6 +92,36 @@ function mapAdSet(
   };
 }
 
+export interface AdSetBudgetInfo {
+  id: string;
+  name: string;
+  daily_budget: number | null;
+  lifetime_budget: number | null;
+  budget_type: 'daily' | 'lifetime' | 'cbo';
+}
+
+/**
+ * Lightweight adset fetch for the duplicate modal — no spend filter, no insights.
+ * Returns budget info so the user can pre-fill budget inputs.
+ */
+export async function fetchAdSetsForDuplicate(
+  token: string,
+  campaignId: string,
+): Promise<AdSetBudgetInfo[]> {
+  const res = await fbGet(`/${campaignId}/adsets`, {
+    fields: 'id,name,daily_budget,lifetime_budget',
+    limit: '200',
+  }, token) as { data: Array<{ id: string; name: string; daily_budget?: string; lifetime_budget?: string }> };
+
+  return (res.data ?? []).map((raw) => ({
+    id: raw.id,
+    name: raw.name,
+    daily_budget: centsToUsd(raw.daily_budget),
+    lifetime_budget: centsToUsd(raw.lifetime_budget),
+    budget_type: resolveBudgetType(raw as unknown as RawAdSet),
+  }));
+}
+
 /**
  * Fetches all active ad sets for a campaign with today's insights.
  * Uses cursor-based pagination to retrieve all ad sets.
