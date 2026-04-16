@@ -126,9 +126,14 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                 Result
               </th>
               {snapshotAdSetMap !== null && (
-                <th colSpan={12} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-100 tracking-wide uppercase">
-                  Snapshot Compare
-                </th>
+                <>
+                  <th colSpan={7} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-100 tracking-wide uppercase">
+                    Old Snapshot
+                  </th>
+                  <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-sky-700 bg-sky-50 border-l border-sky-100 tracking-wide uppercase">
+                    Δ Change
+                  </th>
+                </>
               )}
             </tr>
             <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 font-medium text-xs">
@@ -149,18 +154,18 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th onClick={() => handleSort('profit')} className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-50 cursor-pointer hover:bg-purple-100 select-none">Profit{sortArrow('profit')}</th>
               {snapshotAdSetMap !== null && (
                 <>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-l border-amber-100">Old Spend</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old CPM</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old CTR</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old Revenue</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old %Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Old Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ Spend</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ Revenue</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ ROAS</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ %Profit</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-50">Δ Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200">Old Spend</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100">Old CPM</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100">Old CTR</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100">Old Revenue</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100">Old ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100">Old %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100">Old Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100 border-l border-sky-200">Δ Spend</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100">Δ Revenue</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100">Δ ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100">Δ %Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-sky-100">Δ Profit</th>
                 </>
               )}
             </tr>
@@ -260,19 +265,19 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                         <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap?.profit == null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {snap?.profit != null ? fmtUsd(snap.profit) : '—'}
                         </td>
-                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 border-l border-sky-100 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {fmtDelta(deltaSpend)}
                         </td>
-                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {fmtDelta(deltaRevenue)}
                         </td>
-                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
                         </td>
-                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {deltaProfitPct !== null ? `${deltaProfitPct >= 0 ? '+' : ''}${deltaProfitPct.toFixed(1)}%` : '—'}
                         </td>
-                        <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        <td className={`px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                           {fmtDelta(deltaProfit)}
                         </td>
                       </>

@@ -210,19 +210,19 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
                   <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap?.profit == null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {snap?.profit != null ? fmtUsd(snap.profit) : '—'}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-sky-50/40 border-l border-sky-100 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {fmtDelta(deltaSpend)}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {fmtDelta(deltaRevenue)}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {deltaProfitPct !== null ? `${deltaProfitPct >= 0 ? '+' : ''}${deltaProfitPct.toFixed(1)}%` : '—'}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-sky-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {fmtDelta(deltaProfit)}
                   </td>
                 </>
