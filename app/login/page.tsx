@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { Zap } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-slate-900">⚡ Tool Hub</h1>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Zap className="w-6 h-6 text-indigo-500" /> Tool Hub</h1>
           <p className="text-sm text-slate-500 mt-1">Sign in to continue</p>
         </div>
 

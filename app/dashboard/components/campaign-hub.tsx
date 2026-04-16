@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Flame, ChevronLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { parseAdjustCsv, aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateByAdSetId, aggregateAllRevByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
@@ -24,9 +25,17 @@ interface Props {
   selectedAccounts: FbAdAccount[];
   userRole: UserRole;
   staffList: StaffMember[];
+  userEmail: string;
 }
 
-export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts, userRole, staffList }: Props) {
+function getInitials(email: string) {
+  const local = email.split('@')[0] ?? '';
+  const parts = local.split(/[._-]/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return local.slice(0, 2).toUpperCase();
+}
+
+export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts, userRole, staffList, userEmail }: Props) {
   const router = useRouter();
 
   // Leader/admin: which staff member to view (null = own data)
@@ -479,8 +488,10 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     <div className="flex flex-col bg-slate-50 min-h-screen">
       <header className="flex-shrink-0 bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/tools" className="text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors flex items-center gap-1 mr-1">← Tools</Link>
-          <h1 className="text-sm font-semibold text-slate-900">🔥 It&apos;s Cooking Time</h1>
+          <Link href="/tools" className="text-xs font-medium text-slate-600 hover:text-indigo-600 transition-colors flex items-center gap-1 mr-1">
+            <ChevronLeft className="w-3.5 h-3.5" /> Tools
+          </Link>
+          <h1 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5"><Flame className="w-4 h-4 text-orange-500" /> It&apos;s Cooking Time</h1>
           {/* Leader/admin: staff switcher */}
           {(userRole === 'leader' || userRole === 'admin') && staffList.length > 0 && (
             <select
@@ -519,8 +530,16 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
           {userRole === 'admin' && (
             <Link href="/admin" className="text-sm text-purple-600 hover:text-purple-700 font-medium">Admin</Link>
           )}
+          {/* User identity */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold flex items-center justify-center select-none">
+              {getInitials(userEmail)}
+            </span>
+            <span className="text-xs text-slate-400 hidden sm:block max-w-[120px] truncate">{userEmail}</span>
+          </div>
           <Link href="/settings" className="text-sm text-slate-500 hover:text-slate-800">Settings</Link>
-          <button onClick={handleSignOut} className="text-sm text-slate-500 hover:text-slate-800">Sign out</button>
+          <span className="text-slate-200 select-none">|</span>
+          <button onClick={handleSignOut} className="text-sm text-red-500 hover:text-red-700 font-medium transition-colors">Sign out</button>
         </div>
       </header>
 

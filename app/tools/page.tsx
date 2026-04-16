@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getUserRole } from '@/lib/auth-guards';
 import ToolsNavActions from './tools-nav-actions';
 import type { UserRole } from '@/lib/types';
+import { Zap, Lock, Wrench } from 'lucide-react';
 
 interface Tool {
   id: string;
@@ -43,6 +44,7 @@ export default async function ToolsPage() {
   if (!user) redirect('/login');
 
   const userRole = ((await getUserRole(user.id)) ?? 'staff') as UserRole;
+  const userEmail = user.email ?? '';
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -50,10 +52,10 @@ export default async function ToolsPage() {
       <header className="px-8 py-5 border-b border-slate-200 bg-white">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">⚡ Tool Hub</h1>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2"><Zap className="w-6 h-6 text-indigo-500" /> Tool Hub</h1>
             <p className="text-slate-500 text-sm mt-0.5">Select a tool to get started</p>
           </div>
-          <ToolsNavActions userRole={userRole} />
+          <ToolsNavActions userRole={userRole} userEmail={userEmail} />
         </div>
       </header>
 
@@ -97,15 +99,15 @@ function ToolCard({ tool }: { tool: Tool }) {
         ) : (
           /* Placeholder for tools without an image yet */
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-800">
-            <span className="text-5xl opacity-30">🔧</span>
+            <Wrench className="w-12 h-12 text-slate-500 opacity-50" />
           </div>
         )}
 
         {/* Lock overlay for coming-soon tools */}
         {isLocked && (
           <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-3xl mb-1">🔒</div>
+            <div className="text-center flex flex-col items-center gap-1">
+              <Lock className="w-8 h-8 text-slate-300" />
               <span className="text-xs font-semibold text-slate-300 uppercase tracking-widest">Locked</span>
             </div>
           </div>

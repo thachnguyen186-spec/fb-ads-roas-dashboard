@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Save, Trash2 } from 'lucide-react';
 import type { SnapshotMeta } from '@/lib/types';
 
 interface Props {
@@ -84,7 +85,7 @@ export default function SnapshotToolbar({ snapshots, comparedIds, onAdd, onRemov
           onClick={() => setShowInput(true)}
           className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-1.5"
         >
-          <span>💾</span> Save Snapshot
+          <Save className="w-3.5 h-3.5" /> Save Snapshot
         </button>
       )}
 
@@ -118,7 +119,7 @@ export default function SnapshotToolbar({ snapshots, comparedIds, onAdd, onRemov
                   className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors disabled:opacity-40 text-sm"
                   title="Delete snapshot permanently"
                 >
-                  {deleting === id ? '…' : '🗑'}
+                  {deleting === id ? '…' : <Trash2 className="w-3.5 h-3.5" />}
                 </button>
               </span>
             );

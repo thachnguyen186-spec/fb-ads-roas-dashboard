@@ -79,6 +79,7 @@ export default async function DashboardPage() {
       selectedAccounts={selectedAccounts}
       userRole={userRole}
       staffList={staffList}
+      userEmail={user.email ?? ''}
     />
   );
 }
