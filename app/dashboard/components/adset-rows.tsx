@@ -152,10 +152,10 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
         const isActive = adset.effective_status === 'ACTIVE';
 
         return (
-          <tr key={adset.adset_id} className={`${subRowCls} hover:bg-indigo-50`}>
-            <td className="px-4 py-2 text-slate-300 text-center">└</td>
+          <tr key={adset.adset_id} className={`group ${subRowCls} hover:bg-indigo-50`}>
+            <td className="sticky left-0 z-[1] px-4 py-2 text-slate-300 text-center bg-indigo-50/50 group-hover:bg-indigo-50">└</td>
 
-            <td className="px-3 py-2 max-w-xs border-r border-slate-200">
+            <td className="sticky left-10 z-[1] px-3 py-2 max-w-xs border-r border-slate-200 bg-indigo-50/50 group-hover:bg-indigo-50">
               <div className="font-medium text-slate-700 truncate" title={adset.adset_name}>{adset.adset_name}</div>
               <div className="text-slate-400 font-mono">{adset.adset_id}</div>
             </td>
