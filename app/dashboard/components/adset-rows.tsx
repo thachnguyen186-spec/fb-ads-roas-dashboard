@@ -168,7 +168,9 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
                 : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Paused</span>}
             </td>
 
-            <td className="px-3 py-2 text-right tabular-nums text-slate-700 bg-blue-50/40">{fmtUsd(adset.spend)}</td>
+            {snapshotComparisons.map((comp) => <Fragment key={comp.id}>{renderSnapCols(adset, comp)}</Fragment>)}
+
+            <td className="px-3 py-2 text-right tabular-nums text-slate-700 bg-blue-50/40 border-l border-blue-100">{fmtUsd(adset.spend)}</td>
             <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(adset.cpm)}</td>
             <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">
               {adset.ctr > 0 ? `${adset.ctr.toFixed(2)}%` : '—'}
@@ -225,8 +227,6 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
             <td className={`px-3 py-2 text-right tabular-nums bg-purple-50/40 font-medium ${adset.profit === null ? 'text-slate-300' : adset.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
               {adset.profit !== null ? fmtUsd(adset.profit) : '—'}
             </td>
-
-            {snapshotComparisons.map((comp) => <Fragment key={comp.id}>{renderSnapCols(adset, comp)}</Fragment>)}
           </tr>
         );
       })}
