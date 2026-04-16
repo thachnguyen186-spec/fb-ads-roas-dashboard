@@ -141,8 +141,9 @@ export default function CampaignTable({
 
   const fbColSpan = showAccountColumn ? 6 : 5; // Account? + Status + Spend + CPM + CTR + Budget
   const hasSnapshot = snapshotCampaignMap !== null;
-  // Result group: ID Match + D0 ROAS + %Profit + Profit = 4 cols; snapshot: Old ROAS + Old Profit + Δ ROAS + Δ Profit = 4 cols
-  const colCount = 2 + fbColSpan + 1 + 4 + (hasSnapshot ? 4 : 0);
+  // Result group: ID Match + D0 ROAS + %Profit + Profit = 4 cols
+  // Snapshot: Old Spend/CPM/CTR/Revenue/ROAS/%Profit/Profit + Δ Spend/Revenue/ROAS/%Profit/Profit = 12 cols
+  const colCount = 2 + fbColSpan + 1 + 4 + (hasSnapshot ? 12 : 0);
 
   // Subtotals computed from visible campaigns
   const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
@@ -158,28 +159,48 @@ export default function CampaignTable({
   const matchedCount = campaigns.filter((c) => c.has_adjust_data).length;
 
   // Snapshot subtotals (only meaningful when snapshotCampaignMap is set)
-  const snapWithRoas = snapshotCampaignMap
-    ? campaigns.filter((c) => { const s = snapshotCampaignMap.get(c.campaign_id); return s?.roas !== null && s?.roas !== undefined; })
-    : [];
-  const snapWithProfit = snapshotCampaignMap
-    ? campaigns.filter((c) => { const s = snapshotCampaignMap.get(c.campaign_id); return s?.profit !== null && s?.profit !== undefined; })
-    : [];
+  // Helper: get snaps that have a given numeric field
+  const snapsWithField = (field: keyof typeof campaigns[0] extends never ? never : keyof SnapshotRow) =>
+    snapshotCampaignMap
+      ? campaigns.filter((c) => { const s = snapshotCampaignMap.get(c.campaign_id); return s?.[field] !== null && s?.[field] !== undefined; })
+      : [];
+
+  const totalSnapSpend = snapshotCampaignMap
+    ? campaigns.reduce((s, c) => s + (snapshotCampaignMap.get(c.campaign_id)?.spend ?? 0), 0)
+    : null;
+  const totalSnapRevenue = snapshotCampaignMap
+    ? campaigns.reduce((s, c) => s + (snapshotCampaignMap.get(c.campaign_id)?.adjust_revenue ?? 0), 0)
+    : null;
+  const snapWithRoas = snapsWithField('roas');
   const avgSnapRoas = snapWithRoas.length > 0
     ? snapWithRoas.reduce((s, c) => s + snapshotCampaignMap!.get(c.campaign_id)!.roas!, 0) / snapWithRoas.length
     : null;
+  const snapWithProfitPct = snapsWithField('profit_pct');
+  const avgSnapProfitPct = snapWithProfitPct.length > 0
+    ? snapWithProfitPct.reduce((s, c) => s + snapshotCampaignMap!.get(c.campaign_id)!.profit_pct!, 0) / snapWithProfitPct.length
+    : null;
+  const snapWithProfit = snapsWithField('profit');
   const totalSnapProfit = snapWithProfit.length > 0
     ? snapWithProfit.reduce((s, c) => s + snapshotCampaignMap!.get(c.campaign_id)!.profit!, 0)
     : null;
-  // Δ = current − snapshot, only where both sides have values
+  // Δ = current − snapshot
+  const totalDeltaSpend = totalSnapSpend !== null ? totalSpend - totalSnapSpend : null;
+  const totalDeltaRevenue = totalSnapRevenue !== null ? totalRevenue - totalSnapRevenue : null;
   const deltaRoasPairs = snapshotCampaignMap
     ? campaigns.filter((c) => { const s = snapshotCampaignMap.get(c.campaign_id); return c.roas !== null && s?.roas !== null && s?.roas !== undefined; })
-    : [];
-  const deltaProfitPairs = snapshotCampaignMap
-    ? campaigns.filter((c) => { const s = snapshotCampaignMap.get(c.campaign_id); return c.profit !== null && s?.profit !== null && s?.profit !== undefined; })
     : [];
   const avgDeltaRoas = deltaRoasPairs.length > 0
     ? deltaRoasPairs.reduce((s, c) => s + (c.roas! - snapshotCampaignMap!.get(c.campaign_id)!.roas!), 0) / deltaRoasPairs.length
     : null;
+  const deltaProfitPctPairs = snapshotCampaignMap
+    ? campaigns.filter((c) => { const s = snapshotCampaignMap.get(c.campaign_id); return c.profit_pct !== null && s?.profit_pct !== null && s?.profit_pct !== undefined; })
+    : [];
+  const avgDeltaProfitPct = deltaProfitPctPairs.length > 0
+    ? deltaProfitPctPairs.reduce((s, c) => s + (c.profit_pct! - snapshotCampaignMap!.get(c.campaign_id)!.profit_pct!), 0) / deltaProfitPctPairs.length
+    : null;
+  const deltaProfitPairs = snapshotCampaignMap
+    ? campaigns.filter((c) => { const s = snapshotCampaignMap.get(c.campaign_id); return c.profit !== null && s?.profit !== null && s?.profit !== undefined; })
+    : [];
   const totalDeltaProfit = deltaProfitPairs.length > 0
     ? deltaProfitPairs.reduce((s, c) => s + (c.profit! - snapshotCampaignMap!.get(c.campaign_id)!.profit!), 0)
     : null;
@@ -202,7 +223,7 @@ export default function CampaignTable({
                 Result
               </th>
               {hasSnapshot && (
-                <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase">
+                <th colSpan={12} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase">
                   Snapshot Compare
                 </th>
               )}
@@ -226,9 +247,17 @@ export default function CampaignTable({
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-purple-100 border-b border-purple-200 cursor-pointer" onClick={() => onSort('profit')}>Profit <SortBtn col="profit" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               {hasSnapshot && (
                 <>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs">Old ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs">Old Spend</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CPM</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CTR</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Revenue</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old %Profit</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old Profit</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ Spend</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ Revenue</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ ROAS</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ %Profit</th>
                   <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Δ Profit</th>
                 </>
               )}
@@ -269,17 +298,45 @@ export default function CampaignTable({
               </th>
               {hasSnapshot && (
                 <>
+                  {/* Old Spend */}
+                  <th className="px-3 py-2 text-right tabular-nums bg-amber-100 border-l border-amber-200 border-b-2 border-amber-300 text-xs font-semibold text-slate-700">
+                    {totalSnapSpend !== null && totalSnapSpend > 0 ? fmtUsd(totalSnapSpend) : '—'}
+                  </th>
+                  {/* Old CPM — avg not meaningful as total, show blank */}
+                  <th className="px-3 py-2 text-right bg-amber-100 border-b-2 border-amber-300 text-xs text-slate-400">—</th>
+                  {/* Old CTR */}
+                  <th className="px-3 py-2 text-right bg-amber-100 border-b-2 border-amber-300 text-xs text-slate-400">—</th>
+                  {/* Old Revenue */}
+                  <th className="px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold text-emerald-700">
+                    {totalSnapRevenue !== null && totalSnapRevenue > 0 ? fmtUsd(totalSnapRevenue) : '—'}
+                  </th>
                   {/* Avg Old ROAS */}
-                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-l border-amber-200 border-b-2 border-amber-300 text-xs font-semibold ${avgSnapRoas === null ? 'text-slate-400' : avgSnapRoas >= 2 ? 'text-emerald-600' : avgSnapRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${avgSnapRoas === null ? 'text-slate-400' : avgSnapRoas >= 2 ? 'text-emerald-600' : avgSnapRoas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
                     {avgSnapRoas !== null ? `${avgSnapRoas.toFixed(2)}x` : '—'}
+                  </th>
+                  {/* Avg Old %Profit */}
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${avgSnapProfitPct === null ? 'text-slate-400' : avgSnapProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {avgSnapProfitPct !== null ? `${avgSnapProfitPct >= 0 ? '+' : ''}${avgSnapProfitPct.toFixed(1)}%` : '—'}
                   </th>
                   {/* Total Old Profit */}
                   <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalSnapProfit === null ? 'text-slate-400' : totalSnapProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {totalSnapProfit !== null ? fmtUsd(totalSnapProfit) : '—'}
                   </th>
+                  {/* Δ Spend */}
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalDeltaSpend === null ? 'text-slate-400' : totalDeltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {totalDeltaSpend !== null ? `${totalDeltaSpend >= 0 ? '+' : '-'}$${Math.abs(totalDeltaSpend).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                  </th>
+                  {/* Δ Revenue */}
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalDeltaRevenue === null ? 'text-slate-400' : totalDeltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {totalDeltaRevenue !== null ? `${totalDeltaRevenue >= 0 ? '+' : '-'}$${Math.abs(totalDeltaRevenue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                  </th>
                   {/* Avg Δ ROAS */}
                   <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${avgDeltaRoas === null ? 'text-slate-400' : avgDeltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {avgDeltaRoas !== null ? `${avgDeltaRoas >= 0 ? '+' : ''}${avgDeltaRoas.toFixed(2)}x` : '—'}
+                  </th>
+                  {/* Avg Δ %Profit */}
+                  <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${avgDeltaProfitPct === null ? 'text-slate-400' : avgDeltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {avgDeltaProfitPct !== null ? `${avgDeltaProfitPct >= 0 ? '+' : ''}${avgDeltaProfitPct.toFixed(1)}%` : '—'}
                   </th>
                   {/* Total Δ Profit */}
                   <th className={`px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold ${totalDeltaProfit === null ? 'text-slate-400' : totalDeltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -363,24 +420,64 @@ export default function CampaignTable({
                     <td className={`px-3 py-2.5 text-right tabular-nums bg-purple-50/40 text-sm font-medium ${c.profit === null ? 'text-slate-300' : c.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                       {c.profit !== null ? fmtUsd(c.profit) : '—'}
                     </td>
-                    {/* Snapshot compare columns: Old ROAS | Old Profit | Δ ROAS | Δ Profit */}
+                    {/* Snapshot: Old Spend/CPM/CTR/Revenue/ROAS/%Profit/Profit | Δ Spend/Revenue/ROAS/%Profit/Profit */}
                     {hasSnapshot && (() => {
                       const snap = snapshotCampaignMap?.get(c.campaign_id) ?? null;
-                      const deltaRoas = snap && c.roas !== null && snap.roas !== null ? c.roas - snap.roas : null;
-                      const deltaProfit = snap && c.profit !== null && snap.profit !== null ? c.profit - snap.profit : null;
+                      const deltaSpend = snap?.spend != null ? c.spend - snap.spend : null;
+                      const deltaRevenue = snap?.adjust_revenue != null && c.adjust_revenue != null ? c.adjust_revenue - snap.adjust_revenue : null;
+                      const deltaRoas = snap?.roas != null && c.roas != null ? c.roas - snap.roas : null;
+                      const deltaProfitPct = snap?.profit_pct != null && c.profit_pct != null ? c.profit_pct - snap.profit_pct : null;
+                      const deltaProfit = snap?.profit != null && c.profit != null ? c.profit - snap.profit : null;
+                      const fmtDelta = (v: number | null) => v !== null ? `${v >= 0 ? '+' : '-'}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
                       return (
                         <>
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
+                          {/* Old Spend */}
+                          <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs text-slate-700">
+                            {snap?.spend != null ? fmtUsd(snap.spend) : <span className="text-slate-300">—</span>}
+                          </td>
+                          {/* Old CPM */}
+                          <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
+                            {snap?.cpm != null ? fmtUsd(snap.cpm) : <span className="text-slate-300">—</span>}
+                          </td>
+                          {/* Old CTR */}
+                          <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
+                            {snap?.ctr != null && snap.ctr > 0 ? `${snap.ctr.toFixed(2)}%` : <span className="text-slate-300">—</span>}
+                          </td>
+                          {/* Old Revenue */}
+                          <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-700">
+                            {snap?.adjust_revenue != null ? fmtUsd(snap.adjust_revenue) : <span className="text-slate-300">—</span>}
+                          </td>
+                          {/* Old ROAS */}
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
                             {snap ? formatRoas(snap.roas) : <span className="text-slate-300">—</span>}
                           </td>
-                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap === null || snap.profit === null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {snap?.profit !== null && snap?.profit !== undefined ? fmtUsd(snap.profit) : '—'}
+                          {/* Old %Profit */}
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap?.profit_pct == null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {snap?.profit_pct != null ? formatProfit(snap.profit_pct) : '—'}
                           </td>
+                          {/* Old Profit */}
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap?.profit == null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {snap?.profit != null ? fmtUsd(snap.profit) : '—'}
+                          </td>
+                          {/* Δ Spend */}
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {fmtDelta(deltaSpend)}
+                          </td>
+                          {/* Δ Revenue */}
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {fmtDelta(deltaRevenue)}
+                          </td>
+                          {/* Δ ROAS */}
                           <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
                           </td>
+                          {/* Δ %Profit */}
+                          <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {deltaProfitPct !== null ? `${deltaProfitPct >= 0 ? '+' : ''}${deltaProfitPct.toFixed(1)}%` : '—'}
+                          </td>
+                          {/* Δ Profit */}
                           <td className={`px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                            {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : '-'}$${Math.abs(deltaProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                            {fmtDelta(deltaProfit)}
                           </td>
                         </>
                       );

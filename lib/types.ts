@@ -137,20 +137,29 @@ export interface MergedAdSet extends AdSetRow {
 
 // ─── Snapshots ────────────────────────────────────────────────────────────────
 
-/** Minimal campaign record stored inside a snapshot */
+/** Campaign record stored inside a snapshot */
 export interface SnapshotRow {
   campaign_id: string;
   campaign_name: string;
+  /** Saved at snapshot time — may be null on snapshots created before this field was added */
+  spend: number | null;
+  cpm: number | null;
+  ctr: number | null;
+  adjust_revenue: number | null;
   roas: number | null;
   profit_pct: number | null;
   profit: number | null;
 }
 
-/** Minimal adset record stored inside a snapshot */
+/** AdSet record stored inside a snapshot */
 export interface SnapshotAdSetRow {
   adset_id: string;
   campaign_id: string;
   adset_name: string;
+  spend: number | null;
+  cpm: number | null;
+  ctr: number | null;
+  adjust_revenue: number | null;
   roas: number | null;
   profit_pct: number | null;
   profit: number | null;

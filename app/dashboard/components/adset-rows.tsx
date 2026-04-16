@@ -178,24 +178,52 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
             <td className={`px-3 py-2 text-right tabular-nums bg-purple-50/40 font-medium ${adset.profit === null ? 'text-slate-300' : adset.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
               {adset.profit !== null ? fmtUsd(adset.profit) : '—'}
             </td>
-            {/* Snapshot compare: Old ROAS | Old Profit | Δ ROAS | Δ Profit */}
+            {/* Snapshot: Old Spend/CPM/CTR/Revenue/ROAS/%Profit/Profit | Δ Spend/Revenue/ROAS/%Profit/Profit */}
             {snapshotAdSetMap !== null && (() => {
               const snap = snapshotAdSetMap.get(adset.adset_id) ?? null;
-              const deltaRoas = snap && adset.roas !== null && snap.roas !== null ? adset.roas - snap.roas : null;
-              const deltaProfit = snap && adset.profit !== null && snap.profit !== null ? adset.profit - snap.profit : null;
+              const deltaSpend = snap?.spend != null ? adset.spend - snap.spend : null;
+              const deltaRevenue = snap?.adjust_revenue != null && adset.adjust_revenue != null ? adset.adjust_revenue - snap.adjust_revenue : null;
+              const deltaRoas = snap?.roas != null && adset.roas != null ? adset.roas - snap.roas : null;
+              const deltaProfitPct = snap?.profit_pct != null && adset.profit_pct != null ? adset.profit_pct - snap.profit_pct : null;
+              const deltaProfit = snap?.profit != null && adset.profit != null ? adset.profit - snap.profit : null;
+              const fmtDelta = (v: number | null) => v !== null ? `${v >= 0 ? '+' : '-'}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
               return (
                 <>
-                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
+                  <td className="px-3 py-2 text-right tabular-nums bg-amber-50/40 border-l border-amber-100 text-xs text-slate-700">
+                    {snap?.spend != null ? fmtUsd(snap.spend) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
+                    {snap?.cpm != null ? fmtUsd(snap.cpm) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
+                    {snap?.ctr != null && snap.ctr > 0 ? `${snap.ctr.toFixed(2)}%` : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs text-slate-700">
+                    {snap?.adjust_revenue != null ? fmtUsd(snap.adjust_revenue) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${roasColorClass(snap?.roas ?? null)}`}>
                     {snap ? formatRoas(snap.roas) : <span className="text-slate-300">—</span>}
                   </td>
-                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap === null || snap.profit === null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {snap?.profit !== null && snap?.profit !== undefined ? fmtUsd(snap.profit) : '—'}
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap?.profit_pct == null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {snap?.profit_pct != null ? formatProfit(snap.profit_pct) : '—'}
+                  </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-medium ${snap?.profit == null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {snap?.profit != null ? fmtUsd(snap.profit) : '—'}
+                  </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaSpend === null ? 'text-slate-300' : deltaSpend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {fmtDelta(deltaSpend)}
+                  </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRevenue === null ? 'text-slate-300' : deltaRevenue >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {fmtDelta(deltaRevenue)}
                   </td>
                   <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaRoas === null ? 'text-slate-300' : deltaRoas >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {deltaRoas !== null ? `${deltaRoas >= 0 ? '+' : ''}${deltaRoas.toFixed(2)}x` : '—'}
                   </td>
+                  <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfitPct === null ? 'text-slate-300' : deltaProfitPct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {deltaProfitPct !== null ? `${deltaProfitPct >= 0 ? '+' : ''}${deltaProfitPct.toFixed(1)}%` : '—'}
+                  </td>
                   <td className={`px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs font-semibold ${deltaProfit === null ? 'text-slate-300' : deltaProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {deltaProfit !== null ? `${deltaProfit >= 0 ? '+' : '-'}$${Math.abs(deltaProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+                    {fmtDelta(deltaProfit)}
                   </td>
                 </>
               );
