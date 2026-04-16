@@ -110,7 +110,8 @@ export async function fetchAdSets(
   do {
     const params: Record<string, string> = {
       fields: `${ADSET_FIELDS},${insightFields}`,
-      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE'] }]),
+      // Include paused adsets too — they may still have spend if paused mid-day
+      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED'] }]),
       limit: '100',
     };
     if (after) params.after = after;
@@ -124,5 +125,6 @@ export async function fetchAdSets(
     if (!page.paging?.next) break;
   } while (after);
 
-  return adsets;
+  // Only return adsets that actually spent today
+  return adsets.filter((a) => a.spend > 0);
 }

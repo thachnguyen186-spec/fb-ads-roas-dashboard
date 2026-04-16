@@ -147,5 +147,6 @@ export async function fetchCampaigns(
     if (!page.paging?.next) break;
   } while (after);
 
-  return campaigns;
+  // Only return campaigns that actually spent today
+  return campaigns.filter((c) => c.spend > 0);
 }
