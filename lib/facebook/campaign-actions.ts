@@ -116,7 +116,10 @@ export async function duplicateCampaignSameAccount(
       try {
         await fbPatch(`/${newAdSetId}`, { [field]: String(fbValue) }, token);
       } catch (err) {
-        throw stepError(`set adset budget for "${budget.name}"`, err);
+        // Skip gracefully: CBO campaigns control budget at campaign level, so
+        // setting ad set budgets is invalid. Campaign was already created; user
+        // can adjust budgets manually if needed.
+        console.warn(`[duplicateCampaign] skipping adset budget for "${budget.name}": ${err instanceof Error ? err.message : String(err)}`);
       }
     }
   }

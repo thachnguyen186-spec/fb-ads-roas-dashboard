@@ -11,11 +11,6 @@ interface Props {
   onApplied: () => void;
 }
 
-function fmtUsd(v: number | null) {
-  if (v === null || v === 0) return '—';
-  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function displayBudget(adset: MergedAdSet, vndRate: number): number | null {
   const budgetUsd =
     adset.budget_type === 'daily'
@@ -25,6 +20,14 @@ function displayBudget(adset: MergedAdSet, vndRate: number): number | null {
       : null;
   if (budgetUsd === null) return null;
   return adset.currency === 'VND' ? Math.round(budgetUsd * vndRate) : budgetUsd;
+}
+
+function fmtSpend(adset: MergedAdSet, vndRate: number): string {
+  if (adset.spend === null || adset.spend === 0) return '—';
+  if (adset.currency === 'VND') {
+    return Math.round(adset.spend * vndRate).toLocaleString('en-US') + ' VND';
+  }
+  return '$' + adset.spend.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function fmtBudgetDisplay(adset: MergedAdSet, vndRate: number): string {
@@ -120,7 +123,7 @@ export default function AdsetBulkBudgetModal({ adsets, vndRate, onClose, onAppli
                       <div className="font-medium text-slate-800 truncate max-w-[200px]" title={a.adset_name}>{a.adset_name}</div>
                       <div className="text-xs text-slate-400 font-mono">{a.adset_id}</div>
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmtUsd(a.spend)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{fmtSpend(a, vndRate)}</td>
                     <td className={`px-3 py-2.5 text-right tabular-nums font-semibold ${a.roas === null ? 'text-slate-300' : a.roas >= 2 ? 'text-emerald-600' : a.roas >= 1 ? 'text-amber-600' : 'text-red-600'}`}>
                       {a.roas !== null ? `${a.roas.toFixed(2)}x` : '—'}
                     </td>
