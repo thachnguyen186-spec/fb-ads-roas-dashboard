@@ -110,10 +110,17 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
     const totalSnapRev = sortedAdsets.reduce((s, a) => s + (comp.adsetMap.get(a.adset_id)?.adjust_revenue ?? 0), 0);
     // Weighted ROAS = Σ(snap_revenue) / Σ(snap_spend) — same method as the live subtotal
     const avgSnapRoas = totalSnap > 0 && totalSnapRev > 0 ? totalSnapRev / totalSnap : null;
-    const snapWithPct = sortedAdsets.filter((a) => comp.adsetMap.get(a.adset_id)?.profit_pct != null);
-    const avgSnapPct = snapWithPct.length > 0
-      ? snapWithPct.reduce((s, a) => s + comp.adsetMap.get(a.adset_id)!.profit_pct!, 0) / snapWithPct.length
-      : null;
+    // %Profit subtotal = (Σall_revenue − Σspend) / Σall_revenue; derive all_revenue = profit + spend
+    const snapForPct = sortedAdsets.filter((a) => {
+      const snap = comp.adsetMap.get(a.adset_id);
+      return snap?.profit != null && snap?.spend != null;
+    });
+    const snapProfitSum = snapForPct.reduce((s, a) => s + comp.adsetMap.get(a.adset_id)!.profit!, 0);
+    const snapAllRevSum = snapForPct.reduce((s, a) => {
+      const snap = comp.adsetMap.get(a.adset_id)!;
+      return s + snap.profit! + snap.spend!;
+    }, 0);
+    const avgSnapPct = snapAllRevSum > 0 ? (snapProfitSum / snapAllRevSum) * 100 : null;
     const snapWithProfit = sortedAdsets.filter((a) => comp.adsetMap.get(a.adset_id)?.profit != null);
     const totalSnapProfit = snapWithProfit.length > 0
       ? snapWithProfit.reduce((s, a) => s + comp.adsetMap.get(a.adset_id)!.profit!, 0)
@@ -136,15 +143,23 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
         return s + prevR - comp.adsetMap.get(a.adset_id)!.roas!;
       }, 0) / prevWithRoas.length
       : null;
-    const prevWithPct = comp.prevAdsetMap
-      ? sortedAdsets.filter((a) => comp.prevAdsetMap!.get(a.adset_id)?.profit_pct != null && comp.adsetMap.get(a.adset_id)?.profit_pct != null)
-      : sortedAdsets.filter((a) => a.profit_pct != null && comp.adsetMap.get(a.adset_id)?.profit_pct != null);
-    const avgDeltaPct = prevWithPct.length > 0
-      ? prevWithPct.reduce((s, a) => {
-        const prevP = comp.prevAdsetMap ? (comp.prevAdsetMap.get(a.adset_id)?.profit_pct ?? 0) : (a.profit_pct ?? 0);
-        return s + prevP - comp.adsetMap.get(a.adset_id)!.profit_pct!;
-      }, 0) / prevWithPct.length
-      : null;
+    // Δ%Profit = prevPct − snapPct, both computed as aggregates (not per-row averages)
+    let prevPctForDelta: number | null;
+    if (comp.prevAdsetMap) {
+      const prevForPct = sortedAdsets.filter((a) => {
+        const prev = comp.prevAdsetMap!.get(a.adset_id);
+        return prev?.profit != null && prev?.spend != null;
+      });
+      const prevProfitSum = prevForPct.reduce((s, a) => s + comp.prevAdsetMap!.get(a.adset_id)!.profit!, 0);
+      const prevAllRevSum = prevForPct.reduce((s, a) => {
+        const prev = comp.prevAdsetMap!.get(a.adset_id)!;
+        return s + prev.profit! + prev.spend!;
+      }, 0);
+      prevPctForDelta = prevAllRevSum > 0 ? (prevProfitSum / prevAllRevSum) * 100 : null;
+    } else {
+      prevPctForDelta = avgProfitPct;
+    }
+    const avgDeltaPct = prevPctForDelta !== null && avgSnapPct !== null ? prevPctForDelta - avgSnapPct : null;
     const prevWithProfit = comp.prevAdsetMap
       ? sortedAdsets.filter((a) => comp.prevAdsetMap!.get(a.adset_id)?.profit != null && comp.adsetMap.get(a.adset_id)?.profit != null)
       : sortedAdsets.filter((a) => a.profit != null && comp.adsetMap.get(a.adset_id)?.profit != null);
@@ -246,7 +261,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                     #{i + 1} {comp.name}
                   </th>
                   <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-sky-700 bg-sky-50 border-l border-sky-200 border-b border-sky-200 tracking-wide uppercase whitespace-nowrap">
-                    Δ vs {i === 0 ? 'Current' : `#${i}`}
+                    Δ vs {i === snapshotComparisons.length - 1 ? 'Current' : `#${i + 2}`}
                   </th>
                 </Fragment>
               ))}

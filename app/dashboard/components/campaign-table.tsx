@@ -162,9 +162,17 @@ export default function CampaignTable({
     const totalSnapRev = campaigns.reduce((s, c) => s + (comp.campaignMap.get(c.campaign_id)?.adjust_revenue ?? 0), 0);
     // Weighted ROAS = Σ(snap_revenue) / Σ(snap_spend) — same method as the live subtotal
     const avgSnapRoas = totalSnap > 0 && totalSnapRev > 0 ? totalSnapRev / totalSnap : null;
-    const snapWithPct = campaigns.filter((c) => comp.campaignMap.get(c.campaign_id)?.profit_pct != null);
-    const avgSnapPct = snapWithPct.length > 0
-      ? snapWithPct.reduce((s, c) => s + comp.campaignMap.get(c.campaign_id)!.profit_pct!, 0) / snapWithPct.length : null;
+    // %Profit subtotal = (Σall_revenue − Σspend) / Σall_revenue; derive all_revenue = profit + spend
+    const snapForPct = campaigns.filter((c) => {
+      const snap = comp.campaignMap.get(c.campaign_id);
+      return snap?.profit != null && snap?.spend != null;
+    });
+    const snapProfitSum = snapForPct.reduce((s, c) => s + comp.campaignMap.get(c.campaign_id)!.profit!, 0);
+    const snapAllRevSum = snapForPct.reduce((s, c) => {
+      const snap = comp.campaignMap.get(c.campaign_id)!;
+      return s + snap.profit! + snap.spend!;
+    }, 0);
+    const avgSnapPct = snapAllRevSum > 0 ? (snapProfitSum / snapAllRevSum) * 100 : null;
     const snapWithProfit = campaigns.filter((c) => comp.campaignMap.get(c.campaign_id)?.profit != null);
     const totalSnapProfit = snapWithProfit.length > 0
       ? snapWithProfit.reduce((s, c) => s + comp.campaignMap.get(c.campaign_id)!.profit!, 0) : null;
@@ -185,16 +193,23 @@ export default function CampaignTable({
         const prevR = comp.prevCampaignMap ? (comp.prevCampaignMap.get(c.campaign_id)?.roas ?? 0) : (c.roas ?? 0);
         return s + prevR - comp.campaignMap.get(c.campaign_id)!.roas!;
       }, 0) / roasPairs.length : null;
-    const pctPairs = campaigns.filter((c) => {
-      const snapP = comp.campaignMap.get(c.campaign_id)?.profit_pct;
-      const prevP = comp.prevCampaignMap ? comp.prevCampaignMap.get(c.campaign_id)?.profit_pct : c.profit_pct;
-      return snapP != null && prevP != null;
-    });
-    const avgDeltaPct = pctPairs.length > 0
-      ? pctPairs.reduce((s, c) => {
-        const prevP = comp.prevCampaignMap ? (comp.prevCampaignMap.get(c.campaign_id)?.profit_pct ?? 0) : (c.profit_pct ?? 0);
-        return s + prevP - comp.campaignMap.get(c.campaign_id)!.profit_pct!;
-      }, 0) / pctPairs.length : null;
+    // Δ%Profit = prevPct − snapPct, both computed as aggregates (not per-row averages)
+    let prevPctForDelta: number | null;
+    if (comp.prevCampaignMap) {
+      const prevForPct = campaigns.filter((c) => {
+        const prev = comp.prevCampaignMap!.get(c.campaign_id);
+        return prev?.profit != null && prev?.spend != null;
+      });
+      const prevProfitSum = prevForPct.reduce((s, c) => s + comp.prevCampaignMap!.get(c.campaign_id)!.profit!, 0);
+      const prevAllRevSum = prevForPct.reduce((s, c) => {
+        const prev = comp.prevCampaignMap!.get(c.campaign_id)!;
+        return s + prev.profit! + prev.spend!;
+      }, 0);
+      prevPctForDelta = prevAllRevSum > 0 ? (prevProfitSum / prevAllRevSum) * 100 : null;
+    } else {
+      prevPctForDelta = avgProfitPct;
+    }
+    const avgDeltaPct = prevPctForDelta !== null && avgSnapPct !== null ? prevPctForDelta - avgSnapPct : null;
     const profitPairs = campaigns.filter((c) => {
       const snapP = comp.campaignMap.get(c.campaign_id)?.profit;
       const prevP = comp.prevCampaignMap ? comp.prevCampaignMap.get(c.campaign_id)?.profit : c.profit;
@@ -290,7 +305,7 @@ export default function CampaignTable({
                     #{i + 1} {comp.name}
                   </th>
                   <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-sky-700 bg-sky-50 border-l border-sky-200 border-b border-sky-200 tracking-wide uppercase whitespace-nowrap">
-                    Δ vs {i === 0 ? 'Current' : `#${i}`}
+                    Δ vs {i === snapshotComparisons.length - 1 ? 'Current' : `#${i + 2}`}
                   </th>
                 </Fragment>
               ))}

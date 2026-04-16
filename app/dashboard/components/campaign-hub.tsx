@@ -177,7 +177,8 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
         setSnapshotsCache((prev) => new Map([...prev, [id, data.snapshot_data as SnapshotData]]));
       }
     }
-    setComparedSnapshotIds((prev) => prev.includes(id) ? prev : [...prev, id]);
+    // Unshift so new additions appear leftmost (older snapshots pushed right toward Current)
+    setComparedSnapshotIds((prev) => prev.includes(id) ? prev : [id, ...prev]);
   }
 
   function handleRemoveSnapshot(id: string) {
@@ -455,15 +456,16 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
 
   /**
    * Ordered array of snapshot comparisons for the table components.
-   * Index 0 (first added): delta = current live data − snapshot
-   * Index i > 0: delta = snapshot[i-1] − snapshot[i]
+   * Layout: [oldest snapshot … newest snapshot | Current live]
+   * Index i < n-1: delta = snapshot[i+1] − snapshot[i]  (right neighbor is newer)
+   * Index n-1 (rightmost): delta = current live data − snapshot
    */
   const snapshotComparisons = useMemo<SnapshotComparison[]>(() => {
     return comparedSnapshotIds.flatMap((id, i) => {
       const data = snapshotsCache.get(id);
       const meta = snapshots.find((s) => s.id === id);
       if (!data || !meta) return [];
-      const prevId = i > 0 ? comparedSnapshotIds[i - 1] : null;
+      const prevId = i < comparedSnapshotIds.length - 1 ? comparedSnapshotIds[i + 1] : null;
       const prevData = prevId ? snapshotsCache.get(prevId) : null;
       return [{
         id,
