@@ -87,6 +87,48 @@ function sanitizeName(name: string): string {
   return name.replace(/^[=+\-@\t\r\n]+/, '').trim();
 }
 
+/**
+ * FB API returns enum values for several fields, but the Ads Manager CSV importer
+ * expects the human-readable display names shown in the UI. These maps convert them.
+ */
+const BID_STRATEGY_MAP: Record<string, string> = {
+  LOWEST_COST_WITHOUT_CAP: 'Lowest Cost',
+  LOWEST_COST_WITH_BID_CAP: 'Lowest Cost With Bid Cap',
+  COST_CAP: 'Cost Cap',
+  HIGHEST_VALUE: 'Highest Value',
+  TARGET_COST: 'Target Cost',
+  MINIMUM_ROAS: 'ROAS goal',
+};
+
+const OBJECTIVE_MAP: Record<string, string> = {
+  OUTCOME_APP_PROMOTION: 'App Promotion',
+  OUTCOME_AWARENESS: 'Outcome Awareness',
+  OUTCOME_ENGAGEMENT: 'Outcome Engagement',
+  OUTCOME_LEADS: 'Outcome Leads',
+  OUTCOME_SALES: 'Outcome Sales',
+  OUTCOME_TRAFFIC: 'Outcome Traffic',
+  APP_INSTALLS: 'App Installs',
+  BRAND_AWARENESS: 'Brand Awareness',
+  CONVERSIONS: 'Conversions',
+  LEAD_GENERATION: 'Lead Generation',
+  LINK_CLICKS: 'Clicks to Website',
+  MESSAGES: 'Messages',
+  PAGE_LIKES: 'Page Likes',
+  REACH: 'Reach',
+  VIDEO_VIEWS: 'Video Views',
+  STORE_VISITS: 'Store Visits',
+  STORE_TRAFFIC: 'Store Traffic',
+  PRODUCT_CATALOG_SALES: 'Catalog Sales',
+  EVENT_RESPONSES: 'Event Responses',
+  LOCAL_AWARENESS: 'Local Awareness',
+};
+
+/** Map API enum → display name, falling back to the original value if unmapped. */
+function mapEnum(map: Record<string, string>, value: string | undefined): string {
+  if (!value) return '';
+  return map[value] ?? value;
+}
+
 function budgetCents(val: string | undefined): string {
   if (!val) return '';
   // FB API returns budgets in cents for USD; return as-is
@@ -178,16 +220,20 @@ function buildRow(
   const devices = targeting.device_platforms?.join(',') ?? '';
   const userOs = targeting.user_os?.join(',') ?? '';
 
-  // Detect creative type
-  const creativeType = videoId ? 'VIDEO' : creative?.image_hash ? 'IMAGE' : '';
+  // Detect creative type — FB importer expects display names, not API enums
+  const creativeType = videoId
+    ? 'Video Page Post Ad'
+    : creative?.image_hash
+      ? (link ? 'Link Page Post Ad' : 'Photo Page Post Ad')
+      : '';
 
   const row: Row = {
     'Campaign ID': '',                          // cleared for re-import
     'Campaign Name': sanitizeName(newCampaignName),
     'Campaign Status': campaign.status ?? '',
-    'Campaign Objective': campaign.objective ?? '',
+    'Campaign Objective': mapEnum(OBJECTIVE_MAP, campaign.objective),
     'Buying Type': campaign.buying_type ?? '',
-    'Campaign Bid Strategy': campaign.bid_strategy ?? '',
+    'Campaign Bid Strategy': mapEnum(BID_STRATEGY_MAP, campaign.bid_strategy),
     'Campaign Start Time': campaign.start_time ?? '',
     'New Objective': '',
     'Buy With Prime Type': '',
