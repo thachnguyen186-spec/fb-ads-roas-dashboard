@@ -83,26 +83,26 @@ export default function SnapshotToolbar({ snapshots, comparedIds, onAdd, onRemov
             const meta = snapshots.find((s) => s.id === id);
             if (!meta) return null;
             return (
-              <span
-                key={id}
-                className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200"
-              >
-                <span className="text-amber-400 font-bold mr-0.5">#{idx + 1}</span>
-                {meta.name}
-                <span className="text-amber-500 text-[10px] ml-0.5">({formatDate(meta.created_at)})</span>
-                {/* Remove from comparison */}
-                <button
-                  onClick={() => onRemove(id)}
-                  className="ml-0.5 text-amber-500 hover:text-slate-700 transition-colors leading-none px-0.5 rounded"
-                  title="Remove from comparison"
-                >
-                  ×
-                </button>
-                {/* Permanent delete */}
+              <span key={id} className="inline-flex items-center gap-1.5">
+                {/* Chip */}
+                <span className="inline-flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                  <span className="text-amber-400 font-bold">#{idx + 1}</span>
+                  {meta.name}
+                  <span className="text-amber-500 text-[10px]">({formatDate(meta.created_at)})</span>
+                  {/* Remove from comparison — inside chip */}
+                  <button
+                    onClick={() => onRemove(id)}
+                    className="ml-1 w-5 h-5 flex items-center justify-center rounded-full bg-amber-200 hover:bg-slate-300 text-amber-700 hover:text-slate-800 transition-colors text-sm font-bold leading-none"
+                    title="Remove from comparison"
+                  >
+                    ×
+                  </button>
+                </span>
+                {/* Permanent delete — outside chip, visually separated */}
                 <button
                   onClick={() => handleDelete(id)}
                   disabled={deleting === id}
-                  className="text-amber-400 hover:text-red-600 transition-colors leading-none px-0.5 rounded disabled:opacity-40"
+                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors disabled:opacity-40 text-sm"
                   title="Delete snapshot permanently"
                 >
                   {deleting === id ? '…' : '🗑'}
