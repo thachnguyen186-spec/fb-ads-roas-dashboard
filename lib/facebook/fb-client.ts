@@ -26,11 +26,16 @@ async function fbRequest(
 
   const res = await fetch(url.toString(), options);
   const json = await res.json() as unknown;
-  const parsed = json as { error?: { message?: string } };
+  const parsed = json as { error?: { message?: string; type?: string; code?: number; error_subcode?: number; fbtrace_id?: string } };
 
   if (!res.ok || parsed.error) {
-    const msg = parsed.error?.message ?? `FB API error ${res.status}`;
-    throw new Error(msg);
+    const e = parsed.error;
+    // Build a diagnostic message: "OAuthException | (#200) Permissions error [trace: abc]"
+    const parts: string[] = [];
+    if (e?.type) parts.push(e.type);
+    parts.push(e?.message ?? `HTTP ${res.status}`);
+    if (e?.fbtrace_id) parts.push(`[trace: ${e.fbtrace_id}]`);
+    throw new Error(parts.join(' | '));
   }
 
   return json;

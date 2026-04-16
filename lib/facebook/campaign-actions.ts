@@ -33,6 +33,11 @@ export async function enableCampaign(token: string, campaignId: string): Promise
  * Then patches the copy with a custom name and optional budget override.
  * Returns the new campaign ID.
  */
+function stepError(step: string, err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  return new Error(`[${step}] ${msg}`);
+}
+
 export async function duplicateCampaignSameAccount(
   token: string,
   campaignId: string,
@@ -40,34 +45,52 @@ export async function duplicateCampaignSameAccount(
   budgetOverride?: { amount: number; type: 'daily' | 'lifetime'; currency: string },
   adsetBudgets?: AdsetBudgetSpec[],
 ): Promise<string> {
-  // Note: rename_options omitted — it requires elevated API access and the name is patched below anyway
-  const copyRes = await fbPatch(`/${campaignId}/copies`, {
-    deep_copy: 'true',
-    status_option: 'PAUSED',
-  }, token) as { copied_campaign_id: string };
+  // Step 1: Deep-copy the campaign (creates new campaign + adsets + ads, starts PAUSED)
+  // rename_options omitted — requires elevated API access; name is patched in step 2
+  let newId: string;
+  try {
+    const copyRes = await fbPatch(`/${campaignId}/copies`, {
+      deep_copy: 'true',
+      status_option: 'PAUSED',
+    }, token) as { copied_campaign_id: string };
+    newId = copyRes.copied_campaign_id;
+  } catch (err) {
+    throw stepError('create copy', err);
+  }
 
-  const newId = copyRes.copied_campaign_id;
+  // Step 2: Set the user-specified name on the new campaign
+  try {
+    await fbPatch(`/${newId}`, { name }, token);
+  } catch (err) {
+    throw stepError(`rename campaign ${newId}`, err);
+  }
 
-  // Set the user-specified name on the copy
-  await fbPatch(`/${newId}`, { name }, token);
-
-  // Apply campaign-level budget override if provided
+  // Step 3: Apply campaign-level budget override if provided
   if (budgetOverride) {
     const fbValue = budgetOverride.currency === 'VND'
       ? Math.round(budgetOverride.amount)
       : Math.round(budgetOverride.amount * 100);
     const field = budgetOverride.type === 'daily' ? 'daily_budget' : 'lifetime_budget';
-    await fbPatch(`/${newId}`, { [field]: String(fbValue) }, token);
+    try {
+      await fbPatch(`/${newId}`, { [field]: String(fbValue) }, token);
+    } catch (err) {
+      throw stepError(`set campaign budget (${field})`, err);
+    }
   }
 
-  // Patch adset-level budgets if provided — match new adsets by name (deep copy preserves names)
+  // Step 4: Patch adset-level budgets — match new adsets by name (deep copy preserves names)
   if (adsetBudgets && adsetBudgets.length > 0) {
-    const adSetsRes = await fbGet(`/${newId}/adsets`, {
-      fields: 'id,name',
-      limit: '200',
-    }, token) as { data: Array<{ id: string; name: string }> };
+    let newAdSets: Array<{ id: string; name: string }>;
+    try {
+      const adSetsRes = await fbGet(`/${newId}/adsets`, {
+        fields: 'id,name',
+        limit: '200',
+      }, token) as { data: Array<{ id: string; name: string }> };
+      newAdSets = adSetsRes.data ?? [];
+    } catch (err) {
+      throw stepError('fetch new adsets for budget patch', err);
+    }
 
-    const newAdSets = adSetsRes.data ?? [];
     for (const budget of adsetBudgets) {
       const match = newAdSets.find((a) => a.name === budget.name);
       if (!match) continue;
@@ -75,7 +98,11 @@ export async function duplicateCampaignSameAccount(
         ? Math.round(budget.amount)
         : Math.round(budget.amount * 100);
       const field = budget.type === 'daily' ? 'daily_budget' : 'lifetime_budget';
-      await fbPatch(`/${match.id}`, { [field]: String(fbValue) }, token);
+      try {
+        await fbPatch(`/${match.id}`, { [field]: String(fbValue) }, token);
+      } catch (err) {
+        throw stepError(`set adset budget for "${budget.name}"`, err);
+      }
     }
   }
 
