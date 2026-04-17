@@ -22,6 +22,28 @@ function displayBudget(adset: MergedAdSet, vndRate: number): number | null {
   return adset.currency === 'VND' ? Math.round(budgetUsd * vndRate) : budgetUsd;
 }
 
+/** Format a budget number with commas for the input field */
+function fmtInputNum(v: number, isVnd: boolean): string {
+  if (isVnd) return Math.round(v).toLocaleString('en-US');
+  return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+/** Parse a comma-formatted input string to a numeric value */
+function parseInputNum(raw: string): number {
+  return parseFloat(raw.replace(/,/g, ''));
+}
+
+/** Reformat a raw input string with thousands commas as user types */
+function reformatInput(raw: string): string {
+  const cleaned = raw.replace(/[^0-9.]/g, '');
+  if (cleaned === '') return '';
+  const [intStr, ...decParts] = cleaned.split('.');
+  const intVal = parseInt(intStr || '0', 10);
+  const formatted = isNaN(intVal) ? '' : intVal.toLocaleString('en-US');
+  if (decParts.length > 0) return formatted + '.' + decParts.join('');
+  return formatted;
+}
+
 function fmtSpend(adset: MergedAdSet, vndRate: number): string {
   if (adset.spend === null || adset.spend === 0) return '—';
   if (adset.currency === 'VND') {
@@ -42,7 +64,7 @@ export default function AdsetBulkBudgetModal({ adsets, vndRate, onClose, onAppli
     const init: Record<string, string> = {};
     for (const a of adsets) {
       const v = displayBudget(a, vndRate);
-      init[a.adset_id] = v !== null ? String(v) : '';
+      init[a.adset_id] = v !== null ? fmtInputNum(v, a.currency === 'VND') : '';
     }
     return init;
   });
@@ -51,7 +73,7 @@ export default function AdsetBulkBudgetModal({ adsets, vndRate, onClose, onAppli
   const [error, setError] = useState('');
 
   function updateBudget(adsetId: string, val: string) {
-    setNewBudgets((prev) => ({ ...prev, [adsetId]: val }));
+    setNewBudgets((prev) => ({ ...prev, [adsetId]: reformatInput(val) }));
   }
 
   async function handleApplyAll() {
@@ -63,7 +85,7 @@ export default function AdsetBulkBudgetModal({ adsets, vndRate, onClose, onAppli
       .filter((a) => a.budget_type !== 'cbo')
       .map(async (a) => {
         const raw = newBudgets[a.adset_id];
-        const amount = parseFloat(raw ?? '');
+        const amount = parseInputNum(raw ?? '');
         if (isNaN(amount) || amount <= 0) {
           setResults((r) => ({ ...r, [a.adset_id]: 'err' }));
           return;
@@ -137,12 +159,11 @@ export default function AdsetBulkBudgetModal({ adsets, vndRate, onClose, onAppli
                       {!isCbo && (
                         <div className="flex items-center gap-1 justify-end">
                           <input
-                            type="number"
-                            min={a.currency === 'VND' ? '1000' : '1'}
-                            step={a.currency === 'VND' ? '1000' : '0.01'}
+                            type="text"
+                            inputMode="decimal"
                             value={newBudgets[a.adset_id] ?? ''}
                             onChange={(e) => updateBudget(a.adset_id, e.target.value)}
-                            className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-right text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-32 px-2 py-1 border border-slate-300 rounded text-sm text-right text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 tabular-nums"
                           />
                           <span className="text-xs text-slate-400">{a.currency}</span>
                         </div>
