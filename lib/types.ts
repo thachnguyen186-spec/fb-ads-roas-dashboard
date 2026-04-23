@@ -34,7 +34,8 @@ export interface FbAdAccount {
   currency: string;              // e.g. 'USD', 'VND'
   /** Alert threshold in FB-native unit (USD cents, VND units). null = alerting disabled. */
   alert_threshold?: number | null;
-  /** Cron-managed dedup flag: true after alert sent, reset when remaining recovers. */
+  /** Sticky "below-threshold" flag: flipped true on first fire, reset on recovery.
+   *  No longer dedups — alerts re-fire every cron cycle while below threshold. */
   alert_sent?: boolean;
 }
 
@@ -66,10 +67,9 @@ export interface CampaignRow {
   spend: number;
   impressions: number;
   clicks: number;
-  cpm: number;
   cpc: number;
-  /** CTR (all) as percentage, e.g. 3.25 means 3.25% — fetched directly from FB insights */
-  ctr: number;
+  /** Cost per App Install — from FB insights cost_per_action_type (omni/mobile/app install). null if no installs today */
+  cpi: number | null;
 }
 
 /** Row from Adjust CSV after filtering + aggregation */
@@ -118,10 +118,9 @@ export interface AdSetRow {
   spend: number;
   impressions: number;
   clicks: number;
-  cpm: number;
   cpc: number;
-  /** CTR (all) as percentage, e.g. 3.25 means 3.25% — fetched directly from FB insights */
-  ctr: number;
+  /** Cost per App Install — from FB insights cost_per_action_type (omni/mobile/app install). null if no installs today */
+  cpi: number | null;
 }
 
 /** Ad Set merged with Adjust revenue data */
@@ -147,8 +146,8 @@ export interface SnapshotRow {
   campaign_name: string;
   /** Saved at snapshot time — may be null on snapshots created before this field was added */
   spend: number | null;
-  cpm: number | null;
-  ctr: number | null;
+  /** Cost per App Install at snapshot time. undefined on legacy snapshots (pre-CPI) — render as dash */
+  cpi?: number | null;
   adjust_revenue: number | null;
   roas: number | null;
   profit_pct: number | null;
@@ -161,8 +160,8 @@ export interface SnapshotAdSetRow {
   campaign_id: string;
   adset_name: string;
   spend: number | null;
-  cpm: number | null;
-  ctr: number | null;
+  /** Cost per App Install at snapshot time. undefined on legacy snapshots (pre-CPI) — render as dash */
+  cpi?: number | null;
   adjust_revenue: number | null;
   roas: number | null;
   profit_pct: number | null;

@@ -30,7 +30,7 @@ interface Props {
   snapshotComparisons: SnapshotComparison[];
 }
 
-/** Render 12 snapshot data + delta cells for one adset row, for a single comparison */
+/** Render 11 snapshot data + delta cells for one adset row, for a single comparison */
 function renderSnapCols(adset: MergedAdSet, comp: SnapshotComparison) {
   const snap = comp.adsetMap.get(adset.adset_id) ?? null;
   const getPrev = (field: keyof SnapshotAdSetRow): number | null => {
@@ -52,10 +52,7 @@ function renderSnapCols(adset: MergedAdSet, comp: SnapshotComparison) {
         {snap?.spend != null ? fmtUsd(snap.spend) : <span className="text-slate-300">—</span>}
       </td>
       <td className="px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
-        {snap?.cpm != null ? fmtUsd(snap.cpm) : <span className="text-slate-300">—</span>}
-      </td>
-      <td className="px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
-        {snap?.ctr != null && snap.ctr > 0 ? `${snap.ctr.toFixed(2)}%` : <span className="text-slate-300">—</span>}
+        {snap?.cpi != null ? fmtUsd(snap.cpi) : <span className="text-slate-300">—</span>}
       </td>
       <td className="px-3 py-2 text-right tabular-nums bg-amber-50/40 text-xs text-slate-700">
         {snap?.adjust_revenue != null ? fmtUsd(snap.adjust_revenue) : <span className="text-slate-300">—</span>}
@@ -171,9 +168,8 @@ export default function AdSetRows({ adsets, loading, error, showAccountColumn, c
             {snapshotComparisons.map((comp) => <Fragment key={comp.id}>{renderSnapCols(adset, comp)}</Fragment>)}
 
             <td className="px-3 py-2 text-right tabular-nums text-slate-700 bg-blue-50/40 border-l border-blue-100">{fmtUsd(adset.spend)}</td>
-            <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(adset.cpm)}</td>
             <td className="px-3 py-2 text-right tabular-nums text-slate-500 bg-blue-50/40">
-              {adset.ctr > 0 ? `${adset.ctr.toFixed(2)}%` : '—'}
+              {adset.cpi != null ? fmtUsd(adset.cpi) : <span className="text-slate-300">—</span>}
             </td>
 
             <td className="px-3 py-2 text-right tabular-nums bg-blue-50/40 border-r border-slate-200">

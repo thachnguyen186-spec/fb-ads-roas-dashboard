@@ -7,21 +7,21 @@
 
 import { fbGet } from './fb-client';
 import type { AdSetRow } from '@/lib/types';
+import { extractCpi, type ActionCostEntry } from './cost-per-install';
 
 const ADSET_FIELDS = [
   'id', 'name', 'status', 'effective_status',
   'daily_budget', 'lifetime_budget', 'budget_remaining',
 ].join(',');
 
-const INSIGHT_FIELDS = 'spend,impressions,clicks,cpm,cpc,ctr';
+const INSIGHT_FIELDS = 'spend,impressions,clicks,cpc,cost_per_action_type';
 
 interface RawInsightRow {
   spend?: string;
   impressions?: string;
   clicks?: string;
-  cpm?: string;
   cpc?: string;
-  ctr?: string;
+  cost_per_action_type?: ActionCostEntry[];
 }
 
 interface RawAdSet {
@@ -86,9 +86,8 @@ function mapAdSet(
     spend: toFloat(ins?.spend),
     impressions: toInt(ins?.impressions),
     clicks: toInt(ins?.clicks),
-    cpm: toFloat(ins?.cpm),
     cpc: toFloat(ins?.cpc),
-    ctr: toFloat(ins?.ctr),
+    cpi: extractCpi(ins?.cost_per_action_type),
   };
 }
 

@@ -221,10 +221,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
           {snap?.spend != null ? fmtUsd(snap.spend) : <span className="text-slate-300">—</span>}
         </td>
         <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
-          {snap?.cpm != null ? fmtUsd(snap.cpm) : <span className="text-slate-300">—</span>}
-        </td>
-        <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
-          {snap?.ctr != null && snap.ctr > 0 ? `${snap.ctr.toFixed(2)}%` : <span className="text-slate-300">—</span>}
+          {snap?.cpi != null ? fmtUsd(snap.cpi) : <span className="text-slate-300">—</span>}
         </td>
         <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-700">
           {snap?.adjust_revenue != null ? fmtUsd(snap.adjust_revenue) : <span className="text-slate-300">—</span>}
@@ -278,7 +275,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               <th className="bg-slate-100 border-b border-slate-300" />
               {snapshotComparisons.map((comp, i) => (
                 <Fragment key={comp.id}>
-                  <th colSpan={7} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase whitespace-nowrap">
+                  <th colSpan={6} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase whitespace-nowrap">
                     #{i + 1} {comp.name}
                   </th>
                   <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-sky-700 bg-sky-50 border-l border-sky-200 border-b border-sky-200 tracking-wide uppercase whitespace-nowrap">
@@ -308,8 +305,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
               {snapshotComparisons.map((comp) => (
                 <Fragment key={comp.id}>
                   <th onClick={() => handleSort(`snap:${comp.id}:spend`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Spend{sortArrow(`snap:${comp.id}:spend`)}</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CPM</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CTR</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CPI</th>
                   <th onClick={() => handleSort(`snap:${comp.id}:adjust_revenue`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Revenue{sortArrow(`snap:${comp.id}:adjust_revenue`)}</th>
                   <th onClick={() => handleSort(`snap:${comp.id}:roas`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old ROAS{sortArrow(`snap:${comp.id}:roas`)}</th>
                   <th onClick={() => handleSort(`snap:${comp.id}:profit_pct`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old %Profit{sortArrow(`snap:${comp.id}:profit_pct`)}</th>
@@ -322,8 +318,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                 </Fragment>
               ))}
               <th onClick={() => handleSort('spend')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-l border-blue-200 border-b border-blue-200 cursor-pointer hover:bg-blue-200 select-none">Spend{sortArrow('spend')}</th>
-              <th onClick={() => handleSort('cpm')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200 cursor-pointer hover:bg-blue-200 select-none">CPM{sortArrow('cpm')}</th>
-              <th onClick={() => handleSort('ctr')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200 cursor-pointer hover:bg-blue-200 select-none">CTR (all){sortArrow('ctr')}</th>
+              <th onClick={() => handleSort('cpi')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200 cursor-pointer hover:bg-blue-200 select-none">CPI{sortArrow('cpi')}</th>
               <th onClick={() => handleSort('budget')} className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-r border-blue-200 border-b border-blue-200 cursor-pointer hover:bg-blue-200 select-none">Budget{sortArrow('budget')}</th>
               <th onClick={() => handleSort('adjust_revenue')} className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-100 border-r border-emerald-200 border-b border-emerald-200 cursor-pointer hover:bg-emerald-200 select-none">Revenue{sortArrow('adjust_revenue')}</th>
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-100 border-b border-purple-200">ID Match</th>
@@ -347,7 +342,6 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                     <th className="px-3 py-2 text-right tabular-nums bg-amber-100 border-l border-amber-200 border-b-2 border-amber-300 text-xs font-semibold text-slate-700">
                       {st.totalSnap > 0 ? fmtUsd(st.totalSnap) : '—'}
                     </th>
-                    <th className="px-3 py-2 text-right bg-amber-100 border-b-2 border-amber-300 text-xs text-slate-400">—</th>
                     <th className="px-3 py-2 text-right bg-amber-100 border-b-2 border-amber-300 text-xs text-slate-400">—</th>
                     <th className="px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold text-emerald-700">
                       {st.totalSnapRev > 0 ? fmtUsd(st.totalSnapRev) : '—'}
@@ -380,7 +374,6 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                 );
               })}
               <th className="px-3 py-2 text-right tabular-nums bg-blue-100 border-l border-blue-200 border-b-2 border-blue-300">{fmtUsd(totalSpend)}</th>
-              <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-b-2 border-blue-300">—</th>
               <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-b-2 border-blue-300">—</th>
               <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-r border-blue-200 border-b-2 border-blue-300">—</th>
               <th className="px-3 py-2 text-right tabular-nums bg-emerald-100 text-emerald-700 border-r border-emerald-200 border-b-2 border-emerald-300">
@@ -426,9 +419,8 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                   </td>
                   {snapshotComparisons.map((comp) => <Fragment key={comp.id}>{renderAdsetSnapCols(a, comp)}</Fragment>)}
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 bg-blue-50/40 border-l border-blue-100">{fmtUsd(a.spend)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(a.cpm)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">
-                    {a.ctr > 0 ? `${a.ctr.toFixed(2)}%` : '—'}
+                    {a.cpi != null ? fmtUsd(a.cpi) : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-3 py-2.5 text-right bg-blue-50/40 border-r border-blue-100">
                     {a.budget_type === 'cbo' ? (

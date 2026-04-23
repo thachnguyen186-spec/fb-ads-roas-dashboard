@@ -92,15 +92,17 @@ export async function GET(request: NextRequest) {
         const decision = decideAlert(l.remaining, acc.alert_threshold, acc.alert_sent);
 
         if (decision.kind === 'fire') {
-          // Set flag BEFORE sending to prevent duplicate alerts if Telegram call throws
-          const { error: updateErr } = await service
-            .from('fb_ad_accounts')
-            .update({ alert_sent: true })
-            .eq('account_id', acc.account_id)
-            .eq('user_id', userId);
-          if (updateErr) {
-            console.error(`[cron:spending] failed to set alert_sent for ${acc.account_id}`, updateErr);
-            continue; // skip send — dedup flag not set; will retry next cycle
+          // Mark alert_sent so the reset branch fires on recovery. Skip write
+          // if already true — fire now re-sends every cycle while below threshold.
+          if (!acc.alert_sent) {
+            const { error: updateErr } = await service
+              .from('fb_ad_accounts')
+              .update({ alert_sent: true })
+              .eq('account_id', acc.account_id)
+              .eq('user_id', userId);
+            if (updateErr) {
+              console.error(`[cron:spending] failed to set alert_sent for ${acc.account_id}`, updateErr);
+            }
           }
           await sendTelegram(
             buildAlertMessage({

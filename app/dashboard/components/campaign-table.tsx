@@ -137,11 +137,11 @@ export default function CampaignTable({
     );
   }
 
-  const fbColSpan = showAccountColumn ? 6 : 5; // Account? + Status + Spend + CPM + CTR + Budget
+  const fbColSpan = showAccountColumn ? 5 : 4; // Account? + Status + Spend + CPI + Budget
   const hasSnapshot = snapshotComparisons.length > 0;
   // Result group: ID Match + D0 ROAS + %Profit + Profit = 4 cols
-  // Per snapshot: Old Spend/CPM/CTR/Revenue/ROAS/%Profit/Profit(7) + Δ Spend/Revenue/ROAS/%Profit/Profit(5) = 12 cols
-  const colCount = 2 + fbColSpan + 1 + 4 + (snapshotComparisons.length * 12);
+  // Per snapshot: Old Spend/CPI/Revenue/ROAS/%Profit/Profit(6) + Δ Spend/Revenue/ROAS/%Profit/Profit(5) = 11 cols
+  const colCount = 2 + fbColSpan + 1 + 4 + (snapshotComparisons.length * 11);
 
   // Subtotals computed from visible campaigns
   const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
@@ -246,10 +246,7 @@ export default function CampaignTable({
           {snap?.spend != null ? fmtUsd(snap.spend) : <span className="text-slate-300">—</span>}
         </td>
         <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
-          {snap?.cpm != null ? fmtUsd(snap.cpm) : <span className="text-slate-300">—</span>}
-        </td>
-        <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-500">
-          {snap?.ctr != null && snap.ctr > 0 ? `${snap.ctr.toFixed(2)}%` : <span className="text-slate-300">—</span>}
+          {snap?.cpi != null ? fmtUsd(snap.cpi) : <span className="text-slate-300">—</span>}
         </td>
         <td className="px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs text-slate-700">
           {snap?.adjust_revenue != null ? fmtUsd(snap.adjust_revenue) : <span className="text-slate-300">—</span>}
@@ -297,7 +294,7 @@ export default function CampaignTable({
               {/* Snapshot groups sit between Status and the live metric columns */}
               {snapshotComparisons.map((comp, i) => (
                 <Fragment key={comp.id}>
-                  <th colSpan={7} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase whitespace-nowrap">
+                  <th colSpan={6} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase whitespace-nowrap">
                     #{i + 1} {comp.name}
                   </th>
                   <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-sky-700 bg-sky-50 border-l border-sky-200 border-b border-sky-200 tracking-wide uppercase whitespace-nowrap">
@@ -327,8 +324,7 @@ export default function CampaignTable({
               {snapshotComparisons.map((comp) => (
                 <Fragment key={comp.id}>
                   <th onClick={() => onSort(`snap:${comp.id}:spend`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-l border-amber-200 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Spend <SortBtn col={`snap:${comp.id}:spend`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CPM</th>
-                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CTR</th>
+                  <th className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs">Old CPI</th>
                   <th onClick={() => onSort(`snap:${comp.id}:adjust_revenue`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old Revenue <SortBtn col={`snap:${comp.id}:adjust_revenue`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
                   <th onClick={() => onSort(`snap:${comp.id}:roas`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old ROAS <SortBtn col={`snap:${comp.id}:roas`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
                   <th onClick={() => onSort(`snap:${comp.id}:profit_pct`)} className="px-3 py-2.5 text-right whitespace-nowrap bg-amber-100 border-b border-amber-200 text-xs cursor-pointer hover:bg-amber-200 select-none">Old %Profit <SortBtn col={`snap:${comp.id}:profit_pct`} sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
@@ -341,8 +337,7 @@ export default function CampaignTable({
                 </Fragment>
               ))}
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-l border-blue-200 border-b border-blue-200 cursor-pointer" onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200 cursor-pointer" onClick={() => onSort('cpm')}>CPM <SortBtn col="cpm" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
-              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200">CTR (all)</th>
+              <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-b border-blue-200 cursor-pointer" onClick={() => onSort('cpi')}>CPI <SortBtn col="cpi" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-blue-100 border-r border-blue-200 border-b border-blue-200">Budget</th>
               <th className="px-3 py-2.5 text-right whitespace-nowrap bg-emerald-100 cursor-pointer border-r border-emerald-200 border-b border-emerald-200" onClick={() => onSort('adjust_revenue')}>Revenue <SortBtn col="adjust_revenue" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className="px-3 py-2.5 text-center whitespace-nowrap bg-purple-100 border-b border-purple-200">ID Match</th>
@@ -366,8 +361,7 @@ export default function CampaignTable({
                     <th key={`st-spend-${comp.id}`} className="px-3 py-2 text-right tabular-nums bg-amber-100 border-l border-amber-200 border-b-2 border-amber-300 text-xs font-semibold text-slate-700">
                       {st.totalSnap > 0 ? fmtUsd(st.totalSnap) : '—'}
                     </th>
-                    <th key={`st-cpm-${comp.id}`} className="px-3 py-2 text-right bg-amber-100 border-b-2 border-amber-300 text-xs text-slate-400">—</th>
-                    <th key={`st-ctr-${comp.id}`} className="px-3 py-2 text-right bg-amber-100 border-b-2 border-amber-300 text-xs text-slate-400">—</th>
+                    <th key={`st-cpi-${comp.id}`} className="px-3 py-2 text-right bg-amber-100 border-b-2 border-amber-300 text-xs text-slate-400">—</th>
                     <th key={`st-rev-${comp.id}`} className="px-3 py-2 text-right tabular-nums bg-amber-100 border-b-2 border-amber-300 text-xs font-semibold text-emerald-700">
                       {st.totalSnapRev > 0 ? fmtUsd(st.totalSnapRev) : '—'}
                     </th>
@@ -400,9 +394,7 @@ export default function CampaignTable({
               })}
               {/* Spend */}
               <th className="px-3 py-2 text-right tabular-nums bg-blue-100 border-l border-blue-200 border-b-2 border-blue-300">{fmtUsd(totalSpend)}</th>
-              {/* CPM */}
-              <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-b-2 border-blue-300">—</th>
-              {/* CTR */}
+              {/* CPI */}
               <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-b-2 border-blue-300">—</th>
               {/* Budget */}
               <th className="px-3 py-2 text-right text-slate-400 bg-blue-100 border-r border-blue-200 border-b-2 border-blue-300">—</th>
@@ -462,9 +454,8 @@ export default function CampaignTable({
                     </td>
                     {snapshotComparisons.map((comp) => renderCampaignSnapCols(c, comp))}
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-700 bg-blue-50/40 border-l border-blue-100">{fmtUsd(c.spend)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">{fmtUsd(c.cpm)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums text-slate-500 bg-blue-50/40">
-                      {c.ctr > 0 ? `${c.ctr.toFixed(2)}%` : '—'}
+                      {c.cpi != null ? fmtUsd(c.cpi) : <span className="text-slate-300">—</span>}
                     </td>
 
                     {/* Budget */}

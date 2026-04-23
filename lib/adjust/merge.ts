@@ -54,8 +54,8 @@ export function mergeCampaigns(
     return {
       ...campaign,
       spend: spendUsd,
-      cpm: campaign.cpm / insightRate,
       cpc: campaign.cpc / insightRate,
+      cpi: campaign.cpi !== null ? campaign.cpi / insightRate : null,
       daily_budget: campaign.daily_budget !== null ? campaign.daily_budget * budgetFactor : null,
       lifetime_budget: campaign.lifetime_budget !== null ? campaign.lifetime_budget * budgetFactor : null,
       budget_remaining: campaign.budget_remaining !== null ? campaign.budget_remaining * budgetFactor : null,
@@ -82,7 +82,7 @@ export function mergeAdSets(
 ): MergedAdSet[] {
   return fbAdSets.map((adset) => {
     const isVnd = adset.currency === 'VND';
-    // Insights (spend/cpm/cpc) are returned as VND numbers → divide by vndRate for USD.
+    // Insights (spend/cpc/cpi) are returned as VND numbers → divide by vndRate for USD.
     // Budgets are returned in VND smallest unit (1 VND), but centsToUsd already divided by 100,
     // so to get USD: multiply by 100 then divide by vndRate (= multiply by 100/vndRate).
     const insightRate = isVnd ? vndRate : 1;
@@ -93,8 +93,8 @@ export function mergeAdSets(
     return {
       ...adset,
       spend: spendUsd,
-      cpm: adset.cpm / insightRate,
       cpc: adset.cpc / insightRate,
+      cpi: adset.cpi !== null ? adset.cpi / insightRate : null,
       daily_budget: adset.daily_budget !== null ? adset.daily_budget * budgetFactor : null,
       lifetime_budget: adset.lifetime_budget !== null ? adset.lifetime_budget * budgetFactor : null,
       budget_remaining: adset.budget_remaining !== null ? adset.budget_remaining * budgetFactor : null,

@@ -1,12 +1,13 @@
 /**
  * Fetches today's campaign data from Facebook Marketing API v21.
- * Retrieves campaign list with inline insights (spend, CPM, CPC etc).
+ * Retrieves campaign list with inline insights (spend, CPC, CPI etc).
  * Budget fields are converted from cents to USD automatically.
  * Paginates through all campaigns automatically.
  */
 
 import { fbGet } from './fb-client';
 import type { CampaignRow } from '@/lib/types';
+import { extractCpi, type ActionCostEntry } from './cost-per-install';
 
 const CAMPAIGN_FIELDS = [
   'id', 'name', 'status', 'effective_status',
@@ -14,15 +15,14 @@ const CAMPAIGN_FIELDS = [
   'promoted_object',
 ].join(',');
 
-const INSIGHT_FIELDS = 'spend,impressions,clicks,cpm,cpc,ctr';
+const INSIGHT_FIELDS = 'spend,impressions,clicks,cpc,cost_per_action_type';
 
 interface RawInsightRow {
   spend?: string;
   impressions?: string;
   clicks?: string;
-  cpm?: string;
   cpc?: string;
-  ctr?: string;
+  cost_per_action_type?: ActionCostEntry[];
 }
 
 interface RawCampaign {
@@ -81,9 +81,8 @@ function mapCampaign(raw: RawCampaign, accountId: string, accountName: string, c
     spend: toFloat(ins?.spend),
     impressions: toInt(ins?.impressions),
     clicks: toInt(ins?.clicks),
-    cpm: toFloat(ins?.cpm),
     cpc: toFloat(ins?.cpc),
-    ctr: toFloat(ins?.ctr),
+    cpi: extractCpi(ins?.cost_per_action_type),
     app_id: raw.promoted_object?.application_id ?? null,
     app_name: null, // resolved later via fetchAppNames
   };

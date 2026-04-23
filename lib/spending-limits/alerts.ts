@@ -5,19 +5,23 @@
 import type { SpendingLimitRow } from '@/lib/facebook/spending-limits';
 
 export type AlertDecision =
-  | { kind: 'fire'; reason: 'crossed_below' }
+  | { kind: 'fire'; reason: 'below_threshold' }
   | { kind: 'reset'; reason: 'recovered' }
   | { kind: 'noop' };
 
-/** Decide whether to fire, reset, or do nothing for a given account state. */
+/**
+ * Decide whether to fire, reset, or do nothing for a given account state.
+ * Fires every cycle while remaining < threshold so users keep getting pinged
+ * until the balance recovers (cron cadence controls the re-notify interval).
+ */
 export function decideAlert(
   remaining: number | null,
   threshold: number | null,
   alertSent: boolean,
 ): AlertDecision {
   if (remaining === null || threshold === null) return { kind: 'noop' };
-  if (remaining < threshold && !alertSent) return { kind: 'fire', reason: 'crossed_below' };
-  if (remaining >= threshold && alertSent) return { kind: 'reset', reason: 'recovered' };
+  if (remaining < threshold) return { kind: 'fire', reason: 'below_threshold' };
+  if (alertSent) return { kind: 'reset', reason: 'recovered' };
   return { kind: 'noop' };
 }
 
