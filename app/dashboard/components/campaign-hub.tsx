@@ -852,6 +852,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
         <AdsetBulkBudgetModal
           adsets={selectedFlatAdsets}
           vndRate={vndRate}
+          snapshotComparisons={snapshotComparisons}
           onClose={() => setShowBulkModal(false)}
           onApplied={() => {
             setShowBulkModal(false);
