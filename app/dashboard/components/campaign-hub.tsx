@@ -66,7 +66,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const [roasMin, setRoasMin] = useState('');
   const [roasMax, setRoasMax] = useState('');
   const [accountFilter, setAccountFilter] = useState(''); // '' = all accounts
-  const [appNameFilter, setAppNameFilter] = useState('');
+  const [appNameFilter, setAppNameFilter] = useState<string[]>([]);
   const [campaignNameFilter, setCampaignNameFilter] = useState('');
   const [spendMin, setSpendMin] = useState('');
   const [spendMax, setSpendMax] = useState('');
@@ -125,7 +125,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     setMergedCampaigns([]);
     setSelectedIds(new Set());
     setAccountFilter('');
-    setAppNameFilter('');
+    setAppNameFilter([]);
     setCampaignNameFilter('');
     setSpendMin(''); setSpendMax('');
     setBudgetMin(''); setBudgetMax('');
@@ -402,7 +402,10 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
       list = list.filter((c) => c.campaign_name.toLowerCase().includes(q));
     }
     if (accountFilter) list = list.filter((c) => c.account_id === accountFilter);
-    if (appNameFilter) list = list.filter((c) => adjustAppMapState.get(c.campaign_id) === appNameFilter);
+    if (appNameFilter.length > 0) list = list.filter((c) => {
+      const app = adjustAppMapState.get(c.campaign_id);
+      return app !== undefined && appNameFilter.includes(app);
+    });
     const roasMinN = roasMin !== '' ? parseFloat(roasMin) : null;
     const roasMaxN = roasMax !== '' ? parseFloat(roasMax) : null;
     if (roasMinN !== null) list = list.filter((c) => c.roas !== null && c.roas >= roasMinN);
@@ -770,8 +773,8 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                 onCampaignNameChange={setCampaignNameFilter}
                 statusFilter={statusFilter}
                 onStatusFilterChange={setStatusFilter}
-                appFilter={appNameFilter}
-                onAppFilterChange={setAppNameFilter}
+                selectedApps={appNameFilter}
+                onSelectedAppsChange={setAppNameFilter}
                 appOptions={appOptions}
                 accountFilter={accountFilter}
                 onAccountFilterChange={setAccountFilter}
@@ -785,7 +788,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                 totalCount={mergedCampaigns.length}
                 filteredCount={displayedCampaigns.length}
                 onClearAll={() => {
-                  setCampaignNameFilter(''); setAppNameFilter(''); setAccountFilter('');
+                  setCampaignNameFilter(''); setAppNameFilter([]); setAccountFilter('');
                   setRoasMin(''); setRoasMax('');
                   setSpendMin(''); setSpendMax('');
                   setBudgetMin(''); setBudgetMax('');
