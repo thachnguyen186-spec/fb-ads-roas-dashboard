@@ -88,13 +88,16 @@ export async function fetchAdjustRevenueToday(
   return new Promise((resolve, reject) => {
     Papa.parse<AdjustApiRow>(csvText, {
       header: true,
-      dynamicTyping: true,
+      // dynamicTyping MUST stay off: 18-digit FB campaign IDs exceed Number.MAX_SAFE_INTEGER
+      // and would be silently rounded if coerced to numbers, breaking all campaign_id matching.
+      // Numeric fields are converted explicitly via toNum() below.
+      dynamicTyping: false,
       skipEmptyLines: true,
       complete(results) {
         const rows: AdjustRow[] = [];
         for (const row of results.data) {
           // Re-check Facebook filter (API filter_by may not be exact match)
-          if (!row.partner_name?.toLowerCase().includes('facebook')) continue;
+          if (!String(row.partner_name ?? '').toLowerCase().includes('facebook')) continue;
           if (!isValidCampaignId(String(row.campaign_id_network ?? ''))) continue;
           if (appFilter && row.app !== appFilter) continue;
 

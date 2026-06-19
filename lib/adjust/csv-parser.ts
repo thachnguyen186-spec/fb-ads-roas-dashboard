@@ -49,12 +49,15 @@ export function parseAdjustCsv(file: File, appFilter?: string): Promise<AdjustRo
   return new Promise((resolve, reject) => {
     Papa.parse<RawAdjustRow>(file, {
       header: true,
-      dynamicTyping: true,
+      // dynamicTyping MUST stay off: 18-digit FB campaign IDs exceed Number.MAX_SAFE_INTEGER
+      // and would be silently rounded if coerced to numbers, breaking all campaign_id matching.
+      // Numeric fields are converted explicitly via toNum() below.
+      dynamicTyping: false,
       skipEmptyLines: true,
       complete(results) {
         const rows: AdjustRow[] = [];
         for (const row of results.data) {
-          if (row.channel?.toLowerCase() !== 'facebook') continue;
+          if (String(row.channel ?? '').toLowerCase() !== 'facebook') continue;
           if (!isValidCampaignId(String(row.campaign_id_network ?? ''))) continue;
           if (appFilter && row.app !== appFilter) continue;
 
