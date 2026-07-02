@@ -15,6 +15,7 @@ import ActionBar from './action-bar';
 import AdsetFlatView, { type FlatAdSet } from './adset-flat-view';
 import AdsetBulkBudgetModal from './adset-bulk-budget-modal';
 import SnapshotToolbar from './snapshot-toolbar';
+import ExportSpendModal from './export-spend-modal';
 
 type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
 
@@ -61,6 +62,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const [loadingAllAdsets, setLoadingAllAdsets] = useState(false);
   const [selectedFlatAdsetIds, setSelectedFlatAdsetIds] = useState<Set<string>>(new Set());
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [mergedCampaigns, setMergedCampaigns] = useState<MergedCampaign[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [roasMin, setRoasMin] = useState('');
@@ -748,6 +750,12 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                     Change Budget ({selectedFlatAdsets.length} ad set{selectedFlatAdsets.length !== 1 ? 's' : ''})
                   </button>
                 )}
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className="ml-auto px-3 py-1.5 text-xs font-medium rounded-lg border bg-white text-slate-700 border-slate-300 hover:bg-slate-50 transition-colors"
+                >
+                  ↓ Export Spend by App
+                </button>
               </div>
 
               {/* Snapshot save + multi-compare selector */}
@@ -848,6 +856,14 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
           onActionComplete={() => { if (csvFile || adjustApiRows) { setPhase('analyzing'); handleAnalyze(); } }}
           onDeselect={() => setSelectedIds(new Set())}
           vndRate={vndRate}
+        />
+      )}
+
+      {showExportModal && (
+        <ExportSpendModal
+          vndRate={vndRate}
+          viewingStaffId={viewingStaffId}
+          onClose={() => setShowExportModal(false)}
         />
       )}
 

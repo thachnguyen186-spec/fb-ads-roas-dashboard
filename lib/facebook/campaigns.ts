@@ -114,18 +114,38 @@ export async function fetchAppNames(
 }
 
 /**
- * Fetches all campaigns for the given ad account with today's insights.
+ * Date scope for the inline insights sub-request:
+ *   - { preset }         → FB date_preset keyword (e.g. 'today', 'last_7d')
+ *   - { since, until }   → explicit YYYY-MM-DD range via FB time_range
+ */
+export type InsightDateParam =
+  | { preset: string }
+  | { since: string; until: string };
+
+/** Builds the `insights.<scope>(...){fields}` field expansion string for a date param. */
+function buildInsightFields(dateParam: InsightDateParam): string {
+  if ('preset' in dateParam) {
+    return `insights.date_preset(${dateParam.preset}){${INSIGHT_FIELDS}}`;
+  }
+  const range = JSON.stringify({ since: dateParam.since, until: dateParam.until });
+  return `insights.time_range(${range}){${INSIGHT_FIELDS}}`;
+}
+
+/**
+ * Fetches all campaigns for the given ad account with insights for the given date scope.
  * Uses cursor-based pagination to retrieve all campaigns (not just first 100).
+ * @param dateParam - insights date scope; defaults to today (preserves original behavior).
  */
 export async function fetchCampaigns(
   token: string,
   adAccountId: string,
   accountName: string,
   currency: string = 'USD',
+  dateParam: InsightDateParam = { preset: 'today' },
 ): Promise<CampaignRow[]> {
   const campaigns: CampaignRow[] = [];
-  // Inline insights sub-request using today date preset
-  const insightFields = `insights.date_preset(today){${INSIGHT_FIELDS}}`;
+  // Inline insights sub-request scoped to the requested date range
+  const insightFields = buildInsightFields(dateParam);
   let after: string | undefined;
 
   do {
