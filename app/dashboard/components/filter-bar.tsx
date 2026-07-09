@@ -5,9 +5,12 @@ import { useState, useRef, useEffect } from 'react';
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 interface Props {
-  // Campaign name search
+  // Campaign name search (live text + locked keyword chips, combined with AND)
   campaignName: string;
   onCampaignNameChange: (v: string) => void;
+  campaignNameKeywords: string[];
+  onAddKeyword: (v: string) => void;
+  onRemoveKeyword: (v: string) => void;
   // Status filter (active / inactive / all)
   statusFilter: StatusFilter;
   onStatusFilterChange: (v: StatusFilter) => void;
@@ -126,6 +129,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 
 export default function FilterBar({
   campaignName, onCampaignNameChange,
+  campaignNameKeywords, onAddKeyword, onRemoveKeyword,
   statusFilter, onStatusFilterChange,
   selectedApps, onSelectedAppsChange, appOptions,
   accountFilter, onAccountFilterChange, accountOptions,
@@ -134,7 +138,7 @@ export default function FilterBar({
   budgetMin, budgetMax, onBudgetMinChange, onBudgetMaxChange,
   totalCount, filteredCount, onClearAll,
 }: Props) {
-  const hasActiveFilters = campaignName || selectedApps.length > 0 || accountFilter
+  const hasActiveFilters = campaignName || campaignNameKeywords.length > 0 || selectedApps.length > 0 || accountFilter
     || roasMin || roasMax || spendMin || spendMax || budgetMin || budgetMax
     || statusFilter !== 'all';
 
@@ -142,17 +146,44 @@ export default function FilterBar({
     <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex flex-col gap-2.5">
       {/* Row 1: text search + status filter + dropdowns */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-40">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search campaign name…"
-            value={campaignName}
-            onChange={(e) => onCampaignNameChange(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+        <div className="flex-1 min-w-40">
+          <div className="relative">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder={campaignNameKeywords.length > 0 ? 'Add another keyword…' : 'Search campaign name… (Enter to lock)'}
+              value={campaignName}
+              onChange={(e) => onCampaignNameChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onAddKeyword(campaignName);
+                } else if (e.key === 'Backspace' && campaignName === '' && campaignNameKeywords.length > 0) {
+                  onRemoveKeyword(campaignNameKeywords[campaignNameKeywords.length - 1]!);
+                }
+              }}
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          {campaignNameKeywords.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {campaignNameKeywords.map((kw) => (
+                <span key={kw} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 bg-indigo-50 border border-indigo-200 rounded-full text-xs text-indigo-700">
+                  {kw}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveKeyword(kw)}
+                    className="text-indigo-400 hover:text-indigo-700 leading-none"
+                    aria-label={`Remove keyword ${kw}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Status toggle: All / Active / Inactive */}

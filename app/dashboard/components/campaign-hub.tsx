@@ -70,6 +70,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const [accountFilter, setAccountFilter] = useState(''); // '' = all accounts
   const [appNameFilter, setAppNameFilter] = useState<string[]>([]);
   const [campaignNameFilter, setCampaignNameFilter] = useState('');
+  const [campaignNameKeywords, setCampaignNameKeywords] = useState<string[]>([]);
   const [spendMin, setSpendMin] = useState('');
   const [spendMax, setSpendMax] = useState('');
   const [budgetMin, setBudgetMin] = useState('');
@@ -129,6 +130,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     setAccountFilter('');
     setAppNameFilter([]);
     setCampaignNameFilter('');
+    setCampaignNameKeywords([]);
     setSpendMin(''); setSpendMax('');
     setBudgetMin(''); setBudgetMax('');
     setRoasMin(''); setRoasMax('');
@@ -136,6 +138,23 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     setComparedSnapshotIds([]);
     setSnapshotsCache(new Map());
     setStatusFilter('all');
+  }
+
+  /** Locks the current search text into a keyword chip and clears the box for the next keyword. */
+  function handleAddCampaignKeyword(raw: string) {
+    const kw = raw.trim();
+    if (!kw) {
+      setCampaignNameFilter('');
+      return;
+    }
+    setCampaignNameKeywords((prev) =>
+      prev.some((k) => k.toLowerCase() === kw.toLowerCase()) ? prev : [...prev, kw]
+    );
+    setCampaignNameFilter('');
+  }
+
+  function handleRemoveCampaignKeyword(kw: string) {
+    setCampaignNameKeywords((prev) => prev.filter((k) => k !== kw));
   }
 
   async function fetchSnapshots() {
@@ -399,9 +418,14 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
    */
   const filteredCampaignsBase = useMemo(() => {
     let list = [...mergedCampaigns];
-    if (campaignNameFilter) {
-      const q = campaignNameFilter.toLowerCase();
-      list = list.filter((c) => c.campaign_name.toLowerCase().includes(q));
+    const nameKeywords = [...campaignNameKeywords, campaignNameFilter]
+      .map((k) => k.trim().toLowerCase())
+      .filter(Boolean);
+    if (nameKeywords.length > 0) {
+      list = list.filter((c) => {
+        const name = c.campaign_name.toLowerCase();
+        return nameKeywords.every((k) => name.includes(k));
+      });
     }
     if (accountFilter) list = list.filter((c) => c.account_id === accountFilter);
     if (appNameFilter.length > 0) list = list.filter((c) => {
@@ -427,7 +451,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
       return b <= budgetMaxN;
     });
     return list;
-  }, [mergedCampaigns, adjustAppMapState, campaignNameFilter, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax]);
+  }, [mergedCampaigns, adjustAppMapState, campaignNameFilter, campaignNameKeywords, accountFilter, appNameFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax]);
 
   /**
    * Campaigns filtered by campaign status. Used by both campaign view and adset loading.
@@ -779,6 +803,9 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
               <FilterBar
                 campaignName={campaignNameFilter}
                 onCampaignNameChange={setCampaignNameFilter}
+                campaignNameKeywords={campaignNameKeywords}
+                onAddKeyword={handleAddCampaignKeyword}
+                onRemoveKeyword={handleRemoveCampaignKeyword}
                 statusFilter={statusFilter}
                 onStatusFilterChange={setStatusFilter}
                 selectedApps={appNameFilter}
@@ -796,7 +823,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                 totalCount={mergedCampaigns.length}
                 filteredCount={displayedCampaigns.length}
                 onClearAll={() => {
-                  setCampaignNameFilter(''); setAppNameFilter([]); setAccountFilter('');
+                  setCampaignNameFilter(''); setCampaignNameKeywords([]); setAppNameFilter([]); setAccountFilter('');
                   setRoasMin(''); setRoasMax('');
                   setSpendMin(''); setSpendMax('');
                   setBudgetMin(''); setBudgetMax('');
