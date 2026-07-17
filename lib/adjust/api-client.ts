@@ -12,6 +12,11 @@ import type { AdjustRow } from '@/lib/types';
 
 const ADJUST_API_URL = 'https://automate.adjust.com/reports-service/csv_report';
 
+// This tool serves a single Vietnam-based team (UTC+7). Adjust buckets "today" by this offset,
+// not the server's UTC clock — without it, the first ~7 hours of each local day's revenue is
+// dropped from "today" (confirmed empirically: omitting utc_offset undercounted revenue by ~55%).
+const ADJUST_UTC_OFFSET = '+07:00';
+
 /** Campaign IDs that Adjust uses for unattributed/invalid traffic — skip them */
 const INVALID_IDS = new Set(['unknown', 'expired attributions', '']);
 
@@ -60,7 +65,6 @@ interface AdjustApiRow {
   campaign_network: string;
   adgroup_id_network?: string;
   adgroup_network?: string;
-  network_cost?: number | string;
   all_revenue: number | string;
   cohort_all_revenue?: number | string;
 }
@@ -90,14 +94,17 @@ export async function fetchAdjustRevenueToday(
     throw new Error('No Adjust apps found for this account.');
   }
 
-  // Today in YYYY-MM-DD (UTC) — Adjust expects UTC dates
-  const today = new Date().toISOString().slice(0, 10);
+  // "Today" in the team's local timezone, not the server's UTC clock — must match ADJUST_UTC_OFFSET
+  // below so the date label and the day-boundary Adjust buckets revenue by agree with each other.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date());
 
   const params = new URLSearchParams({
     date_period: `${today}:${today}`,
     dimensions: 'app,partner_name,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network',
-    metrics: 'network_cost,all_revenue,cohort_all_revenue',
-    ad_spend_mode: 'network',
+    // Revenue only — spend is always sourced from Facebook's own Insights API (lib/adjust/merge.ts),
+    // never from Adjust, since Adjust's cost reporting lags behind Facebook's.
+    metrics: 'all_revenue,cohort_all_revenue',
+    utc_offset: ADJUST_UTC_OFFSET,
     adjust_account_id__in: accountId,
   });
   // Adjust Reports API uses bracket notation for array params: app_token[]=xxx&app_token[]=yyy
