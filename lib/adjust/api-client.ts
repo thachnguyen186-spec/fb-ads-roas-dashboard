@@ -27,6 +27,31 @@ function toNum(val: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
+/**
+ * Discovers all app tokens visible to this API token under the given Adjust account.
+ * Used when no explicit ADJUST_APP_TOKEN override is configured, so newly added apps
+ * are picked up automatically instead of requiring a manually-maintained env var list.
+ */
+export async function fetchAdjustAppTokens(token: string, accountId: string): Promise<string[]> {
+  const params = new URLSearchParams({
+    required_filters: 'apps',
+    adjust_account_id__in: accountId,
+  });
+
+  const res = await fetch(`https://automate.adjust.com/reports-service/filters_data?${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Adjust filters_data error ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  const data = await res.json() as { apps?: Array<{ id: string }> };
+  return (data.apps ?? []).map((app) => app.id);
+}
+
 /** Raw row shape returned by the Adjust Reports API CSV */
 interface AdjustApiRow {
   app: string;
@@ -44,17 +69,25 @@ interface AdjustApiRow {
  * Fetches today's Adjust revenue data via the Reports API.
  * Returns AdjustRow[] filtered to Facebook traffic only.
  *
- * @param token        Adjust API token (Bearer auth — from profiles.adjust_api_token, server-side only)
- * @param appTokens    One or more Adjust app tokens (required by Adjust API — from profiles.adjust_app_token)
+ * @param token        Adjust API token (Bearer auth — from ADJUST_API_TOKEN env var, server-side only)
+ * @param accountId    Adjust account ID (adjust_account_id__in) — required because a single Adjust
+ *                     login can have access to multiple accounts; without it the API rejects all
+ *                     app tokens as invalid even when they're correct.
+ * @param appTokens    Adjust app token(s) to scope the query to. If empty, all apps visible to this
+ *                     token under accountId are auto-discovered via fetchAdjustAppTokens().
  * @param appFilter    Optional: restrict rows to a specific app name
  */
 export async function fetchAdjustRevenueToday(
   token: string,
+  accountId: string,
   appTokens: string[],
   appFilter?: string,
 ): Promise<AdjustRow[]> {
   if (appTokens.length === 0) {
-    throw new Error('Adjust app token(s) not configured. Add them in Settings.');
+    appTokens = await fetchAdjustAppTokens(token, accountId);
+  }
+  if (appTokens.length === 0) {
+    throw new Error('No Adjust apps found for this account.');
   }
 
   // Today in YYYY-MM-DD (UTC) — Adjust expects UTC dates
@@ -65,6 +98,7 @@ export async function fetchAdjustRevenueToday(
     dimensions: 'app,partner_name,campaign_id_network,campaign_network,adgroup_id_network,adgroup_network',
     metrics: 'network_cost,all_revenue,cohort_all_revenue',
     ad_spend_mode: 'network',
+    adjust_account_id__in: accountId,
   });
   // Adjust Reports API uses bracket notation for array params: app_token[]=xxx&app_token[]=yyy
   for (const appToken of appTokens) {

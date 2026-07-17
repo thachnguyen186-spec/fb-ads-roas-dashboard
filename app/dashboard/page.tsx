@@ -23,8 +23,9 @@ export default async function DashboardPage() {
 
   const profile = profileRes.data as { fb_access_token?: string | null } | null;
   const hasToken = !!profile?.fb_access_token;
-  // Adjust tokens are org-wide env vars — available to all users when configured on the server
-  const hasAdjustToken = !!process.env.ADJUST_API_TOKEN && !!process.env.ADJUST_APP_TOKEN;
+  // Adjust tokens are org-wide env vars — available to all users when configured on the server.
+  // ADJUST_APP_TOKEN is optional (apps are auto-discovered when unset); account ID is required.
+  const hasAdjustToken = !!process.env.ADJUST_API_TOKEN && !!process.env.ADJUST_ACCOUNT_ID;
   const selectedAccounts = (accountsRes.data ?? []) as FbAdAccount[];
   const userRole = (role ?? 'staff') as UserRole;
 
