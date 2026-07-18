@@ -278,3 +278,8 @@ export interface MergedTiktokAdGroup extends TiktokAdGroupRow {
   profit: number | null;
   has_adjust_data: boolean;
 }
+
+/** MergedTiktokAdGroup enriched with campaign_name for the flat view (Phase 4) */
+export interface FlatTiktokAdGroup extends MergedTiktokAdGroup {
+  campaign_name: string;
+}

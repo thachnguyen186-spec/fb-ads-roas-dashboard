@@ -8,7 +8,7 @@ import { filterTiktokCampaigns } from '@/lib/tiktok/filter-campaigns';
 import { formatUsd } from '@/lib/utils';
 import FilterBar from '@/app/dashboard/components/filter-bar';
 import TiktokHeader from './tiktok-header';
-import TiktokCampaignTable from './tiktok-campaign-table';
+import TiktokResultsPanel from './tiktok-results-panel';
 import type { AdjustRow, MergedTiktokCampaign, TiktokAdvertiserAccount, TiktokCampaignRow } from '@/lib/types';
 
 type Phase = 'idle' | 'loading' | 'results' | 'error';
@@ -24,6 +24,7 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [mergedCampaigns, setMergedCampaigns] = useState<MergedTiktokCampaign[]>([]);
+  const [adjustRows, setAdjustRows] = useState<AdjustRow[]>([]);
 
   const [campaignNameFilter, setCampaignNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -49,10 +50,11 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
       if (!campaignsRes.ok) throw new Error(campaignsData.error ?? 'Failed to fetch TikTok campaigns');
 
       const revenueData = await revenueRes.json();
-      const adjustRows: AdjustRow[] = revenueRes.ok ? (revenueData.rows ?? []) : [];
+      const rows: AdjustRow[] = revenueRes.ok ? (revenueData.rows ?? []) : [];
+      setAdjustRows(rows);
 
-      const cohortMap = aggregateByCampaignId(adjustRows);
-      const allRevMap = aggregateAllRevByCampaignId(adjustRows);
+      const cohortMap = aggregateByCampaignId(rows);
+      const allRevMap = aggregateAllRevByCampaignId(rows);
       // Spend is already overlaid server-side (TiktokCampaignRow[]) — empty spendMap here is a no-op merge.
       const merged = mergeTiktokCampaigns(campaignsData.campaigns as TiktokCampaignRow[], new Map(), cohortMap, allRevMap);
       setMergedCampaigns(merged);
@@ -166,17 +168,18 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
               }}
             />
 
-            <div className="h-[calc(100vh-300px)] min-h-[420px] overflow-hidden pb-3">
-              <TiktokCampaignTable
-                campaigns={displayedCampaigns}
-                selectedIds={selectedIds}
-                onSelectionChange={setSelectedIds}
-                sortCol={sortCol}
-                sortDir={sortDir}
-                onSort={handleSort}
-                showAdvertiserColumn={accountOptions.length > 1}
-              />
-            </div>
+            <TiktokResultsPanel
+              allCampaigns={mergedCampaigns}
+              displayedCampaigns={displayedCampaigns}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              sortCol={sortCol}
+              sortDir={sortDir}
+              onSort={handleSort}
+              showAdvertiserColumn={accountOptions.length > 1}
+              adjustRows={adjustRows}
+              onCampaignActionComplete={handleFetchData}
+            />
           </div>
         )}
       </main>

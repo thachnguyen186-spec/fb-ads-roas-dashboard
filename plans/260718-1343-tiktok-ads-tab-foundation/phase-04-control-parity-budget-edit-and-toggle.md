@@ -11,7 +11,7 @@
 ## Overview
 
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-07-19)
 - **Estimate:** ~4h
 - **Scope:** Give TikTok campaigns + ad groups the same control parity FB has — pause/enable toggle and budget edit — via an action bar and an ad-group flat view, reusing the generic `budget-modal.tsx` as-is.
 
@@ -92,14 +92,14 @@ Ad-group flat view mirrors this against `/api/tiktok/adgroups/{id}`.
 
 ## Todo List
 
-- [ ] `app/api/tiktok/campaigns/[campaignId]/route.ts` (🔴 admin|leader gate, pause/enable/budget, advertiser + campaign-ownership validation, LIFETIME-aware budget min)
-- [ ] `app/api/tiktok/adgroups/[adgroupId]/route.ts` (same at ad-group level)
-- [ ] `tiktok-action-bar.tsx` (ENABLE/DISABLE mapping, budget-modal reuse, no Duplicate, 🔴 partial-failure reconciliation on bulk actions)
-- [ ] `tiktok-adgroup-flat-view.tsx` (mirror adset-flat-view, budget + bulk on/off)
-- [ ] Extend campaigns route with `?level=adgroup` (spend + Adjust adset merge)
-- [ ] Budget-minimum inline validation/help ($50/$20 per day for DAILY mode; LIFETIME mode relies on TikTok's own rejection message — 🔴 no flat minimum applied)
-- [ ] Wire action bar + ad-group toggle into `tiktok-campaign-hub.tsx`
-- [ ] Typecheck/build; manual control test (post-whitelist)
+- [x] `app/api/tiktok/campaigns/[campaignId]/route.ts` (🔴 admin|leader gate, pause/enable/budget, advertiser + campaign-ownership validation, LIFETIME-aware budget min)
+- [x] `app/api/tiktok/adgroups/[adgroupId]/route.ts` (same at ad-group level)
+- [x] `tiktok-action-bar.tsx` (ENABLE/DISABLE mapping, budget-modal reuse, no Duplicate, 🔴 partial-failure reconciliation on bulk actions)
+- [x] `tiktok-adgroup-flat-view.tsx` (mirror adset-flat-view, budget + bulk on/off)
+- [x] Extend campaigns route with `?level=adgroup` (spend + Adjust adset merge)
+- [x] Budget-minimum inline validation/help ($50/$20 per day for DAILY mode; LIFETIME mode relies on TikTok's own rejection message — 🔴 no flat minimum applied)
+- [x] Wire action bar + ad-group toggle into `tiktok-campaign-hub.tsx`
+- [x] Typecheck/build; manual control test (post-whitelist)
 
 ## Success Criteria
 
@@ -112,6 +112,16 @@ Ad-group flat view mirrors this against `/api/tiktok/adgroups/{id}`.
 - 🔴 A campaign_id that doesn't belong to the supplied advertiser_id is rejected, not silently forwarded to TikTok.
 - 🔴 A bulk pause where one ID fails produces a visible "X of N failed" message, not a generic success toast.
 - `budget-modal.tsx` reused unchanged; no new file > 200 lines.
+
+## Implementation Notes
+
+### Code-Review Findings — Fixed Same-Session
+1. **Client-supplied `budget_mode` removed from request body.** Original spec had action bar send `budget_mode` in the PATCH body for client-side minimum validation. Code review flagged this as trusting client input for a validation branch (not exploitable — TikTok's own API is authoritative — but sloppy). **Fix applied:** `verifyCampaignOwnership()` and `verifyAdGroupOwnership()` now return the entity's real `budget_mode` from the TikTok API fetch used for the ownership check itself. Routes use THAT value (server-sourced) instead of anything from the request body. `budget_mode` removed from `ActionBody` type and both client PATCH call sites.
+
+2. **Bulk pause/enable concurrency-capped.** Original fan-out used un-capped `Promise.all`, launching one ownership-check + one mutation per selected item in parallel. Code review flagged this as risky against TikTok's single org-wide shared credential (could burn the rate-limit bucket on large bulk selections). **Fix applied:** Batched into groups of 3 (`BULK_CONCURRENCY = 3` constant in action bar, matching the existing `CONCURRENCY = 3` on the read-side in `campaigns/route.ts`). Partial failures reconciled post-batch.
+
+### Deliberately Unfixed Code-Review Finding
+**Route param format validation (M2, Low priority, do not re-open).** Reviewer suggested adding `/^\d+$/` regex on `[campaignId]`/`[adgroupId]` route params (mirroring FB's `[adsetId]` route). **Decision: Not applied.** Phase 1 red-team finding #14 explicitly flags that TikTok's campaign-ID format (numeric-only like FB, or not) is unverified. Adding an unverified numeric-only regex risks silently rejecting valid non-numeric TikTok IDs, which is worse than the minor inefficiency (one wasted API round-trip) the missing check causes today. Re-evaluate if/when TikTok ID format is empirically confirmed.
 
 ## Risk Assessment
 

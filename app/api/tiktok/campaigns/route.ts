@@ -9,12 +9,13 @@
  * unbounded Promise.all, to stay under TikTok's rate limit (Phase 1 Risk Assessment).
  */
 
+import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
 import { getValidAccessToken } from '@/lib/tiktok/tiktok-connection';
-import { fetchCampaigns } from '@/lib/tiktok/campaigns';
+import { fetchCampaigns, fetchAdGroups } from '@/lib/tiktok/campaigns';
 import { fetchTodaySpend } from '@/lib/tiktok/reporting';
-import type { TiktokAdvertiserAccount, TiktokCampaignRow } from '@/lib/types';
+import type { TiktokAdvertiserAccount, TiktokCampaignRow, TiktokAdGroupRow } from '@/lib/types';
 
 /** Advertisers processed per batch — bounded concurrency, not full fan-out. */
 const CONCURRENCY = 3;
@@ -27,7 +28,18 @@ async function fetchForAdvertiser(token: string, account: TiktokAdvertiserAccoun
   return campaigns.map((c) => ({ ...c, ...(spendMap.get(c.campaign_id) ?? {}) }));
 }
 
-export async function GET() {
+/** Ad-group equivalent of fetchForAdvertiser, used by the ?level=adgroup branch (Phase 4). */
+async function fetchAdGroupsForAdvertiser(token: string, account: TiktokAdvertiserAccount): Promise<TiktokAdGroupRow[]> {
+  const [adgroups, spendMap] = await Promise.all([
+    fetchAdGroups(token, account.advertiser_id, account.name, account.currency),
+    fetchTodaySpend(token, account.advertiser_id, 'ADGROUP'),
+  ]);
+  return adgroups.map((a) => ({ ...a, ...(spendMap.get(a.adgroup_id) ?? {}) }));
+}
+
+export async function GET(request: NextRequest) {
+  const level = request.nextUrl.searchParams.get('level') === 'adgroup' ? 'adgroup' : 'campaign';
+
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
@@ -53,6 +65,16 @@ export async function GET() {
   }
 
   try {
+    if (level === 'adgroup') {
+      const adgroups: TiktokAdGroupRow[] = [];
+      for (let i = 0; i < accounts.length; i += CONCURRENCY) {
+        const batch = accounts.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(batch.map((a) => fetchAdGroupsForAdvertiser(token, a)));
+        adgroups.push(...results.flat());
+      }
+      return Response.json({ adgroups });
+    }
+
     const campaigns: TiktokCampaignRow[] = [];
     for (let i = 0; i < accounts.length; i += CONCURRENCY) {
       const batch = accounts.slice(i, i + CONCURRENCY);

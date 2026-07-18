@@ -1,7 +1,7 @@
 ---
 title: "TikTok Ads Tab Foundation"
 description: "Add TikTok Ads as a second platform via a dashboard tab — OAuth connect, read campaigns/ad groups, budget + on/off parity with Facebook, Adjust revenue wired to TikTok."
-status: pending
+status: complete
 priority: P1
 effort: 16h
 branch: master
@@ -9,6 +9,7 @@ tags: [tiktok-api, oauth, dashboard, integration, multi-platform]
 blockedBy: []
 blocks: []
 created: 2026-07-18
+completed: 2026-07-19
 ---
 
 # TikTok Ads Tab Foundation
@@ -34,7 +35,7 @@ Auth model: **single org-wide TikTok connection** (not per-user like FB's pasted
 | 1 | [TikTok API Client + Database Schema](./phase-01-tiktok-api-client-and-database-schema.md) | Complete (2026-07-18) |
 | 2 | [OAuth Connect Flow + Settings UI](./phase-02-oauth-connect-flow-and-settings-ui.md) | Complete (2026-07-18) |
 | 3 | [TikTok Dashboard Tab: Read-Only View + Adjust Revenue](./phase-03-tiktok-dashboard-tab-read-only-view.md) | Complete (2026-07-18) |
-| 4 | [Control Parity: Budget Edit + On/Off Toggle](./phase-04-control-parity-budget-edit-and-toggle.md) | Pending |
+| 4 | [Control Parity: Budget Edit + On/Off Toggle](./phase-04-control-parity-budget-edit-and-toggle.md) | Complete (2026-07-19) |
 
 ## Dependencies
 
