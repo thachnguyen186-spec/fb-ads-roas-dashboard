@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import type { FbAdAccount } from '@/lib/types';
+import type { FbAdAccount, UserRole } from '@/lib/types';
+import TiktokConnectionCard from './tiktok-connection-card';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function SettingsPage() {
   const [hasToken, setHasToken] = useState(false);  // whether a token is already saved
   const [removeToken, setRemoveToken] = useState(false); // user explicitly requested removal
   const [accounts, setAccounts] = useState<FbAdAccount[]>([]);
+  const [role, setRole] = useState<UserRole>('staff');
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -24,6 +26,7 @@ export default function SettingsPage() {
       .then((r) => r.json())
       .then((data) => {
         setHasToken(!!data.has_token);
+        setRole((data.role as UserRole) ?? 'staff');
         if (Array.isArray(data.accounts) && data.accounts.length > 0) {
           setAccounts(data.accounts);
         }
@@ -212,6 +215,9 @@ export default function SettingsPage() {
                 </ul>
               </div>
             )}
+
+            {/* TikTok Ads Connection */}
+            {(role === 'admin' || role === 'leader') && <TiktokConnectionCard role={role} />}
 
             {/* Save */}
             <div className="space-y-2">
