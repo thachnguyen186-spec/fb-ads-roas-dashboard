@@ -11,7 +11,8 @@
  *                         If unset, all apps visible under ADJUST_ACCOUNT_ID are auto-discovered.
  *
  * Query params:
- *   app  (optional) — restrict rows to a specific app name
+ *   app      (optional) — restrict rows to a specific app name
+ *   partner  (optional) — 'facebook' (default) | 'tiktok'
  *
  * Errors:
  *   400 — env tokens not configured
@@ -43,9 +44,10 @@ export async function GET(request: NextRequest) {
     .filter(Boolean);
 
   const appFilter = request.nextUrl.searchParams.get('app') || undefined;
+  const partner = request.nextUrl.searchParams.get('partner') === 'tiktok' ? 'tiktok' : 'facebook';
 
   try {
-    const rows = await fetchAdjustRevenueToday(token, accountId, appTokens, appFilter);
+    const rows = await fetchAdjustRevenueToday(token, accountId, appTokens, appFilter, partner);
     return Response.json({ rows });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch from Adjust API';
