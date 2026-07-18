@@ -215,3 +215,66 @@ export interface BudgetTarget {
   /** VND→USD rate used during merge — needed to convert display back to original */
   vndRate: number;
 }
+
+// ─── TikTok Ads ──────────────────────────────────────────────────────────────
+
+/** Org-wide TikTok advertiser account (from the OAuth token's advertiser_ids, enriched via /advertiser/info/) */
+export interface TiktokAdvertiserAccount {
+  advertiser_id: string;
+  name: string;
+  currency: string;       // e.g. 'USD' — Plan 1 restricts selection to USD-only accounts
+  is_selected: boolean;
+}
+
+/** Live TikTok campaign from /campaign/get/, overlaid with today's spend from /report/integrated/get/ */
+export interface TiktokCampaignRow {
+  campaign_id: string;
+  campaign_name: string;
+  advertiser_id: string;
+  advertiser_name: string;
+  currency: string;
+  status: 'ENABLE' | 'DISABLE' | string;
+  budget: number;                        // plain decimal, account currency (no cents conversion, unlike FB)
+  budget_mode: 'DAILY' | 'LIFETIME' | string;
+  spend: number;                         // from Reporting API (partial — 24–48h lag), NOT /campaign/get/
+  impressions: number;
+  clicks: number;
+  cpc: number;
+}
+
+/** Live TikTok ad group from /adgroup/get/, overlaid with today's spend */
+export interface TiktokAdGroupRow {
+  adgroup_id: string;
+  adgroup_name: string;
+  campaign_id: string;
+  advertiser_id: string;
+  advertiser_name: string;
+  currency: string;
+  status: 'ENABLE' | 'DISABLE' | string;
+  budget: number;
+  budget_mode: 'DAILY' | 'LIFETIME' | string;
+  spend: number;
+  impressions: number;
+  clicks: number;
+  cpc: number;
+}
+
+/** TikTok campaign merged with Adjust revenue data — USD-only by construction (Plan 1) */
+export interface MergedTiktokCampaign extends TiktokCampaignRow {
+  adjust_revenue: number | null;
+  adjust_all_revenue: number | null;
+  roas: number | null;
+  profit_pct: number | null;
+  profit: number | null;
+  has_adjust_data: boolean;
+}
+
+/** TikTok ad group merged with Adjust revenue data — USD-only by construction (Plan 1) */
+export interface MergedTiktokAdGroup extends TiktokAdGroupRow {
+  adjust_revenue: number | null;
+  adjust_all_revenue: number | null;
+  roas: number | null;
+  profit_pct: number | null;
+  profit: number | null;
+  has_adjust_data: boolean;
+}

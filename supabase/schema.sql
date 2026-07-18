@@ -130,3 +130,31 @@ alter table public.profiles
 -- Adjust app token(s) — comma-separated, required by Adjust Reports API to identify which app to query.
 alter table public.profiles
   add column if not exists adjust_app_token text;
+
+-- ─── TikTok Ads: org-wide OAuth connection ────────────────────────────────────
+-- Run this in Supabase SQL editor to enable the TikTok Ads tab.
+-- Singleton row (id is always `true`) — one org-wide connection, mirrors the
+-- org-wide Adjust token pattern rather than FB's per-user pasted token.
+-- RLS enabled with NO policies: only the service-role client (server-only) can
+-- read/write this table; anon/authenticated keys are denied by default.
+create table if not exists public.tiktok_connection (
+  id boolean primary key default true check (id),
+  access_token text,
+  refresh_token text,
+  token_expires_at timestamptz,
+  connected_by uuid references auth.users(id),
+  connected_at timestamptz,
+  updated_at timestamptz default now()
+);
+
+alter table public.tiktok_connection enable row level security;
+
+-- ─── TikTok Ads: org-wide advertiser account selection ────────────────────────
+create table if not exists public.tiktok_advertiser_accounts (
+  advertiser_id text primary key,
+  name text not null,
+  currency text not null default 'USD',
+  is_selected boolean not null default true
+);
+
+alter table public.tiktok_advertiser_accounts enable row level security;

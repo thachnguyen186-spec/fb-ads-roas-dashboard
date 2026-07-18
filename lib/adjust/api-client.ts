@@ -20,10 +20,21 @@ const ADJUST_UTC_OFFSET = '+07:00';
 /** Campaign IDs that Adjust uses for unattributed/invalid traffic — skip them */
 const INVALID_IDS = new Set(['unknown', 'expired attributions', '']);
 
+// Substring match against Adjust's partner_name column. The 'facebook' value is confirmed
+// (existing production behavior). The 'tiktok' value is NOT yet empirically verified against
+// a live Adjust export — see phase-01 plan Step 9 ("do NOT guess"). Confirm the real
+// partner_name string before relying on TikTok revenue numbers; wrong string = silent zero revenue.
+const PARTNER_MATCH: Record<'facebook' | 'tiktok', string> = {
+  facebook: 'facebook',
+  tiktok: 'tiktok',
+};
+
 function isValidCampaignId(id: string): boolean {
   if (!id) return false;
   if (INVALID_IDS.has(id.trim().toLowerCase())) return false;
-  return /^\d+$/.test(id.trim()); // FB campaign IDs are purely numeric
+  // Both FB and TikTok campaign/ad group IDs are purely numeric strings — unverified for
+  // TikTok against a live export (same verification pass as the partner_name check above).
+  return /^\d+$/.test(id.trim());
 }
 
 function toNum(val: unknown): number {
@@ -80,12 +91,15 @@ interface AdjustApiRow {
  * @param appTokens    Adjust app token(s) to scope the query to. If empty, all apps visible to this
  *                     token under accountId are auto-discovered via fetchAdjustAppTokens().
  * @param appFilter    Optional: restrict rows to a specific app name
+ * @param partner      Which ad platform's traffic to filter to. Defaults to 'facebook' (preserves
+ *                     existing behavior for the FB dashboard).
  */
 export async function fetchAdjustRevenueToday(
   token: string,
   accountId: string,
   appTokens: string[],
   appFilter?: string,
+  partner: 'facebook' | 'tiktok' = 'facebook',
 ): Promise<AdjustRow[]> {
   if (appTokens.length === 0) {
     appTokens = await fetchAdjustAppTokens(token, accountId);
@@ -137,8 +151,8 @@ export async function fetchAdjustRevenueToday(
       complete(results) {
         const rows: AdjustRow[] = [];
         for (const row of results.data) {
-          // Re-check Facebook filter (API filter_by may not be exact match)
-          if (!String(row.partner_name ?? '').toLowerCase().includes('facebook')) continue;
+          // Re-check partner filter (API filter_by may not be exact match)
+          if (!String(row.partner_name ?? '').toLowerCase().includes(PARTNER_MATCH[partner])) continue;
           if (!isValidCampaignId(String(row.campaign_id_network ?? ''))) continue;
           if (appFilter && row.app !== appFilter) continue;
 
