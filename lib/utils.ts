@@ -13,3 +13,11 @@ export function formatUsd(amount: number | null): string {
 export function formatNumber(n: number): string {
   return new Intl.NumberFormat('en-US').format(n);
 }
+
+/** Two-letter initials from an email's local part (e.g. "jane.doe@x.com" → "JD") */
+export function getInitials(email: string): string {
+  const local = email.split('@')[0] ?? '';
+  const parts = local.split(/[._-]/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return local.slice(0, 2).toUpperCase();
+}

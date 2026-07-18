@@ -33,7 +33,7 @@ Auth model: **single org-wide TikTok connection** (not per-user like FB's pasted
 |-------|------|--------|
 | 1 | [TikTok API Client + Database Schema](./phase-01-tiktok-api-client-and-database-schema.md) | Complete (2026-07-18) |
 | 2 | [OAuth Connect Flow + Settings UI](./phase-02-oauth-connect-flow-and-settings-ui.md) | Complete (2026-07-18) |
-| 3 | [TikTok Dashboard Tab: Read-Only View + Adjust Revenue](./phase-03-tiktok-dashboard-tab-read-only-view.md) | Pending |
+| 3 | [TikTok Dashboard Tab: Read-Only View + Adjust Revenue](./phase-03-tiktok-dashboard-tab-read-only-view.md) | Complete (2026-07-18) |
 | 4 | [Control Parity: Budget Edit + On/Off Toggle](./phase-04-control-parity-budget-edit-and-toggle.md) | Pending |
 
 ## Dependencies

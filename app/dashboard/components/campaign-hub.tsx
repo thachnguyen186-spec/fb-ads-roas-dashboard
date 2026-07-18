@@ -7,6 +7,7 @@ import { Flame, ChevronLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { parseAdjustCsv, aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateByAdSetId, aggregateAllRevByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
+import { getInitials } from '@/lib/utils';
 import type { AdjustRow, AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotComparison, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
 import AdjustCsvUpload from './adjust-csv-upload';
 import CampaignTable from './campaign-table';
@@ -27,13 +28,6 @@ interface Props {
   userRole: UserRole;
   staffList: StaffMember[];
   userEmail: string;
-}
-
-function getInitials(email: string) {
-  const local = email.split('@')[0] ?? '';
-  const parts = local.split(/[._-]/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return local.slice(0, 2).toUpperCase();
 }
 
 export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts, userRole, staffList, userEmail }: Props) {

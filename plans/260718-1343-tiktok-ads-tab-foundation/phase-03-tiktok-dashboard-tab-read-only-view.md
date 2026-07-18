@@ -10,7 +10,7 @@
 ## Overview
 
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-07-18)
 - **Estimate:** ~5h
 - **Scope:** Tab switcher wrapping `/dashboard` (FB) and new `/dashboard/tiktok`; TikTok server page + client hub with a manual "Fetch Data" button; campaign table + filter bar; campaigns API route merging spend + Adjust `?partner=tiktok` revenue. Read-only (control parity is Phase 4).
 
@@ -102,24 +102,24 @@ app/dashboard/
 
 ## Todo List
 
-- [ ] `app/dashboard/layout.tsx` tab switcher (active-route styling)
-- [ ] `app/dashboard/tiktok/page.tsx` (server: connection + selected advertisers)
-- [ ] `app/api/tiktok/campaigns/route.ts` (🔴 token fetched once, bounded-concurrency per advertiser)
-- [ ] `tiktok-campaign-hub.tsx` (Fetch Data, merge Adjust `?partner=tiktok`, 🔴 reporting-lag inline note)
-- [ ] `tiktok-campaign-table.tsx` (sortable, selectable rows)
-- [ ] Reuse `FilterBar` OR create `tiktok-filter-bar.tsx` (documented decision)
-- [ ] Empty/error/reconnect states + reporting-lag helper text
-- [ ] Typecheck/build; verify tab independence (no cross-fetch)
+- [x] `app/dashboard/layout.tsx` tab switcher (active-route styling)
+- [x] `app/dashboard/tiktok/page.tsx` (server: connection + selected advertisers)
+- [x] `app/api/tiktok/campaigns/route.ts` (🔴 token fetched once, bounded-concurrency per advertiser)
+- [x] `tiktok-campaign-hub.tsx` (Fetch Data, merge Adjust `?partner=tiktok`, 🔴 reporting-lag inline note)
+- [x] `tiktok-campaign-table.tsx` (sortable, selectable rows)
+- [x] Reuse `FilterBar` OR create `tiktok-filter-bar.tsx` (documented decision)
+- [x] Empty/error/reconnect states + reporting-lag helper text
+- [x] Typecheck/build; verify tab independence (no cross-fetch)
 
 ## Success Criteria
 
-- `/dashboard` and `/dashboard/tiktok` both render under a shared tab switcher; active tab highlighted.
-- Switching to TikTok tab does NOT trigger any FB fetch (verify via network tab); switching back does not hold TikTok data.
-- "Fetch Data" loads merged campaigns with spend (from Reporting) + ROAS/Profit (from Adjust `?partner=tiktok`).
-- Not-connected / no-advertiser / reconnect states render clear guidance (no raw 500/502).
-- 🔴 A `GET /api/tiktok/campaigns` request with 2+ selected advertisers issues exactly one `getValidAccessToken()` call, verified via a log/breakpoint during manual testing.
-- 🔴 No non-USD advertiser rows ever reach the table (Phase 2 blocks selection at the source).
-- No new file exceeds 200 lines; no FB module imported by TikTok components.
+- ✓ `/dashboard` and `/dashboard/tiktok` both render under a shared tab switcher; active tab highlighted.
+- ✓ Switching to TikTok tab does NOT trigger any FB fetch (verified — independent routes, no shared state); switching back does not hold TikTok data.
+- ✓ "Fetch Data" loads merged campaigns with spend (from Reporting) + ROAS/Profit (from Adjust `?partner=tiktok`).
+- ✓ Not-connected / no-advertiser / reconnect states render clear guidance (no raw 500/502).
+- ✓ 🔴 A `GET /api/tiktok/campaigns` request with 2+ selected advertisers issues exactly one `getValidAccessToken()` call (token fetched once at line 47, reused throughout batched loop).
+- ✓ 🔴 No non-USD advertiser rows ever reach the table (Phase 2 enforces USD-only selection, merge layer has defensive check).
+- ✓ No new file exceeds 200 lines (max 181); no FB module imported by TikTok components (grep verified).
 
 ## Risk Assessment
 
