@@ -96,12 +96,21 @@ export async function GET(request: NextRequest) {
   const denied = await requireRole(user.id, ['admin']);
   if (denied) return denied;
 
-  const settingsUrl = (status: 'connected' | 'error', reason?: string) => {
+  const settingsUrl = (status: 'connected' | 'error', reason?: string, detail?: string) => {
     const url = new URL('/settings', request.url);
     url.searchParams.set('tiktok', status);
     if (reason) url.searchParams.set('reason', reason);
+    // Truncated so a verbose Postgres/TikTok error message doesn't blow out the redirect URL.
+    if (detail) url.searchParams.set('detail', detail.slice(0, 200));
     return url.toString();
   };
+
+  /** Logs the real error to Vercel's function logs (admin-only route — safe to log verbatim)
+   * and returns a short message safe to surface in the Settings UI. */
+  function logAndDescribe(step: string, err: unknown): string {
+    console.error(`[tiktok oauth callback] ${step} failed:`, err);
+    return err instanceof Error ? err.message : String(err);
+  }
 
   const authCode = request.nextUrl.searchParams.get('auth_code');
   const state = request.nextUrl.searchParams.get('state');
@@ -122,8 +131,8 @@ export async function GET(request: NextRequest) {
   let tokenData: TiktokTokenExchangeData;
   try {
     tokenData = await exchangeAuthCode(authCode);
-  } catch {
-    return Response.redirect(settingsUrl('error', 'exchange'), 302);
+  } catch (err) {
+    return Response.redirect(settingsUrl('error', 'exchange', logAndDescribe('exchangeAuthCode', err)), 302);
   }
 
   if (!hasRequiredScopes(tokenData.scope)) {
@@ -132,16 +141,16 @@ export async function GET(request: NextRequest) {
 
   try {
     await saveConnection(tokenData, user.id);
-  } catch {
-    return Response.redirect(settingsUrl('error', 'save'), 302);
+  } catch (err) {
+    return Response.redirect(settingsUrl('error', 'save', logAndDescribe('saveConnection', err)), 302);
   }
 
   try {
     await syncAdvertiserAccounts(tokenData.advertiser_ids ?? [], tokenData.access_token);
-  } catch {
+  } catch (err) {
     // Connection is already live at this point — don't send the admin back through a fresh
     // OAuth round-trip; tell them the account list needs a retry instead.
-    return Response.redirect(settingsUrl('connected', 'sync_failed'), 302);
+    return Response.redirect(settingsUrl('connected', 'sync_failed', logAndDescribe('syncAdvertiserAccounts', err)), 302);
   }
 
   return Response.redirect(settingsUrl('connected'), 302);

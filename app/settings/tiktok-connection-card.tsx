@@ -31,15 +31,17 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
     setCallbackUrl(`${window.location.origin}/api/tiktok/oauth/callback`);
     const params = new URLSearchParams(window.location.search);
     const status = params.get('tiktok');
+    const detail = params.get('detail');
+    const withDetail = (message: string) => (detail ? `${message} Detail: ${detail}` : message);
     if (status === 'connected') {
       if (params.get('reason') === 'sync_failed') {
-        setBanner({ type: 'error', message: 'TikTok connected, but the advertiser account list failed to load — refresh this page to retry.' });
+        setBanner({ type: 'error', message: withDetail('TikTok connected, but the advertiser account list failed to load — refresh this page to retry.') });
       } else {
         setBanner({ type: 'success', message: 'TikTok connected successfully.' });
       }
     } else if (status === 'error') {
       const reason = params.get('reason');
-      setBanner({ type: 'error', message: (reason && REASON_MESSAGES[reason]) ?? 'Failed to connect TikTok.' });
+      setBanner({ type: 'error', message: withDetail((reason && REASON_MESSAGES[reason]) ?? 'Failed to connect TikTok.') });
     }
   }, []);
 
