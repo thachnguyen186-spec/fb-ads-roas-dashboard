@@ -57,6 +57,12 @@ export function isTokenExpiringSoon(expiresAt: string | null): boolean {
   return new Date(expiresAt).getTime() - Date.now() < REFRESH_BUFFER_MS;
 }
 
+/** TikTok's documented access-token lifetime (research report, §1) — used when a live
+ * response omits or malforms access_token_expire_in, so a shape surprise degrades to a
+ * safe default instead of crashing the whole connection (isTokenExpiringSoon will still
+ * trigger a refresh well before any real expiry, so an inaccurate fallback is self-healing). */
+const DEFAULT_TOKEN_LIFETIME_SECONDS = 86400;
+
 /** Persists tokens from an exchange/refresh response. Always writes refresh_token defensively when present. */
 async function writeTokens(
   data: TiktokTokenExchangeData,
@@ -64,10 +70,17 @@ async function writeTokens(
   connectedAt: string | null,
 ): Promise<void> {
   const service = createServiceClient();
+  const expireInSeconds = Number(data.access_token_expire_in);
+  if (!Number.isFinite(expireInSeconds)) {
+    // Never log `data` itself — it contains access_token/refresh_token. Field names only.
+    console.warn('[tiktok] access_token_expire_in missing/invalid, defaulting to 24h. Response keys:', Object.keys(data));
+  }
+  const safeExpireInSeconds = Number.isFinite(expireInSeconds) ? expireInSeconds : DEFAULT_TOKEN_LIFETIME_SECONDS;
+
   const row: Record<string, unknown> = {
     id: true,
     access_token: data.access_token,
-    token_expires_at: new Date(Date.now() + data.access_token_expire_in * 1000).toISOString(),
+    token_expires_at: new Date(Date.now() + safeExpireInSeconds * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   };
   if (data.refresh_token) row.refresh_token = data.refresh_token;
