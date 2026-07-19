@@ -36,7 +36,9 @@ export async function tiktokGet<T = unknown>(
 
   const res = await fetch(url.toString(), {
     method: 'GET',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    // TikTok Business API does not use standard OAuth Bearer auth — it requires a custom
+    // header literally named "Access-Token" (confirmed via TikTok's own rejection message).
+    headers: token ? { 'Access-Token': token } : undefined,
     signal: AbortSignal.timeout(30_000),
   });
 
@@ -52,7 +54,7 @@ export async function tiktokPost<T = unknown>(
   const res = await fetch(`${TIKTOK_API_BASE}${path}`, {
     method: 'POST',
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(token ? { 'Access-Token': token } : {}),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),

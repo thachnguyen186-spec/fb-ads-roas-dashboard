@@ -40,11 +40,17 @@ async function fetchAdvertiserInfo(
       advertiser_ids: JSON.stringify(advertiserIds),
       fields: JSON.stringify(['name', 'currency']),
     }, token);
+    if (!data.list?.length) {
+      console.warn('[tiktok] /advertiser/info/ returned no list entries — response keys:', Object.keys(data));
+    }
     for (const info of data.list ?? []) {
+      if (!info.name) console.warn(`[tiktok] /advertiser/info/ entry for ${info.advertiser_id} has no name field — keys:`, Object.keys(info));
       map.set(info.advertiser_id, { name: info.name ?? info.advertiser_id, currency: info.currency ?? 'USD' });
     }
-  } catch {
-    // Non-fatal — enrichment can be re-run on the next reconnect.
+  } catch (err) {
+    // Non-fatal — enrichment can be re-run on the next reconnect. Logged so a real cause
+    // (missing scope, wrong field name) is diagnosable instead of silently falling back to id-as-name.
+    console.error('[tiktok] /advertiser/info/ lookup failed, falling back to id-as-name:', err);
   }
   return map;
 }
