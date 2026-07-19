@@ -16,6 +16,15 @@ const PAGE_SIZE = 100;
 
 export type TiktokDataLevel = 'CAMPAIGN' | 'ADGROUP';
 
+/** TikTok's Reporting API rejects bare 'CAMPAIGN'/'ADGROUP' — it requires the auction-prefixed
+ * variant (confirmed via TikTok's own rejection message naming the accepted enum). AUCTION_* is
+ * the standard self-serve ad type; RESERVATION_* is for reserved placements (e.g. TopView),
+ * not used by this app. */
+const DATA_LEVEL_API_VALUE: Record<TiktokDataLevel, string> = {
+  CAMPAIGN: 'AUCTION_CAMPAIGN',
+  ADGROUP: 'AUCTION_ADGROUP',
+};
+
 export interface TiktokSpendMetrics {
   spend: number;
   impressions: number;
@@ -63,7 +72,7 @@ export async function fetchTodaySpend(
       dimensions: JSON.stringify([idField]),
       metrics: JSON.stringify(['spend', 'impressions', 'clicks', 'cpc']),
       report_type: 'BASIC',
-      data_level: dataLevel,
+      data_level: DATA_LEVEL_API_VALUE[dataLevel],
       page: String(page),
       page_size: String(PAGE_SIZE),
     }, token);
