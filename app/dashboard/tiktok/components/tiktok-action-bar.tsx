@@ -8,6 +8,7 @@
 'use client';
 
 import { useState } from 'react';
+import { TIKTOK_BUDGET_MODE_DAY, toBudgetTargetType } from '@/lib/tiktok/budget-limits';
 import type { BudgetTarget } from '@/lib/types';
 import BudgetModal from '@/app/dashboard/components/budget-modal';
 
@@ -58,16 +59,19 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
   const anyEnabled = items.some((i) => i.status === 'ENABLE');
   const allDisabled = items.every((i) => i.status !== 'ENABLE');
 
-  const budgetTarget: BudgetTarget | null = budgetItem ? {
-    id: budgetItem.id,
-    name: budgetItem.name,
-    budget_type: budgetItem.budget_mode === 'DAILY' ? 'daily' : 'lifetime',
-    daily_budget: budgetItem.budget_mode === 'DAILY' ? budgetItem.budget : null,
-    lifetime_budget: budgetItem.budget_mode === 'LIFETIME' ? budgetItem.budget : null,
-    entity_type: entityType === 'campaign' ? 'campaign' : 'adset',
-    currency: budgetItem.currency,
-    vndRate: 1,
-  } : null;
+  const budgetTarget: BudgetTarget | null = budgetItem ? (() => {
+    const budgetType = toBudgetTargetType(budgetItem.budget_mode);
+    return {
+      id: budgetItem.id,
+      name: budgetItem.name,
+      budget_type: budgetType,
+      daily_budget: budgetType === 'daily' ? budgetItem.budget : null,
+      lifetime_budget: budgetType === 'lifetime' ? budgetItem.budget : null,
+      entity_type: entityType === 'campaign' ? 'campaign' : 'adset',
+      currency: budgetItem.currency,
+      vndRate: 1,
+    };
+  })() : null;
 
   async function handleBulkStatus(action: 'pause' | 'enable') {
     setActionState('loading');
@@ -145,7 +149,7 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
               >
                 Update budget
               </button>
-              {single.budget_mode === 'DAILY' && (
+              {single.budget_mode === TIKTOK_BUDGET_MODE_DAY && (
                 <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day</span>
               )}
             </div>

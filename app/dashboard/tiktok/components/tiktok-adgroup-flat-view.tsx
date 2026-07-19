@@ -9,6 +9,7 @@
 
 import { useMemo, useState } from 'react';
 import { formatUsd } from '@/lib/utils';
+import { toBudgetTargetType } from '@/lib/tiktok/budget-limits';
 import type { BudgetTarget, FlatTiktokAdGroup } from '@/lib/types';
 import BudgetModal from '@/app/dashboard/components/budget-modal';
 import TiktokAdgroupRow from './tiktok-adgroup-row';
@@ -57,12 +58,13 @@ export default function TiktokAdgroupFlatView({
 
   function openBudgetEdit(a: FlatTiktokAdGroup) {
     setBudgetRow(a);
+    const budgetType = toBudgetTargetType(a.budget_mode);
     setBudgetTarget({
       id: a.adgroup_id,
       name: a.adgroup_name,
-      budget_type: a.budget_mode === 'DAILY' ? 'daily' : 'lifetime',
-      daily_budget: a.budget_mode === 'DAILY' ? a.budget : null,
-      lifetime_budget: a.budget_mode === 'LIFETIME' ? a.budget : null,
+      budget_type: budgetType,
+      daily_budget: budgetType === 'daily' ? a.budget : null,
+      lifetime_budget: budgetType === 'lifetime' ? a.budget : null,
       entity_type: 'adset',
       currency: a.currency,
       vndRate: 1,

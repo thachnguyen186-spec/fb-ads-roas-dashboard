@@ -4,6 +4,7 @@
 
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import { formatUsd } from '@/lib/utils';
+import { TIKTOK_BUDGET_MODE_DAY, TIKTOK_BUDGET_MODE_TOTAL } from '@/lib/tiktok/budget-limits';
 import type { FlatTiktokAdGroup } from '@/lib/types';
 
 interface Props {
@@ -42,14 +43,14 @@ export default function TiktokAdgroupRow({
       <td className="px-3 py-2.5 text-right">
         <div className="flex items-center justify-end gap-1.5 tabular-nums text-slate-700">
           <span>{formatUsd(a.budget)}</span>
-          <span className="text-slate-400 text-xs">{a.budget_mode === 'DAILY' ? '/d' : ' lt'}</span>
+          <span className="text-slate-400 text-xs">{a.budget_mode === TIKTOK_BUDGET_MODE_DAY ? '/d' : a.budget_mode === TIKTOK_BUDGET_MODE_TOTAL ? ' lt' : ''}</span>
           {savingBudget ? (
             <span className="text-slate-400 text-xs">…</span>
           ) : (
             <button
               onClick={onEditBudget}
               className="text-indigo-500 hover:text-indigo-700 transition-colors text-xs"
-              title={a.budget_mode === 'DAILY' ? `Edit budget (min $${minDailyBudget}/day)` : 'Edit budget'}
+              title={a.budget_mode === TIKTOK_BUDGET_MODE_DAY ? `Edit budget (min $${minDailyBudget}/day)` : 'Edit budget'}
             >✎</button>
           )}
         </div>

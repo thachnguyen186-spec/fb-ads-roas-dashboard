@@ -12,7 +12,10 @@ const PAGE_SIZE = 100;
 interface RawCampaign {
   campaign_id: string;
   campaign_name: string;
-  status: string;
+  // TikTok's actual on/off toggle field — confirmed 'status' doesn't exist on the live response
+  // (JSON.stringify silently drops the resulting undefined, which is how this was caught).
+  operation_status?: string;
+  status?: string;
   budget: number;
   budget_mode: string;
 }
@@ -21,9 +24,20 @@ interface RawAdGroup {
   adgroup_id: string;
   adgroup_name: string;
   campaign_id: string;
-  status: string;
+  operation_status?: string;
+  status?: string;
   budget: number;
   budget_mode: string;
+}
+
+/** Resolves the on/off status field, preferring TikTok's documented operation_status name.
+ * Logs field names (never full row data) if neither is present, so a wrong guess is diagnosable
+ * from Vercel logs instead of silently mis-displaying every row as Disabled again. */
+function resolveStatus(raw: { operation_status?: string; status?: string }, idForLog: string): string {
+  if (raw.operation_status) return raw.operation_status;
+  if (raw.status) return raw.status;
+  console.warn(`[tiktok] no operation_status/status field for ${idForLog} — keys:`, Object.keys(raw));
+  return 'UNKNOWN';
 }
 
 interface PageInfo {
@@ -72,7 +86,7 @@ export async function fetchCampaigns(
     advertiser_id: advertiserId,
     advertiser_name: advertiserName,
     currency,
-    status: raw.status,
+    status: resolveStatus(raw, raw.campaign_id),
     budget: raw.budget ?? 0,
     budget_mode: raw.budget_mode,
     spend: 0,
@@ -136,7 +150,7 @@ export async function fetchAdGroups(
     advertiser_id: advertiserId,
     advertiser_name: advertiserName,
     currency,
-    status: raw.status,
+    status: resolveStatus(raw, raw.adgroup_id),
     budget: raw.budget ?? 0,
     budget_mode: raw.budget_mode,
     spend: 0,

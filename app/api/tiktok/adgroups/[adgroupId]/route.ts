@@ -11,7 +11,7 @@ import { errorResponse } from '@/lib/utils';
 import { getValidAccessToken } from '@/lib/tiktok/tiktok-connection';
 import { verifyAdGroupOwnership } from '@/lib/tiktok/campaigns';
 import { updateAdGroupStatus, updateAdGroupBudget } from '@/lib/tiktok/campaign-actions';
-import { MIN_DAILY_BUDGET_ADGROUP } from '@/lib/tiktok/budget-limits';
+import { MIN_DAILY_BUDGET_ADGROUP, TIKTOK_BUDGET_MODE_DAY } from '@/lib/tiktok/budget-limits';
 
 type Params = { params: Promise<{ adgroupId: string }> };
 
@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       const { amount } = body;
       if (!Number.isFinite(amount) || amount <= 0) return errorResponse('Invalid budget: amount must be > 0', 400);
       // budget_mode comes from the ownership lookup (TikTok's real, stored value), never the client body.
-      if (owned.budget_mode === 'DAILY' && amount < MIN_DAILY_BUDGET_ADGROUP) {
+      if (owned.budget_mode === TIKTOK_BUDGET_MODE_DAY && amount < MIN_DAILY_BUDGET_ADGROUP) {
         return errorResponse(`Daily budget must be at least $${MIN_DAILY_BUDGET_ADGROUP}`, 400);
       }
       await updateAdGroupBudget(token, body.advertiser_id, adgroupId, amount);

@@ -2,6 +2,7 @@
 
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import { formatUsd, formatNumber } from '@/lib/utils';
+import { TIKTOK_BUDGET_MODE_DAY, TIKTOK_BUDGET_MODE_TOTAL } from '@/lib/tiktok/budget-limits';
 import type { MergedTiktokCampaign } from '@/lib/types';
 
 function SortBtn({ col, sortCol, sortDir, onSort }: {
@@ -127,7 +128,7 @@ export default function TiktokCampaignTable({
                     : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Disabled</span>}
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
-                  {formatUsd(c.budget)} <span className="text-slate-400 text-xs">{c.budget_mode === 'DAILY' ? '/d' : c.budget_mode === 'LIFETIME' ? ' lt' : ''}</span>
+                  {formatUsd(c.budget)} <span className="text-slate-400 text-xs">{c.budget_mode === TIKTOK_BUDGET_MODE_DAY ? '/d' : c.budget_mode === TIKTOK_BUDGET_MODE_TOTAL ? ' lt' : ''}</span>
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{formatUsd(c.spend)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{formatNumber(c.impressions)}</td>
