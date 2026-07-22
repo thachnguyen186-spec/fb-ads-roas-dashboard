@@ -8,7 +8,7 @@ import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth-guards';
 import { errorResponse } from '@/lib/utils';
-import { getValidAccessToken } from '@/lib/tiktok/tiktok-connection';
+import { getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
 import { verifyAdGroupOwnership } from '@/lib/tiktok/campaigns';
 import { updateAdGroupStatus, updateAdGroupBudget } from '@/lib/tiktok/campaign-actions';
 import { MIN_DAILY_BUDGET_ADGROUP, TIKTOK_BUDGET_MODE_DAY } from '@/lib/tiktok/budget-limits';
@@ -51,10 +51,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   try {
     token = await getValidAccessToken();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message === 'TIKTOK_NOT_CONNECTED') return errorResponse('TikTok is not connected.', 400);
-    if (message === 'TIKTOK_RECONNECT_REQUIRED') return errorResponse('TikTok connection expired — reconnect in Settings.', 409);
-    return errorResponse(message, 502);
+    const { status, message } = describeAuthError(err);
+    return errorResponse(message, status);
   }
 
   const owned = await verifyAdGroupOwnership(token, body.advertiser_id, adgroupId).catch(() => null);

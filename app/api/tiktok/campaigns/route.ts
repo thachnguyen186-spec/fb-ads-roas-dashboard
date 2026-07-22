@@ -12,7 +12,7 @@
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { getValidAccessToken } from '@/lib/tiktok/tiktok-connection';
+import { getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
 import { fetchCampaigns, fetchAdGroups } from '@/lib/tiktok/campaigns';
 import { fetchTodaySpend } from '@/lib/tiktok/reporting';
 import type { TiktokAdvertiserAccount, TiktokCampaignRow, TiktokAdGroupRow } from '@/lib/types';
@@ -58,10 +58,8 @@ export async function GET(request: NextRequest) {
   try {
     token = await getValidAccessToken();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message === 'TIKTOK_NOT_CONNECTED') return errorResponse('TikTok is not connected. Connect in Settings.', 400);
-    if (message === 'TIKTOK_RECONNECT_REQUIRED') return errorResponse('TikTok connection expired — reconnect in Settings.', 409);
-    return errorResponse(message, 502);
+    const { status, message } = describeAuthError(err);
+    return errorResponse(message, status);
   }
 
   try {

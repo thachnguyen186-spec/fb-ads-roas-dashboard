@@ -165,3 +165,25 @@ export async function getValidAccessToken(): Promise<string> {
   }
   return conn.access_token;
 }
+
+/** Maps a getValidAccessToken() failure to an HTTP status + user-facing message. Surfaces the
+ * real underlying cause of a refresh failure (attached via `cause` in refreshAccessToken)
+ * instead of a static string, so a real bug (e.g. a bad refresh_token) is diagnosable from the
+ * UI rather than just telling the admin to reconnect every time. Shared by every route that
+ * calls getValidAccessToken() to avoid repeating this mapping three times. */
+export function describeAuthError(err: unknown): { status: number; message: string } {
+  const message = err instanceof Error ? err.message : String(err);
+  if (message === 'TIKTOK_NOT_CONNECTED') {
+    return { status: 400, message: 'TikTok is not connected. Connect in Settings.' };
+  }
+  if (message === 'TIKTOK_RECONNECT_REQUIRED') {
+    const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined;
+    return {
+      status: 409,
+      message: cause
+        ? `TikTok connection expired — reconnect in Settings. (${cause})`
+        : 'TikTok connection expired — reconnect in Settings.',
+    };
+  }
+  return { status: 502, message };
+}
