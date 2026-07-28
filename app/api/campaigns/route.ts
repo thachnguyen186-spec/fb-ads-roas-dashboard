@@ -25,7 +25,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  * Priority: since/until range → datePreset keyword → today (default).
  * Returns an errorResponse Response when validation fails.
  */
-function resolveDateParam(sp: URLSearchParams): InsightDateParam | Response {
+export function resolveDateParam(sp: URLSearchParams): InsightDateParam | Response {
   const since = sp.get('since');
   const until = sp.get('until');
   if (since || until) {

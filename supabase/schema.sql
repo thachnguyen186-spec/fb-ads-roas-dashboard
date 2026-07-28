@@ -158,3 +158,17 @@ create table if not exists public.tiktok_advertiser_accounts (
 );
 
 alter table public.tiktok_advertiser_accounts enable row level security;
+
+-- ─── account_owners: person-in-charge / department mapping for Accounting Export ──
+-- Org-wide, service-role-only (mirrors tiktok_advertiser_accounts): RLS enabled with
+-- NO policies — only createServiceClient() reads/writes; the API route enforces access.
+create table if not exists public.account_owners (
+  account_id text not null,
+  platform text not null check (platform in ('facebook','tiktok')),
+  owner_label text not null default '',
+  updated_at timestamptz default now(),
+  updated_by uuid references auth.users(id),
+  primary key (account_id, platform)
+);
+
+alter table public.account_owners enable row level security;

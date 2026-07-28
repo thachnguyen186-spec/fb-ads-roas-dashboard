@@ -60,3 +60,32 @@ export async function canViewAs(
 
   return errorResponse('Forbidden — target user not in your team', 403);
 }
+
+/**
+ * Returns the set of user_ids whose FB data the requester may view.
+ * admin → every user with a profile row; leader → self + assigned staff; staff → [self].
+ * Used by the Accounting Export routes for role-scoped fan-out and owner-label writes.
+ */
+export async function getVisibleUserIds(
+  userId: string,
+  role: UserRole,
+): Promise<string[]> {
+  const service = createServiceClient();
+  if (role === 'admin') {
+    // Check .error explicitly (mirrors app/api/admin/users/route.ts) — never silently
+    // fall back to [userId], which would shrink an org-wide export to just the admin.
+    const { data, error } = await service.auth.admin.listUsers({ perPage: 200 });
+    if (error) throw new Error(`listUsers failed: ${error.message}`);
+    const ids = (data?.users ?? []).map((u) => u.id);
+    return ids.length ? ids : [userId];
+  }
+  if (role === 'leader') {
+    const { data } = await service
+      .from('team_members')
+      .select('staff_id')
+      .eq('leader_id', userId);
+    const staff = (data ?? []).map((r) => (r as { staff_id: string }).staff_id);
+    return [userId, ...staff];
+  }
+  return [userId];
+}

@@ -283,3 +283,28 @@ export interface MergedTiktokAdGroup extends TiktokAdGroupRow {
 export interface FlatTiktokAdGroup extends MergedTiktokAdGroup {
   campaign_name: string;
 }
+
+// ─── Accounting Export ──────────────────────────────────────────────────────
+
+/** Unified FB + TikTok spend row for the accountant's export tool */
+export interface AccountingExportRow {
+  platform: 'facebook' | 'tiktok';
+  account_id: string;
+  account_name: string;
+  campaign_id: string;
+  campaign_name: string;
+  currency: string;          // original account currency, NOT converted
+  spend: number;             // original currency amount
+  target_type: 'app' | 'website' | 'unknown';
+  target_label: string;      // app name (FB) / app_id (TikTok) / website domain / 'Unknown'
+  owner_label: string;       // '' if unassigned in account_owners
+}
+
+/** Account row for the grouping-management UI (account_owners left-joined onto known accounts) */
+export interface AccountOwnerEntry {
+  account_id: string;
+  platform: 'facebook' | 'tiktok';
+  account_name: string;      // joined from fb_ad_accounts/tiktok_advertiser_accounts
+  currency: string;
+  owner_label: string;
+}

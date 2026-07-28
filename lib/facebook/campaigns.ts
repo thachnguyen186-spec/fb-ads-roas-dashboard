@@ -142,6 +142,7 @@ export async function fetchCampaigns(
   accountName: string,
   currency: string = 'USD',
   dateParam: InsightDateParam = { preset: 'today' },
+  includeAllStatuses: boolean = false,   // historical exports need archived/deleted campaigns too
 ): Promise<CampaignRow[]> {
   const campaigns: CampaignRow[] = [];
   // Inline insights sub-request scoped to the requested date range
@@ -151,10 +152,12 @@ export async function fetchCampaigns(
   do {
     const params: Record<string, string> = {
       fields: `${CAMPAIGN_FIELDS},${insightFields}`,
-      // Fetch active + paused campaigns (paused with spend today will be filtered client-side)
-      filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED'] }]),
       limit: '100',
     };
+    if (!includeAllStatuses) {
+      // Fetch active + paused campaigns (paused with spend today will be filtered client-side)
+      params.filtering = JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED'] }]);
+    }
     if (after) params.after = after;
 
     const page = await fbGet(`/${adAccountId}/campaigns`, params, token) as RawPageResponse;

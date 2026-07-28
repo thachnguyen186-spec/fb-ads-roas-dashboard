@@ -37,6 +37,15 @@ const TOOLS: Tool[] = [
     badge: 'Live',
   },
   {
+    id: 'accounting-export',
+    name: 'Accounting Export',
+    description: 'Export all FB + TikTok ad spend over any date range in original currency, grouped by person-in-charge. CSV-ready for accounting. Admin/leader only.',
+    href: '/accounting-export',
+    image: '',
+    status: 'active',
+    badge: 'Live',
+  },
+  {
     id: 'ads-creative-testing',
     name: "Ads Creative Testing",
     description: "A/B test ad creatives, measure performance across audiences, and identify winning visuals before scaling.",

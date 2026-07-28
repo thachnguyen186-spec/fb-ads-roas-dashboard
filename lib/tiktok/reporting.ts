@@ -53,13 +53,15 @@ function toNum(val: string | undefined): number {
   return isNaN(n) ? 0 : n;
 }
 
+export interface TiktokDateRange { since: string; until: string }  // YYYY-MM-DD (UTC)
+
 /** Returns a map keyed by campaign_id (CAMPAIGN level) or adgroup_id (ADGROUP level). */
-export async function fetchTodaySpend(
+export async function fetchSpend(
   token: string,
   advertiserId: string,
   dataLevel: TiktokDataLevel,
+  range: TiktokDateRange,
 ): Promise<Map<string, TiktokSpendMetrics>> {
-  const today = new Date().toISOString().slice(0, 10); // UTC "today" — see module note above
   const idField = dataLevel === 'CAMPAIGN' ? 'campaign_id' : 'adgroup_id';
   const map = new Map<string, TiktokSpendMetrics>();
 
@@ -67,8 +69,8 @@ export async function fetchTodaySpend(
   for (;;) {
     const data = await tiktokGet<RawReportResponse>('/report/integrated/get/', {
       advertiser_id: advertiserId,
-      start_date: today,
-      end_date: today,
+      start_date: range.since,
+      end_date: range.until,
       dimensions: JSON.stringify([idField]),
       metrics: JSON.stringify(['spend', 'impressions', 'clicks', 'cpc']),
       report_type: 'BASIC',
@@ -94,4 +96,14 @@ export async function fetchTodaySpend(
   }
 
   return map;
+}
+
+/** Thin wrapper — preserves the existing dashboard route's today-only behavior. */
+export async function fetchTodaySpend(
+  token: string,
+  advertiserId: string,
+  dataLevel: TiktokDataLevel,
+): Promise<Map<string, TiktokSpendMetrics>> {
+  const today = new Date().toISOString().slice(0, 10); // UTC "today" — see module note above
+  return fetchSpend(token, advertiserId, dataLevel, { since: today, until: today });
 }
