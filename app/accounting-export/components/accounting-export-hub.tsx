@@ -6,7 +6,7 @@ import { ChevronLeft, AlertTriangle, Download } from 'lucide-react';
 import type { AccountingExportRow, UserRole } from '@/lib/types';
 import { downloadAccountingCsv } from '@/lib/accounting/export-csv';
 import ExportFilterBar, { type Filters } from './export-filter-bar';
-import ResultsTable, { type SortKey, type SortState } from './results-table';
+import ResultsTable, { type SortKey, type SortState, type GroupBy } from './results-table';
 import GroupingManager from './grouping-manager';
 
 interface Props {
@@ -28,6 +28,7 @@ const DEFAULT_FILTERS: Filters = {
   accountSearch: '',
   campaignSearch: '',
   ownerFilter: '',
+  departmentFilter: '',
 };
 
 function rangeLabel(filters: Filters): string {
@@ -43,7 +44,7 @@ export default function AccountingExportHub({ userEmail, role }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [sort, setSort] = useState<SortState | null>(null);
-  const [groupByOwner, setGroupByOwner] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupBy>('none');
 
   async function runExport() {
     setError('');
@@ -84,18 +85,20 @@ export default function AccountingExportHub({ userEmail, role }: Props) {
       if (accountQ && !`${r.account_id} ${r.account_name}`.toLowerCase().includes(accountQ)) return false;
       if (campaignQ && !r.campaign_name.toLowerCase().includes(campaignQ)) return false;
       if (filters.ownerFilter && r.owner_label !== filters.ownerFilter) return false;
+      if (filters.departmentFilter && r.department_label !== filters.departmentFilter) return false;
       return true;
     });
-  }, [rawRows, filters.accountSearch, filters.campaignSearch, filters.ownerFilter]);
+  }, [rawRows, filters.accountSearch, filters.campaignSearch, filters.ownerFilter, filters.departmentFilter]);
 
   const ownerOptions = useMemo(() => [...new Set(rawRows.map((r) => r.owner_label))].sort(), [rawRows]);
+  const departmentOptions = useMemo(() => [...new Set(rawRows.map((r) => r.department_label))].sort(), [rawRows]);
 
   function handleSortChange(key: SortKey) {
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
   }
 
-  function handleOwnerChanged(accountId: string, platform: 'facebook' | 'tiktok', label: string) {
-    setRawRows((prev) => prev.map((r) => (r.account_id === accountId && r.platform === platform ? { ...r, owner_label: label } : r)));
+  function handleLabelChanged(accountId: string, platform: 'facebook' | 'tiktok', field: 'owner_label' | 'department_label', label: string) {
+    setRawRows((prev) => prev.map((r) => (r.account_id === accountId && r.platform === platform ? { ...r, [field]: label } : r)));
   }
 
   function handleDownloadCsv() {
@@ -128,8 +131,9 @@ export default function AccountingExportHub({ userEmail, role }: Props) {
           onRunExport={runExport}
           loading={loading}
           ownerOptions={ownerOptions}
-          groupByOwner={groupByOwner}
-          onToggleGroupByOwner={() => setGroupByOwner((g) => !g)}
+          departmentOptions={departmentOptions}
+          groupBy={groupBy}
+          onGroupByChange={setGroupBy}
         />
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -153,11 +157,11 @@ export default function AccountingExportHub({ userEmail, role }: Props) {
           </div>
         )}
 
-        <ResultsTable rows={filteredRows} groupByOwner={groupByOwner} sort={sort} onSortChange={handleSortChange} />
+        <ResultsTable rows={filteredRows} groupBy={groupBy} sort={sort} onSortChange={handleSortChange} />
 
         <div className="pt-6">
           <h2 className="text-sm font-semibold text-slate-700 mb-2">Manage Groupings</h2>
-          <GroupingManager onOwnerChanged={handleOwnerChanged} />
+          <GroupingManager onLabelChanged={handleLabelChanged} />
         </div>
       </main>
     </div>

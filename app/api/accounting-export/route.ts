@@ -20,7 +20,7 @@ import { fetchCampaigns as fetchTiktokCampaigns } from '@/lib/tiktok/campaigns';
 import { fetchSpend } from '@/lib/tiktok/reporting';
 import { fetchCampaignTargets } from '@/lib/tiktok/campaign-target';
 import { getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
-import { buildFbRows, buildTiktokRows, presetToRange } from '@/lib/accounting/build-rows';
+import { buildFbRows, buildTiktokRows, presetToRange, type OwnerLabels } from '@/lib/accounting/build-rows';
 import type { AccountingExportRow, UserRole } from '@/lib/types';
 
 export const maxDuration = 60;
@@ -51,7 +51,7 @@ async function runBatched<T>(items: T[], worker: (item: T) => Promise<void>, war
   return false;
 }
 
-async function fbLeg(visibleIds: string[], dateParam: InsightDateParam, ownerMap: Map<string, string>): Promise<LegResult> {
+async function fbLeg(visibleIds: string[], dateParam: InsightDateParam, ownerMap: Map<string, OwnerLabels>): Promise<LegResult> {
   const rows: AccountingExportRow[] = [];
   const warnings: string[] = [];
   const service = createServiceClient();
@@ -92,7 +92,7 @@ async function fbLeg(visibleIds: string[], dateParam: InsightDateParam, ownerMap
   return { rows, warnings, partial };
 }
 
-async function tiktokLeg(dateParam: InsightDateParam, ownerMap: Map<string, string>): Promise<LegResult> {
+async function tiktokLeg(dateParam: InsightDateParam, ownerMap: Map<string, OwnerLabels>): Promise<LegResult> {
   const rows: AccountingExportRow[] = [];
   const warnings: string[] = [];
 
@@ -168,10 +168,10 @@ export async function GET(request: NextRequest) {
     coverage = { role, visibleUserCount: visibleIds.length, totalOrgUserCount: count ?? visibleIds.length };
   }
 
-  const { data: ownerRows } = await service.from('account_owners').select('account_id, platform, owner_label');
-  const ownerMap = new Map<string, string>();
-  for (const o of (ownerRows ?? []) as { account_id: string; platform: string; owner_label: string }[]) {
-    ownerMap.set(`${o.platform}:${o.account_id}`, o.owner_label);
+  const { data: ownerRows } = await service.from('account_owners').select('account_id, platform, owner_label, department_label');
+  const ownerMap = new Map<string, OwnerLabels>();
+  for (const o of (ownerRows ?? []) as { account_id: string; platform: string; owner_label: string; department_label: string }[]) {
+    ownerMap.set(`${o.platform}:${o.account_id}`, { owner_label: o.owner_label, department_label: o.department_label });
   }
 
   const empty: LegResult = { rows: [], warnings: [], partial: false };

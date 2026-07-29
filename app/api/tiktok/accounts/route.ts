@@ -10,7 +10,8 @@ import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth-guards';
 import { errorResponse } from '@/lib/utils';
-import { getConnectionStatus, deleteConnection } from '@/lib/tiktok/tiktok-connection';
+import { getConnectionStatus, deleteConnection, getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
+import { fetchAdvertiserInfo } from '@/lib/tiktok/advertiser-info';
 import type { TiktokAdvertiserAccount } from '@/lib/types';
 
 export async function GET() {
@@ -35,9 +36,43 @@ export async function GET() {
 }
 
 interface PatchBody {
-  action?: 'disconnect';
+  action?: 'disconnect' | 'resync_names';
   advertiser_id?: string;
   is_selected?: boolean;
+}
+
+/**
+ * Refreshes name/currency for every already-connected advertiser using the stored org token —
+ * no OAuth round-trip. Exists because a past chunking bug (fixed in the sync path) left many
+ * advertiser rows with name == advertiser_id baked in; this lets an admin/leader correct that
+ * without disconnecting, which would also wipe every is_selected choice.
+ */
+async function handleResyncNames(): Promise<Response> {
+  let token: string;
+  try {
+    token = await getValidAccessToken();
+  } catch (err) {
+    const { status, message } = describeAuthError(err);
+    return errorResponse(message, status);
+  }
+
+  const service = createServiceClient();
+  const { data } = await service.from('tiktok_advertiser_accounts').select('advertiser_id');
+  const ids = ((data ?? []) as { advertiser_id: string }[]).map((r) => r.advertiser_id);
+  if (ids.length === 0) return Response.json({ updated: 0 });
+
+  const infoMap = await fetchAdvertiserInfo(ids, token);
+  const rows = ids.map((id) => ({
+    advertiser_id: id,
+    name: infoMap.get(id)?.name ?? id,
+    currency: infoMap.get(id)?.currency ?? 'USD',
+  }));
+  // is_selected intentionally omitted — existing rows keep their current selection, same
+  // upsert shape as syncAdvertiserAccounts() in the OAuth callback.
+  const { error } = await service.from('tiktok_advertiser_accounts').upsert(rows, { onConflict: 'advertiser_id' });
+  if (error) return errorResponse(error.message, 500);
+
+  return Response.json({ updated: rows.length });
 }
 
 /**
@@ -76,6 +111,10 @@ export async function PATCH(request: NextRequest) {
 
   const denied = await requireRole(user.id, ['admin', 'leader']);
   if (denied) return denied;
+
+  if (body.action === 'resync_names') {
+    return handleResyncNames();
+  }
 
   if (typeof body.advertiser_id !== 'string' || typeof body.is_selected !== 'boolean') {
     return errorResponse('advertiser_id (string) and is_selected (boolean) required', 400);

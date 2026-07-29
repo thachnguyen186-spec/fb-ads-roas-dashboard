@@ -24,6 +24,7 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
   const [accounts, setAccounts] = useState<TiktokAdvertiserAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
   const [banner, setBanner] = useState<Banner>(null);
   const [callbackUrl, setCallbackUrl] = useState('/api/tiktok/oauth/callback');
 
@@ -45,17 +46,37 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
     }
   }, []);
 
+  async function loadAccounts() {
+    const res = await fetch('/api/tiktok/accounts');
+    const data = await res.json();
+    setConnected(!!data.connected);
+    setConnectedAt(data.connected_at ?? null);
+    setAccounts(Array.isArray(data.accounts) ? data.accounts : []);
+  }
+
   useEffect(() => {
-    fetch('/api/tiktok/accounts')
-      .then((r) => r.json())
-      .then((data) => {
-        setConnected(!!data.connected);
-        setConnectedAt(data.connected_at ?? null);
-        setAccounts(Array.isArray(data.accounts) ? data.accounts : []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    loadAccounts().catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  async function handleResyncNames() {
+    setResyncing(true);
+    setBanner(null);
+    try {
+      const res = await fetch('/api/tiktok/accounts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'resync_names' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Resync failed');
+      await loadAccounts();
+      setBanner({ type: 'success', message: `Refreshed ${data.updated ?? 0} account name(s).` });
+    } catch (e) {
+      setBanner({ type: 'error', message: e instanceof Error ? e.message : 'Resync failed' });
+    } finally {
+      setResyncing(false);
+    }
+  }
 
   async function toggleAccount(advertiserId: string, isSelected: boolean) {
     setAccounts((prev) => prev.map((a) => (a.advertiser_id === advertiserId ? { ...a, is_selected: isSelected } : a)));
@@ -134,6 +155,21 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
           )
         )}
       </div>
+
+      {connected && accounts.length > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-slate-500">
+            Account names stale or showing raw IDs? Refresh them without disconnecting.
+          </p>
+          <button
+            onClick={handleResyncNames}
+            disabled={resyncing}
+            className="text-xs text-indigo-600 hover:text-indigo-700 disabled:opacity-50 shrink-0 ml-3"
+          >
+            {resyncing ? 'Resyncing…' : 'Resync names'}
+          </button>
+        </div>
+      )}
 
       {role === 'admin' && !connected && (
         <p className="text-xs text-slate-500">

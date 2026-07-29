@@ -171,4 +171,35 @@ create table if not exists public.account_owners (
   primary key (account_id, platform)
 );
 
+-- Owner (person-in-charge) and department are tracked as two independent labels — not one
+-- combined field. Additive, backward compatible: existing owner_label values are untouched.
+alter table public.account_owners
+  add column if not exists department_label text not null default '';
+
 alter table public.account_owners enable row level security;
+
+-- Atomic partial upsert: a NULL argument means "leave this field untouched" (COALESCE falls
+-- back to the current stored value, or '' on first insert). Exists because owner_label and
+-- department_label are edited via two independent inline inputs that PATCH one field at a
+-- time — a plain select-then-upsert from the API route has a TOCTOU race (and fails open into
+-- silent data loss if the select itself errors), so the merge must happen in one atomic
+-- statement instead of two round-trips.
+create or replace function public.upsert_account_owner_label(
+  p_account_id text,
+  p_platform text,
+  p_owner_label text,
+  p_department_label text,
+  p_updated_by uuid
+) returns table(owner_label text, department_label text)
+language sql
+set search_path = public
+as $$
+  insert into public.account_owners (account_id, platform, owner_label, department_label, updated_at, updated_by)
+  values (p_account_id, p_platform, coalesce(p_owner_label, ''), coalesce(p_department_label, ''), now(), p_updated_by)
+  on conflict (account_id, platform) do update set
+    owner_label = coalesce(p_owner_label, account_owners.owner_label),
+    department_label = coalesce(p_department_label, account_owners.department_label),
+    updated_at = now(),
+    updated_by = p_updated_by
+  returning account_owners.owner_label, account_owners.department_label;
+$$;

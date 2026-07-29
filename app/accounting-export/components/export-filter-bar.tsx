@@ -1,6 +1,7 @@
 'use client';
 
 import { Info } from 'lucide-react';
+import type { GroupBy } from './results-table';
 
 export interface Filters {
   preset: string;
@@ -10,6 +11,7 @@ export interface Filters {
   accountSearch: string;
   campaignSearch: string;
   ownerFilter: string;
+  departmentFilter: string;
 }
 
 interface Props {
@@ -18,8 +20,9 @@ interface Props {
   onRunExport: () => void;
   loading: boolean;
   ownerOptions: string[];
-  groupByOwner: boolean;
-  onToggleGroupByOwner: () => void;
+  departmentOptions: string[];
+  groupBy: GroupBy;
+  onGroupByChange: (groupBy: GroupBy) => void;
 }
 
 const PRESETS: { value: string; label: string }[] = [
@@ -40,7 +43,7 @@ function todayStr(): string {
 
 const inputCls = 'px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500';
 
-export default function ExportFilterBar({ filters, onChange, onRunExport, loading, ownerOptions, groupByOwner, onToggleGroupByOwner }: Props) {
+export default function ExportFilterBar({ filters, onChange, onRunExport, loading, ownerOptions, departmentOptions, groupBy, onGroupByChange }: Props) {
   const isCustom = filters.preset === 'custom';
 
   function set<K extends keyof Filters>(key: K, value: Filters[K]) {
@@ -98,16 +101,27 @@ export default function ExportFilterBar({ filters, onChange, onRunExport, loadin
           <input type="text" value={filters.campaignSearch} onChange={(e) => set('campaignSearch', e.target.value)} placeholder="Search campaigns…" className={inputCls} />
         </div>
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-slate-600">Owner / Department</label>
+          <label className="block text-xs font-medium text-slate-600">Owner</label>
           <select value={filters.ownerFilter} onChange={(e) => set('ownerFilter', e.target.value)} className={inputCls}>
             <option value="">All</option>
             {ownerOptions.map((o) => <option key={o} value={o}>{o || 'Unassigned'}</option>)}
           </select>
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600 pb-2">
-          <input type="checkbox" checked={groupByOwner} onChange={onToggleGroupByOwner} className="rounded border-slate-300" />
-          Group by owner
-        </label>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-600">Department</label>
+          <select value={filters.departmentFilter} onChange={(e) => set('departmentFilter', e.target.value)} className={inputCls}>
+            <option value="">All</option>
+            {departmentOptions.map((d) => <option key={d} value={d}>{d || 'Unassigned'}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-slate-600">Group by</label>
+          <select value={groupBy} onChange={(e) => onGroupByChange(e.target.value as GroupBy)} className={inputCls}>
+            <option value="none">None</option>
+            <option value="owner">Owner</option>
+            <option value="department">Department</option>
+          </select>
+        </div>
       </div>
     </div>
   );

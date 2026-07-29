@@ -7,13 +7,17 @@ import type { InsightDateParam } from '@/lib/facebook/campaigns';
 import type { TiktokSpendMetrics } from '@/lib/tiktok/reporting';
 import type { CampaignTarget } from '@/lib/tiktok/campaign-target';
 
+/** Owner + department are independent labels — map value carries both, keyed by `${platform}:${account_id}`. */
+export interface OwnerLabels { owner_label: string; department_label: string }
+const EMPTY_LABELS: OwnerLabels = { owner_label: '', department_label: '' };
+
 /** FB rows: app_id → app name (fallback app_id) → 'app'; else resolved domain → 'website'; else 'unknown'. */
 export function buildFbRows(
   campaigns: CampaignRow[],
   appIdMap: Map<string, string>,
   appNameMap: Map<string, string>,
   domainMap: Map<string, string>,
-  ownerMap: Map<string, string>,
+  ownerMap: Map<string, OwnerLabels>,
 ): AccountingExportRow[] {
   return campaigns.map((c) => {
     const appId = appIdMap.get(c.campaign_id) ?? c.app_id ?? null;
@@ -29,6 +33,7 @@ export function buildFbRows(
         target_label = domain;
       }
     }
+    const labels = ownerMap.get(`facebook:${c.account_id}`) ?? EMPTY_LABELS;
     return {
       platform: 'facebook',
       account_id: c.account_id,
@@ -39,7 +44,8 @@ export function buildFbRows(
       spend: c.spend,
       target_type,
       target_label,
-      owner_label: ownerMap.get(`facebook:${c.account_id}`) ?? '',
+      owner_label: labels.owner_label,
+      department_label: labels.department_label,
     };
   });
 }
@@ -54,14 +60,14 @@ export function buildTiktokRows(
   campaigns: TiktokCampaignRow[],
   spendMap: Map<string, TiktokSpendMetrics>,
   targetMap: Map<string, CampaignTarget>,
-  ownerMap: Map<string, string>,
+  ownerMap: Map<string, OwnerLabels>,
   accountId: string,
   accountName: string,
   currency: string,
 ): AccountingExportRow[] {
   const byId = new Map(campaigns.map((c) => [c.campaign_id, c]));
   const allIds = new Set([...byId.keys(), ...spendMap.keys()]);
-  const owner = ownerMap.get(`tiktok:${accountId}`) ?? '';
+  const labels = ownerMap.get(`tiktok:${accountId}`) ?? EMPTY_LABELS;
   const rows: AccountingExportRow[] = [];
 
   for (const cid of allIds) {
@@ -79,7 +85,8 @@ export function buildTiktokRows(
       spend,
       target_type: target?.target_type ?? 'unknown',
       target_label: target?.target_label ?? 'Unknown',
-      owner_label: owner,
+      owner_label: labels.owner_label,
+      department_label: labels.department_label,
     });
   }
   return rows;

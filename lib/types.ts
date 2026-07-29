@@ -297,7 +297,8 @@ export interface AccountingExportRow {
   spend: number;             // original currency amount
   target_type: 'app' | 'website' | 'unknown';
   target_label: string;      // app name (FB) / app_id (TikTok) / website domain / 'Unknown'
-  owner_label: string;       // '' if unassigned in account_owners
+  owner_label: string;       // person-in-charge; '' if unassigned in account_owners
+  department_label: string;  // department; independent of owner_label, '' if unassigned
 }
 
 /** Account row for the grouping-management UI (account_owners left-joined onto known accounts) */
@@ -307,4 +308,5 @@ export interface AccountOwnerEntry {
   account_name: string;      // joined from fb_ad_accounts/tiktok_advertiser_accounts
   currency: string;
   owner_label: string;
+  department_label: string;
 }

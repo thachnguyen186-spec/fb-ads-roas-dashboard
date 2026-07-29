@@ -3,12 +3,13 @@
 import { Info } from 'lucide-react';
 import type { AccountingExportRow } from '@/lib/types';
 
-export type SortKey = 'platform' | 'account_id' | 'account_name' | 'owner_label' | 'campaign_name' | 'currency' | 'spend' | 'target_label';
+export type SortKey = 'platform' | 'account_id' | 'account_name' | 'owner_label' | 'department_label' | 'campaign_name' | 'currency' | 'spend' | 'target_label';
+export type GroupBy = 'none' | 'owner' | 'department';
 export interface SortState { key: SortKey; dir: 'asc' | 'desc' }
 
 interface Props {
   rows: AccountingExportRow[];
-  groupByOwner: boolean;
+  groupBy: GroupBy;
   sort: SortState | null;
   onSortChange: (key: SortKey) => void;
 }
@@ -17,7 +18,8 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'platform', label: 'Platform' },
   { key: 'account_id', label: 'Account ID' },
   { key: 'account_name', label: 'Account Name' },
-  { key: 'owner_label', label: 'Owner/Department' },
+  { key: 'owner_label', label: 'Owner' },
+  { key: 'department_label', label: 'Department' },
   { key: 'campaign_name', label: 'Campaign Name' },
   { key: 'currency', label: 'Currency' },
   { key: 'spend', label: 'Spend' },
@@ -87,6 +89,7 @@ function Row({ row }: { row: AccountingExportRow }) {
       <td className="px-3 py-2 text-slate-500">{row.account_id}</td>
       <td className="px-3 py-2">{row.account_name}</td>
       <td className="px-3 py-2 text-slate-500">{row.owner_label || <span className="text-slate-300">Unassigned</span>}</td>
+      <td className="px-3 py-2 text-slate-500">{row.department_label || <span className="text-slate-300">Unassigned</span>}</td>
       <td className="px-3 py-2">{row.campaign_name}</td>
       <td className="px-3 py-2 text-slate-500">{row.currency}</td>
       <td className="px-3 py-2 text-right tabular-nums">{formatSpend(row.spend, row.currency)}</td>
@@ -95,12 +98,12 @@ function Row({ row }: { row: AccountingExportRow }) {
   );
 }
 
-export default function ResultsTable({ rows, groupByOwner, sort, onSortChange }: Props) {
+export default function ResultsTable({ rows, groupBy, sort, onSortChange }: Props) {
   if (rows.length === 0) {
     return <p className="text-sm text-slate-400 py-8 text-center">No spend found for this range.</p>;
   }
 
-  if (!groupByOwner) {
+  if (groupBy === 'none') {
     const sorted = sortRows(rows, sort);
     return (
       <div className="border border-slate-200 rounded-xl overflow-x-auto">
@@ -116,18 +119,19 @@ export default function ResultsTable({ rows, groupByOwner, sort, onSortChange }:
     );
   }
 
+  const groupField: 'owner_label' | 'department_label' = groupBy === 'owner' ? 'owner_label' : 'department_label';
   const groups = new Map<string, AccountingExportRow[]>();
   for (const r of rows) {
-    const key = r.owner_label || 'Unassigned';
+    const key = r[groupField] || 'Unassigned';
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   }
 
   return (
     <div className="space-y-4">
-      {[...groups.entries()].map(([owner, groupRows]) => (
-        <div key={owner} className="border border-slate-200 rounded-xl overflow-x-auto">
-          <div className="px-3 py-2 bg-slate-100 font-medium text-sm text-slate-700">{owner}</div>
+      {[...groups.entries()].map(([label, groupRows]) => (
+        <div key={label} className="border border-slate-200 rounded-xl overflow-x-auto">
+          <div className="px-3 py-2 bg-slate-100 font-medium text-sm text-slate-700">{label}</div>
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <HeaderRow sort={sort} onSortChange={onSortChange} />
@@ -138,7 +142,7 @@ export default function ResultsTable({ rows, groupByOwner, sort, onSortChange }:
             <tfoot>
               {subtotalsByCurrency(groupRows).map((s) => (
                 <tr key={s.currency} className="bg-slate-50 font-medium">
-                  <td colSpan={6} className="px-3 py-2 text-right text-slate-500">Subtotal ({s.currency})</td>
+                  <td colSpan={7} className="px-3 py-2 text-right text-slate-500">Subtotal ({s.currency})</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatSpend(s.total, s.currency)}</td>
                   <td />
                 </tr>

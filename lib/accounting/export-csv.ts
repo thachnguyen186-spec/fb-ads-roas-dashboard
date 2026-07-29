@@ -5,7 +5,7 @@
  */
 import type { AccountingExportRow } from '@/lib/types';
 
-const COLUMNS = ['Platform', 'Account ID', 'Account Name', 'Owner/Department', 'Campaign Name', 'Currency', 'Spend', 'Target'] as const;
+const COLUMNS = ['Platform', 'Account ID', 'Account Name', 'Owner', 'Department', 'Campaign Name', 'Currency', 'Spend', 'Target'] as const;
 
 /** Escapes a CSV cell: neutralizes a leading formula character, then quotes on comma/quote/newline. */
 function csvCell(val: string): string {
@@ -24,6 +24,7 @@ function rowToLine(row: AccountingExportRow): string {
     row.account_id,
     row.account_name,
     row.owner_label,
+    row.department_label,
     row.campaign_name,
     row.currency,
     formatSpend(row.spend, row.currency),
