@@ -46,13 +46,13 @@ const TOOLS: Tool[] = [
     badge: 'Live',
   },
   {
-    id: 'ads-creative-testing',
-    name: "Ads Creative Testing",
-    description: "A/B test ad creatives, measure performance across audiences, and identify winning visuals before scaling.",
-    href: '#',
+    id: 'afs-niche-testing',
+    name: 'AFS Niche Testing',
+    description: 'Bulk-test content niches for AdSense-for-Search: paste topics, auto-generate 5 image ads each, review everything, then launch real Facebook campaigns. Admin/leader only.',
+    href: '/afs-niche-testing',
     image: '',
-    status: 'coming-soon',
-    badge: 'Coming Soon',
+    status: 'active',
+    badge: 'Live',
   },
 ];
 

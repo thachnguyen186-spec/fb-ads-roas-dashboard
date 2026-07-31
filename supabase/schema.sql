@@ -203,3 +203,87 @@ as $$
     updated_by = p_updated_by
   returning account_owners.owner_label, account_owners.department_label;
 $$;
+
+-- ─── AFS Niche Testing ────────────────────────────────────────────────────────
+-- Ads-launching FB token, AES-256-GCM encrypted at rest. Deliberately NOT a profiles
+-- column: profiles' own SELECT policy exposes rows to the owning browser, and the
+-- accounting-export fan-out reads other users' profiles.fb_access_token server-side.
+-- RLS enabled with NO policies → only createServiceClient() can touch this table.
+create table if not exists public.afs_launch_tokens (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  token_enc text not null,               -- "v1:<iv>:<tag>:<ciphertext>" base64 parts
+  granted_scopes text[] not null default '{}',
+  verified_at timestamptz,
+  updated_at timestamptz default now()
+);
+alter table public.afs_launch_tokens enable row level security;
+
+create table if not exists public.afs_batches (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default '',
+  status text not null default 'draft'
+    check (status in ('draft','generating','ready','publishing','published','failed')),
+  publish_active boolean not null default false,   -- false ⇒ create FB objects PAUSED
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table public.afs_batches enable row level security;
+create policy "Users manage own afs batches" on public.afs_batches
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create table if not exists public.afs_topics (
+  id uuid primary key default gen_random_uuid(),
+  batch_id uuid not null references public.afs_batches(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  position int not null default 0,
+  topic_text text not null,
+  target_url text not null,
+  ad_account_id text, page_id text, page_name text, pixel_id text,
+  countries text[] not null default '{}',          -- ISO-3166-1 alpha-2
+  primary_text text not null default '',           -- FB ad body copy (NOT the on-image headline)
+  ad_headline text not null default '',            -- link_data.name
+  special_ad_category text not null default 'NONE'
+    check (special_ad_category in ('NONE','EMPLOYMENT','HOUSING','CREDIT','ISSUES_ELECTIONS_POLITICS')),
+  daily_budget_minor bigint not null default 1000, -- minor units (USD cents; VND has none)
+  status text not null default 'draft'
+    check (status in ('draft','generating','ready','publishing','published','partial_failed','failed')),
+  fb_campaign_id text, fb_adset_id text,
+  error text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table public.afs_topics enable row level security;
+create policy "Users manage own afs topics" on public.afs_topics
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index if not exists afs_topics_batch_idx on public.afs_topics(batch_id);
+
+-- One row per generated image AND per Kie job — this IS the job/status table.
+create table if not exists public.afs_creatives (
+  id uuid primary key default gen_random_uuid(),
+  topic_id uuid not null references public.afs_topics(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  style_key text not null check (style_key in
+    ('notes_app','retro_pixel','editorial','craft_paper','bold_type')),
+  image_headline text not null default '',   -- headline baked INTO the image
+  image_prompt text not null default '',     -- fully substituted prompt sent to Kie
+  kie_task_id text,
+  status text not null default 'pending'
+    -- 'reconciling' is a transient atomic-claim state (Phase 04 reconcile-on-poll) —
+    -- not in the original Phase 01 draft, added here since the state machine requires it.
+    check (status in ('pending','submitted','reconciling','succeeded','failed')),
+  storage_path text,                         -- afs/{user}/{batch}/{topic}/{creative_id}-{style}.png
+                                              -- [Red Team Fix] keyed by creative_id (not just topic+style) so a
+                                              -- regenerate race can never let a stale write land on a live path
+  fb_image_hash text, fb_creative_id text, fb_ad_id text,
+  error text,
+  submitted_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table public.afs_creatives enable row level security;
+create policy "Users manage own afs creatives" on public.afs_creatives
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create index if not exists afs_creatives_topic_idx on public.afs_creatives(topic_id);
+create unique index if not exists afs_creatives_kie_task_idx
+  on public.afs_creatives(kie_task_id) where kie_task_id is not null;

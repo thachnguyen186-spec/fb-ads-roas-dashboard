@@ -310,3 +310,96 @@ export interface AccountOwnerEntry {
   owner_label: string;
   department_label: string;
 }
+
+// ─── AFS Niche Testing ──────────────────────────────────────────────────────
+
+export type AfsStyleKey = 'notes_app' | 'retro_pixel' | 'editorial' | 'craft_paper' | 'bold_type';
+
+export type AfsBatchStatus = 'draft' | 'generating' | 'ready' | 'publishing' | 'published' | 'failed';
+
+export type AfsTopicStatus =
+  | 'draft' | 'generating' | 'ready' | 'publishing' | 'published' | 'partial_failed' | 'failed';
+
+export type AfsCreativeStatus = 'pending' | 'submitted' | 'reconciling' | 'succeeded' | 'failed';
+
+export type SpecialAdCategory = 'NONE' | 'EMPLOYMENT' | 'HOUSING' | 'CREDIT' | 'ISSUES_ELECTIONS_POLITICS';
+
+/** One `afs_batches` row — a set of topics submitted together. */
+export interface AfsBatch {
+  id: string;
+  user_id: string;
+  name: string;
+  status: AfsBatchStatus;
+  /** false ⇒ FB objects are created PAUSED (default); true ⇒ ACTIVE. */
+  publish_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One `afs_topics` row — one unit of ad-creation work (draft state until published). */
+export interface AfsTopic {
+  id: string;
+  batch_id: string;
+  user_id: string;
+  position: number;
+  topic_text: string;
+  target_url: string;
+  ad_account_id: string | null;
+  page_id: string | null;
+  page_name: string | null;
+  pixel_id: string | null;
+  countries: string[];
+  primary_text: string;
+  ad_headline: string;
+  special_ad_category: SpecialAdCategory;
+  /** Always FB-ready minor units (cents for USD, whole units for VND) — see Phase 01 unit contract. */
+  daily_budget_minor: number;
+  status: AfsTopicStatus;
+  fb_campaign_id: string | null;
+  fb_adset_id: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One `afs_creatives` row — one of 5 images/topic; doubles as the Kie job/status record. */
+export interface AfsCreative {
+  id: string;
+  topic_id: string;
+  user_id: string;
+  style_key: AfsStyleKey;
+  image_headline: string;
+  image_prompt: string;
+  kie_task_id: string | null;
+  status: AfsCreativeStatus;
+  storage_path: string | null;
+  fb_image_hash: string | null;
+  fb_creative_id: string | null;
+  fb_ad_id: string | null;
+  error: string | null;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Result of one `publishStep()` call — Phase 03. */
+export interface AfsPublishResult {
+  topic_id: string;
+  status: AfsTopicStatus;
+  campaign_id?: string;
+  created_ads: number;
+  failed_ads: number;
+  error?: string;
+}
+
+/** A Facebook Page reachable by the launch token (`/me/accounts`). */
+export interface FbPage {
+  id: string;
+  name: string;
+}
+
+/** A Facebook Pixel under an ad account (`/act_{id}/adspixels`). */
+export interface FbPixel {
+  id: string;
+  name: string;
+}
