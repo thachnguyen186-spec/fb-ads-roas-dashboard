@@ -6,15 +6,6 @@
 const FB_API_BASE = 'https://graph.facebook.com/v21.0';
 
 /**
- * AFS Niche Testing-only Graph API version. Required for
- * `degrees_of_freedom_spec.creative_features_spec.standard_enhancements` (Advantage+ creative
- * opt-out), which needs v22.0+. Scoped exclusively to the new pages.ts/pixels.ts/ad-images.ts/
- * ad-creation.ts modules — every existing call site below defaults to FB_API_BASE (v21.0) and
- * is untouched by this addition.
- */
-export const AFS_FB_API_BASE = 'https://graph.facebook.com/v22.0';
-
-/**
  * Page Scheduler-only Graph API version (v26.0). Scoped exclusively to lib/page-scheduler/*;
  * every other call site keeps its own default base.
  */
@@ -124,10 +115,9 @@ export function fbDelete(path: string, token: string, baseUrl: string = FB_API_B
 }
 
 /**
- * FB Graph API multipart upload — used by the AFS `/adimages` ad-image upload (the documented
- * alternative to base64-in-urlencoded `bytes`; avoids base64 growth + percent-encoding).
- * Uses Node's native `FormData`/`Blob` globals. Response is a map keyed by each file's field
- * name (see ad-images.ts). Reuses `parseAndThrow` for consistent error formatting.
+ * FB Graph API multipart upload — used by the Page Scheduler photo push (`source` file field;
+ * avoids base64 growth + percent-encoding). Uses Node's native `FormData`/`Blob` globals.
+ * Reuses `parseAndThrow` for consistent error formatting.
  */
 export async function fbPostMultipart(
   path: string,

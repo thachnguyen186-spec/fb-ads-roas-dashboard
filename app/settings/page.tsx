@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import type { FbAdAccount, UserRole } from '@/lib/types';
 import TiktokConnectionCard from './tiktok-connection-card';
-import AdsLaunchTokenCard from './ads-launch-token-card';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -138,8 +137,7 @@ export default function SettingsPage() {
                   <code className="bg-slate-100 text-slate-700 px-1 rounded">ads_read</code>,{' '}
                   <code className="bg-slate-100 text-slate-700 px-1 rounded">pages_show_list</code>, and{' '}
                   <code className="bg-slate-100 text-slate-700 px-1 rounded">pages_read_engagement</code> permissions.
-                  This read-only token is for dashboard reporting only — it is separate from the
-                  ads-launching token below used for AFS Niche Testing.
+                  This read-only token is for dashboard reporting only.
                 </p>
               </div>
               {hasToken && (
@@ -223,9 +221,6 @@ export default function SettingsPage() {
 
             {/* TikTok Ads Connection */}
             {(role === 'admin' || role === 'leader') && <TiktokConnectionCard role={role} />}
-
-            {/* AFS Niche Testing — ads-launching token */}
-            {(role === 'admin' || role === 'leader') && <AdsLaunchTokenCard />}
 
             {/* Save */}
             <div className="space-y-2">

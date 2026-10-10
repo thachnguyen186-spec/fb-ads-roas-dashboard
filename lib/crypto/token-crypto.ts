@@ -1,22 +1,31 @@
 /**
- * AES-256-GCM envelope for the AFS ads-launching token (afs_launch_tokens.token_enc).
- * Server-side only. AAD binds ciphertext to the row's user_id — a copied ciphertext
- * fails to decrypt under another user's id, even with the same key.
+ * AES-256-GCM envelope for Facebook tokens stored by the Page Scheduler
+ * (ps_fb_profiles.token_enc, ps_pages.page_token_enc). Server-side only.
+ * AAD binds ciphertext to the row's user_id — a copied ciphertext fails to decrypt under
+ * another user's id, even with the same key.
  * Envelope: "v1:<iv_b64>:<tag_b64>:<ciphertext_b64>"
+ *
+ * Key: derived (HKDF-SHA256) from SUPABASE_SERVICE_ROLE_KEY, which every deployment already
+ * has — so users add Facebook tokens purely in the tool, with no extra secret to configure.
+ * Trade-off: rotating the service-role key makes stored tokens undecryptable; users then simply
+ * re-add their tokens in Page Scheduler → Settings (decryptToken's error message says so).
  */
 
-import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+import { randomBytes, createCipheriv, createDecipheriv, hkdfSync } from 'crypto';
 
 const ALGO = 'aes-256-gcm';
 const ENVELOPE_VERSION = 'v1';
+const HKDF_SALT = 'fb-token-encryption';
+const HKDF_INFO = 'page-scheduler-v1';
+
+let cachedKey: Buffer | null = null;
 
 function getKey(): Buffer {
-  const raw = process.env.AFS_TOKEN_ENCRYPTION_KEY ?? '';
-  const key = Buffer.from(raw, 'base64');
-  if (key.length !== 32) {
-    throw new Error('AFS_TOKEN_ENCRYPTION_KEY missing or not 32 bytes (base64)');
-  }
-  return key;
+  if (cachedKey) return cachedKey;
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+  if (!secret) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured on the server');
+  cachedKey = Buffer.from(hkdfSync('sha256', secret, HKDF_SALT, HKDF_INFO, 32));
+  return cachedKey;
 }
 
 /** Encrypts `plain`, binding it to `userId` via AAD. Returns the packed envelope string. */

@@ -46,15 +46,6 @@ const TOOLS: Tool[] = [
     badge: 'Live',
   },
   {
-    id: 'afs-niche-testing',
-    name: 'AFS Niche Testing',
-    description: 'Bulk-test content niches for AdSense-for-Search: paste topics, auto-generate 5 image ads each, review everything, then launch real Facebook campaigns. Admin/leader only.',
-    href: '/afs-niche-testing',
-    image: '',
-    status: 'active',
-    badge: 'Live',
-  },
-  {
     id: 'page-scheduler',
     name: 'Page Scheduler',
     description: 'Bulk-schedule posts to many Facebook Pages from CSV/JSON, tier-1 geo targeting, profile pictures and engagement analytics.',
