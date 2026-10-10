@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { requireRole } from '@/lib/auth-guards';
 import { errorResponse } from '@/lib/utils';
+import { looksLikeFbAccessToken } from '@/lib/facebook/fb-client';
 import { saveLaunchToken, missingScopes } from '@/lib/afs/launch-token';
 
 interface TokenRow {
@@ -59,7 +60,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const token = typeof body.token === 'string' ? body.token.trim() : '';
-  if (!token.startsWith('EAA') || token.length <= 50) {
+  if (!looksLikeFbAccessToken(token)) {
     return errorResponse('That does not look like a valid Facebook User Access Token.', 400);
   }
 

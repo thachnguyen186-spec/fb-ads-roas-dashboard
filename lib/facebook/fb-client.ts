@@ -21,6 +21,15 @@ export const AFS_FB_API_BASE = 'https://graph.facebook.com/v22.0';
 export const PAGE_SCHEDULER_FB_API_BASE = 'https://graph.facebook.com/v26.0';
 
 /**
+ * Cheap format pre-check before a Graph round-trip. FB tokens start with "EA" but the next
+ * characters vary by app (EAA…, EAG…), so only the "EA" prefix + alphanumeric body is enforced;
+ * debug_token / /me remain the real validation.
+ */
+export function looksLikeFbAccessToken(token: string): boolean {
+  return /^EA[A-Za-z0-9]{48,}$/.test(token);
+}
+
+/**
  * Error thrown for any Graph API failure. Message format is identical to the previous plain
  * `Error` (existing callers unaffected); additionally exposes FB `code`/`error_subcode` so
  * callers (Page Scheduler) can classify rate limits, auth failures, etc.

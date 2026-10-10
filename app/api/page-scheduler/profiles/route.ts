@@ -7,6 +7,7 @@
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
+import { looksLikeFbAccessToken } from '@/lib/facebook/fb-client';
 import { getPsContext, psErrorResponse } from '@/lib/page-scheduler/access';
 import { addProfile, PROFILE_PUBLIC_COLUMNS } from '@/lib/page-scheduler/fb-profiles';
 
@@ -40,8 +41,8 @@ export async function POST(request: NextRequest) {
     return errorResponse('Invalid JSON body', 400);
   }
   const token = typeof body.token === 'string' ? body.token.trim() : '';
-  if (!token.startsWith('EAA') || token.length <= 50) {
-    return errorResponse('That does not look like a valid Facebook access token (expected EAA…).', 400);
+  if (!looksLikeFbAccessToken(token)) {
+    return errorResponse('That does not look like a valid Facebook access token (expected EA…).', 400);
   }
 
   try {
