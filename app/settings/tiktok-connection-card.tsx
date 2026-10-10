@@ -70,7 +70,15 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Resync failed');
       await loadAccounts();
-      setBanner({ type: 'success', message: `Refreshed ${data.updated ?? 0} account name(s).` });
+      const updated = data.updated ?? 0;
+      const total = data.total ?? updated;
+      const errors: string[] = data.errors ?? [];
+      if (updated < total) {
+        const cause = errors.length ? ` TikTok said: ${errors.join(' | ')}` : '';
+        setBanner({ type: 'error', message: `Resolved ${updated} of ${total} account name(s).${cause}` });
+      } else {
+        setBanner({ type: 'success', message: `Refreshed ${updated} account name(s).` });
+      }
     } catch (e) {
       setBanner({ type: 'error', message: e instanceof Error ? e.message : 'Resync failed' });
     } finally {

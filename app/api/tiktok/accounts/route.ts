@@ -57,22 +57,28 @@ async function handleResyncNames(): Promise<Response> {
   }
 
   const service = createServiceClient();
-  const { data } = await service.from('tiktok_advertiser_accounts').select('advertiser_id');
-  const ids = ((data ?? []) as { advertiser_id: string }[]).map((r) => r.advertiser_id);
-  if (ids.length === 0) return Response.json({ updated: 0 });
+  const { data, error: selectError } = await service.from('tiktok_advertiser_accounts').select('advertiser_id,currency');
+  if (selectError) return errorResponse(selectError.message, 500);
+  const existing = (data ?? []) as { advertiser_id: string; currency: string }[];
+  if (existing.length === 0) return Response.json({ updated: 0, total: 0, errors: [] });
 
-  const infoMap = await fetchAdvertiserInfo(ids, token);
-  const rows = ids.map((id) => ({
-    advertiser_id: id,
-    name: infoMap.get(id)?.name ?? id,
-    currency: infoMap.get(id)?.currency ?? 'USD',
-  }));
-  // is_selected intentionally omitted — existing rows keep their current selection, same
-  // upsert shape as syncAdvertiserAccounts() in the OAuth callback.
-  const { error } = await service.from('tiktok_advertiser_accounts').upsert(rows, { onConflict: 'advertiser_id' });
-  if (error) return errorResponse(error.message, 500);
+  const { info, errors } = await fetchAdvertiserInfo(existing.map((r) => r.advertiser_id), token);
+  // Only rows TikTok actually resolved are written — a failed lookup must never overwrite a
+  // stored name with the raw id, or stamp 'USD' over a real currency (which would bypass the
+  // USD-only selection gate). Name-only fallback results keep the stored currency.
+  const rows = existing
+    .filter((r) => info.has(r.advertiser_id))
+    .map((r) => {
+      const resolved = info.get(r.advertiser_id)!;
+      return { advertiser_id: r.advertiser_id, name: resolved.name, currency: resolved.currency ?? r.currency };
+    });
+  if (rows.length > 0) {
+    // is_selected intentionally omitted — existing rows keep their current selection.
+    const { error } = await service.from('tiktok_advertiser_accounts').upsert(rows, { onConflict: 'advertiser_id' });
+    if (error) return errorResponse(error.message, 500);
+  }
 
-  return Response.json({ updated: rows.length });
+  return Response.json({ updated: rows.length, total: existing.length, errors });
 }
 
 /**

@@ -34,12 +34,18 @@ async function syncAdvertiserAccounts(advertiserIds: string[], token: string): P
   }
 
   const service = createServiceClient();
-  const infoMap = await fetchAdvertiserInfo(advertiserIds, token);
+  const { info: infoMap } = await fetchAdvertiserInfo(advertiserIds, token);
+  const { data: storedRows } = await service.from('tiktok_advertiser_accounts').select('advertiser_id,name,currency');
+  const stored = new Map(
+    ((storedRows ?? []) as { advertiser_id: string; name: string; currency: string }[]).map((r) => [r.advertiser_id, r]),
+  );
 
+  // Unresolved lookups keep the stored name/currency — never overwrite a real currency with the
+  // 'USD' fallback (that would bypass the USD-only selection gate). 'USD' only seeds brand-new rows.
   const rows = advertiserIds.map((id) => ({
     advertiser_id: id,
-    name: infoMap.get(id)?.name ?? id,
-    currency: infoMap.get(id)?.currency ?? 'USD',
+    name: infoMap.get(id)?.name ?? stored.get(id)?.name ?? id,
+    currency: infoMap.get(id)?.currency ?? stored.get(id)?.currency ?? 'USD',
   }));
   // is_selected is intentionally omitted: existing rows keep their current selection,
   // new rows get the column default (true).
