@@ -7,10 +7,10 @@
  * Requires Vercel Pro for hourly schedule (Hobby = daily only).
  */
 
-import { timingSafeEqual } from 'crypto';
 import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
+import { verifyCronRequest } from '@/lib/cron-auth';
 import { fetchSpendingLimits, isSpendingLimitError } from '@/lib/facebook/spending-limits';
 import { decideAlert, buildAlertMessage } from '@/lib/spending-limits/alerts';
 import { sendTelegram } from '@/lib/telegram/send';
@@ -25,14 +25,8 @@ interface DbAccount {
 }
 
 export async function GET(request: NextRequest) {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return errorResponse('CRON_SECRET not configured', 500);
-  const auth = request.headers.get('authorization') ?? '';
-  // Timing-safe comparison prevents byte-by-byte oracle attacks on the secret
-  const actualBuf = Buffer.from(auth);
-  const wantBuf = Buffer.from(`Bearer ${expected}`);
-  const valid = actualBuf.length === wantBuf.length && timingSafeEqual(actualBuf, wantBuf);
-  if (!valid) return errorResponse('Forbidden', 403);
+  const denied = verifyCronRequest(request);
+  if (denied) return denied;
 
   const service = createServiceClient();
 

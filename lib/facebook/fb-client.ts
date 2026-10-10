@@ -14,6 +14,30 @@ const FB_API_BASE = 'https://graph.facebook.com/v21.0';
  */
 export const AFS_FB_API_BASE = 'https://graph.facebook.com/v22.0';
 
+/**
+ * Page Scheduler-only Graph API version (v26.0). Scoped exclusively to lib/page-scheduler/*;
+ * every other call site keeps its own default base.
+ */
+export const PAGE_SCHEDULER_FB_API_BASE = 'https://graph.facebook.com/v26.0';
+
+/**
+ * Error thrown for any Graph API failure. Message format is identical to the previous plain
+ * `Error` (existing callers unaffected); additionally exposes FB `code`/`error_subcode` so
+ * callers (Page Scheduler) can classify rate limits, auth failures, etc.
+ */
+export class FbApiError extends Error {
+  readonly code?: number;
+  readonly subcode?: number;
+  readonly httpStatus: number;
+  constructor(message: string, httpStatus: number, code?: number, subcode?: number) {
+    super(message);
+    this.name = 'FbApiError';
+    this.httpStatus = httpStatus;
+    this.code = code;
+    this.subcode = subcode;
+  }
+}
+
 type FbError = { message?: string; type?: string; code?: number; error_subcode?: number; fbtrace_id?: string };
 
 async function parseAndThrow(res: Response, json: unknown): Promise<never> {
@@ -24,11 +48,11 @@ async function parseAndThrow(res: Response, json: unknown): Promise<never> {
   if (e?.type) parts.push(e.type);
   parts.push(e?.message ?? `HTTP ${res.status}`);
   if (e?.fbtrace_id) parts.push(`[trace: ${e.fbtrace_id}]`);
-  throw new Error(parts.join(' | '));
+  throw new FbApiError(parts.join(' | '), res.status, e?.code, e?.error_subcode);
 }
 
 async function fbRequest(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'DELETE',
   path: string,
   urlParams: Record<string, string> = {},
   formParams: Record<string, string> | null = null,
@@ -83,6 +107,11 @@ export function fbPostForm(path: string, body: Record<string, unknown>, token: s
   const form: Record<string, string> = {};
   for (const [k, v] of Object.entries(body)) form[k] = String(v);
   return fbRequest('POST', path, {}, form, token, baseUrl);
+}
+
+/** FB Graph API DELETE (e.g. cancel a scheduled Page post). */
+export function fbDelete(path: string, token: string, baseUrl: string = FB_API_BASE) {
+  return fbRequest('DELETE', path, {}, null, token, baseUrl);
 }
 
 /**

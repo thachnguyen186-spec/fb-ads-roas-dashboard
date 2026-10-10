@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/check-spending-limits",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/page-scheduler-sync",
+      "schedule": "15 * * * *"
     }
   ]
 }

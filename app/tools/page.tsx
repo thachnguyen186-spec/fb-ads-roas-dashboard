@@ -54,6 +54,15 @@ const TOOLS: Tool[] = [
     status: 'active',
     badge: 'Live',
   },
+  {
+    id: 'page-scheduler',
+    name: 'Page Scheduler',
+    description: 'Bulk-schedule posts to many Facebook Pages from CSV/JSON, tier-1 geo targeting, profile pictures and engagement analytics.',
+    href: '/page-scheduler',
+    image: '',
+    status: 'active',
+    badge: 'Live',
+  },
 ];
 
 export default async function ToolsPage() {

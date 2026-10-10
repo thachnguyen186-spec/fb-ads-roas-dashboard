@@ -1,0 +1,23 @@
+[
+  {
+    "scheduled_at": "2026-10-15 09:30",
+    "page_id": "102938475610293",
+    "message": "Morning tip: drink water first thing.\nSmall habits add up.",
+    "image": "",
+    "countries": ""
+  },
+  {
+    "scheduled_at": "2026-10-15T19:00:00+07:00",
+    "page_id": "102938475610293",
+    "message": "Evening recap",
+    "image": "https://example.com/recap.png",
+    "countries": ["US", "GB"]
+  },
+  {
+    "scheduled_at": "2026-10-16 08:00",
+    "page_id": "564738291056473",
+    "message": "Text-only post for all countries",
+    "image": "",
+    "countries": "ALL"
+  }
+]

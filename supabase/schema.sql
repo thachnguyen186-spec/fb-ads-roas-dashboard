@@ -287,3 +287,156 @@ create policy "Users manage own afs creatives" on public.afs_creatives
 create index if not exists afs_creatives_topic_idx on public.afs_creatives(topic_id);
 create unique index if not exists afs_creatives_kie_task_idx
   on public.afs_creatives(kie_task_id) where kie_task_id is not null;
+
+-- ─── Page Scheduler ───────────────────────────────────────────────────────────
+-- APPLY MANUALLY in the Supabase SQL editor (idempotent: safe to run repeatedly).
+-- Also create a PRIVATE storage bucket `page-scheduler-media` (no policies).
+-- ps_fb_profiles / ps_pages hold ciphertext tokens: RLS enabled with NO policies →
+-- only createServiceClient() can touch them. All other ps_* tables: own-row SELECT-only
+-- policy (the app reads AND writes via the service client and filters by getVisibleUserIds);
+-- no write policy, so a user's JWT cannot bypass server validation (status, metrics, image_ref).
+
+create table if not exists public.ps_fb_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  fb_user_id text not null,                -- /me id (user id or system-user id)
+  fb_user_name text not null default '',
+  token_enc text not null,                 -- "v1:<iv>:<tag>:<ciphertext>" (AAD = user_id)
+  token_type text not null default 'USER'
+    check (token_type in ('USER','SYSTEM_USER')),
+  app_id text,                             -- from debug_token
+  expires_at timestamptz,                  -- NULL = never expires (debug_token expires_at 0)
+  granted_scopes text[] not null default '{}',
+  status text not null default 'active' check (status in ('active','invalid')),
+  last_error text,
+  synced_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, fb_user_id)
+);
+alter table public.ps_fb_profiles enable row level security;
+
+create table if not exists public.ps_pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  profile_id uuid not null references public.ps_fb_profiles(id) on delete cascade,
+  page_id text not null,
+  name text not null default '',
+  category text,
+  picture_url text,
+  tasks text[] not null default '{}',
+  page_token_enc text not null,
+  is_active boolean not null default true,
+  synced_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, page_id)
+);
+alter table public.ps_pages enable row level security;
+create index if not exists ps_pages_profile_idx on public.ps_pages(profile_id);
+
+create table if not exists public.ps_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  default_countries text[] not null
+    default '{US,GB,CA,AU,NZ,IE,DE,FR,NL,SE,NO,DK,FI}',
+  updated_at timestamptz default now()
+);
+alter table public.ps_settings enable row level security;
+drop policy if exists "Users manage own ps settings" on public.ps_settings;
+create policy "Users manage own ps settings" on public.ps_settings
+  for select using (auth.uid() = user_id);
+
+create table if not exists public.ps_batches (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  file_name text not null default '',
+  source_type text not null default 'csv' check (source_type in ('csv','json')),
+  status text not null default 'awaiting_media' check (status in ('awaiting_media','ready')),
+  row_count int not null default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table public.ps_batches enable row level security;
+drop policy if exists "Users manage own ps batches" on public.ps_batches;
+create policy "Users manage own ps batches" on public.ps_batches
+  for select using (auth.uid() = user_id);
+
+create table if not exists public.ps_posts (
+  id uuid primary key default gen_random_uuid(),
+  batch_id uuid not null references public.ps_batches(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  row_number int not null default 0,
+  page_id text not null,
+  page_name text not null default '',      -- snapshot at upload time
+  scheduled_at timestamptz not null,
+  message text not null default '',
+  image_kind text not null default 'none' check (image_kind in ('none','url','upload')),
+  image_ref text,                          -- https URL or storage path
+  countries text[] not null default '{}',  -- empty = no geo targeting
+  -- 'waiting' = approved but beyond the FB scheduling window; cron pushes it later
+  status text not null default 'draft'
+    check (status in ('draft','queued','waiting','pushing','scheduled','published','failed','cancelled')),
+  attempts int not null default 0,
+  claimed_at timestamptz,
+  next_attempt_at timestamptz,             -- retry backoff after a rate-limit requeue
+  fb_post_id text,
+  fb_photo_id text,
+  permalink_url text,
+  error text,
+  error_code int,
+  pushed_at timestamptz,
+  published_at timestamptz,
+  reactions int, comments int, shares int, views int, unique_views int, clicks int,
+  engagement int generated always as
+    (coalesce(reactions,0) + coalesce(comments,0) + coalesce(shares,0)) stored,
+  metrics_at timestamptz,
+  metrics_error text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+alter table public.ps_posts add column if not exists next_attempt_at timestamptz;
+alter table public.ps_posts enable row level security;
+drop policy if exists "Users manage own ps posts" on public.ps_posts;
+create policy "Users manage own ps posts" on public.ps_posts
+  for select using (auth.uid() = user_id);
+create index if not exists ps_posts_batch_status_idx on public.ps_posts(batch_id, status);
+create index if not exists ps_posts_waiting_idx on public.ps_posts(scheduled_at) where status = 'waiting';
+create index if not exists ps_posts_status_sched_idx on public.ps_posts(status, scheduled_at);
+create index if not exists ps_posts_user_published_idx on public.ps_posts(user_id, published_at);
+create unique index if not exists ps_posts_fb_post_idx
+  on public.ps_posts(fb_post_id) where fb_post_id is not null;
+-- DB backstop against double upload of the same Page + time slot.
+create unique index if not exists ps_posts_slot_idx
+  on public.ps_posts(user_id, page_id, scheduled_at) where status not in ('cancelled','failed');
+
+-- Atomic multi-row claim (FOR UPDATE SKIP LOCKED). Used by the client push step
+-- (p_status='queued', batch+user set), the cron deferred push (p_status='waiting', both null) and the
+-- cron sweep of abandoned 'queued' rows (batch+user null, p_idle_minutes>0 = only rows untouched that long).
+-- Rows in retry backoff (next_attempt_at in the future) are skipped.
+drop function if exists public.ps_claim_posts(text, uuid, uuid, int, timestamptz, timestamptz);
+create or replace function public.ps_claim_posts(
+  p_status text, p_batch_id uuid, p_user_id uuid, p_limit int,
+  p_earliest timestamptz, p_latest timestamptz, p_idle_minutes int default 0
+) returns setof public.ps_posts
+language sql security definer set search_path = public as $$
+  with c as materialized (
+    select id from public.ps_posts
+    where status = p_status and p_status in ('queued','waiting')
+      and (p_batch_id is null or batch_id = p_batch_id)
+      and (p_user_id is null or user_id = p_user_id)
+      and scheduled_at between p_earliest and p_latest
+      and (next_attempt_at is null or next_attempt_at <= now())
+      and (p_idle_minutes <= 0 or updated_at <= now() - make_interval(mins => p_idle_minutes))
+    order by scheduled_at, row_number
+    limit p_limit
+    for update skip locked
+  )
+  update public.ps_posts p
+  set status = 'pushing', claimed_at = now(), attempts = p.attempts + 1, updated_at = now()
+  from c
+  where p.id = c.id
+  returning p.*;
+$$;
+revoke execute on function public.ps_claim_posts(text, uuid, uuid, int, timestamptz, timestamptz, int)
+  from public, anon, authenticated;
+-- ─── /Page Scheduler ──────────────────────────────────────────────────────────

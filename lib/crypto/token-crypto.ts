@@ -49,6 +49,6 @@ export function decryptToken(packed: string, userId: string): string {
     const plain = Buffer.concat([decipher.update(ct), decipher.final()]);
     return plain.toString('utf8');
   } catch {
-    throw new Error('Launch token could not be decrypted — re-enter it in Settings');
+    throw new Error('Stored token could not be decrypted — re-enter it in Settings');
   }
 }
