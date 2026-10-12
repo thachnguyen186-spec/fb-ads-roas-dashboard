@@ -39,18 +39,30 @@ export function SnapshotGroupHeaders({ comparisons }: { comparisons: SnapshotCom
   );
 }
 
-/** Column header cells for the metric header row. */
-export function SnapshotColumnHeaders({ comparisons }: { comparisons: SnapshotComparison[] }) {
+/** Snapshot field behind each of the 5 metric columns (same order as OLD_HEADERS). */
+const SORT_FIELDS = ['spend', 'adjust_revenue', 'roas', 'profit_pct', 'profit'] as const;
+
+interface SortProps { sortCol: string; sortDir: 'asc' | 'desc'; onSort: (col: string) => void }
+
+/** Column header cells for the metric header row. Every snapshot/delta column is click-sortable. */
+export function SnapshotColumnHeaders({ comparisons, sortCol, sortDir, onSort }: { comparisons: SnapshotComparison[] } & SortProps) {
+  const arrow = (key: string) => (key === sortCol ? (sortDir === 'asc' ? ' ↑' : ' ↓') : <span className="text-slate-400"> ↕</span>);
   return (
     <>
       {comparisons.map((comp) => (
         <Fragment key={comp.id}>
-          {OLD_HEADERS.map((h, k) => (
-            <th key={`o${k}`} className={`px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-800 ${k === 0 ? 'border-l border-amber-200' : ''}`}>{h}</th>
-          ))}
-          {OLD_HEADERS.map((h, k) => (
-            <th key={`d${k}`} className={`px-3 py-2.5 text-right whitespace-nowrap bg-sky-50 border-b border-sky-200 text-xs font-semibold text-sky-800 ${k === 0 ? 'border-l border-sky-200' : ''}`}>Δ {h}</th>
-          ))}
+          {OLD_HEADERS.map((h, k) => {
+            const key = `snap:${comp.id}:${SORT_FIELDS[k]}`;
+            return (
+              <th key={`o${k}`} onClick={() => onSort(key)} className={`px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 hover:bg-amber-100 cursor-pointer select-none border-b border-amber-200 text-xs font-semibold text-amber-800 ${k === 0 ? 'border-l border-amber-200' : ''}`}>{h}{arrow(key)}</th>
+            );
+          })}
+          {OLD_HEADERS.map((h, k) => {
+            const key = `delta:${comp.id}:${SORT_FIELDS[k]}`;
+            return (
+              <th key={`d${k}`} onClick={() => onSort(key)} className={`px-3 py-2.5 text-right whitespace-nowrap bg-sky-50 hover:bg-sky-100 cursor-pointer select-none border-b border-sky-200 text-xs font-semibold text-sky-800 ${k === 0 ? 'border-l border-sky-200' : ''}`}>Δ {h}{arrow(key)}</th>
+            );
+          })}
         </Fragment>
       ))}
     </>

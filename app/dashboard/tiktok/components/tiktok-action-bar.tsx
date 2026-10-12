@@ -1,6 +1,6 @@
 /**
  * Selection action bar shared by campaign and ad-group views — mirrors FB's action-bar.tsx
- * (ENABLE/DISABLE mapping, budget-modal reuse) but generalized over `entityType` since TikTok
+ * (ENABLE/DISABLE mapping; budget editing via the comparative TikTok budget modal for 1+ items) but generalized over `entityType` since TikTok
  * needs bulk on/off at both levels, unlike FB's ad-set view which only has inline budget edit.
  * No Duplicate button — deferred to Plan 2.
  */
@@ -8,10 +8,10 @@
 'use client';
 
 import { useState } from 'react';
-import { TIKTOK_BUDGET_MODE_DAY, toBudgetTargetType } from '@/lib/tiktok/budget-limits';
-import type { BudgetTarget } from '@/lib/types';
-import BudgetModal from '@/app/dashboard/components/budget-modal';
+import { isDailyBudgetMode } from '@/lib/tiktok/budget-limits';
+import type { SnapshotComparison } from '@/lib/types';
 import TiktokBulkBudgetModal from './tiktok-bulk-budget-modal';
+import type { TiktokItemMetrics } from './tiktok-budget-metrics';
 
 export interface TiktokActionItem {
   id: string;
@@ -21,12 +21,16 @@ export interface TiktokActionItem {
   budget_mode: string;
   advertiser_id: string;
   currency: string;
+  /** Live metrics shown in the budget modal's "Current" version. */
+  metrics?: TiktokItemMetrics;
 }
 
 interface Props {
   entityType: 'campaign' | 'adgroup';
   items: TiktokActionItem[];
   minDailyBudget: number;
+  /** Campaign-level snapshots for the budget modal; [] for ad groups. */
+  snapshotComparisons: SnapshotComparison[];
   onActionComplete: () => void;
   onDeselect: () => void;
 }
@@ -49,31 +53,15 @@ async function patchEntity(entityType: 'campaign' | 'adgroup', id: string, adver
   if (!res.ok) throw new Error(data.error ?? 'Action failed');
 }
 
-export default function TiktokActionBar({ entityType, items, minDailyBudget, onActionComplete, onDeselect }: Props) {
+export default function TiktokActionBar({ entityType, items, minDailyBudget, snapshotComparisons, onActionComplete, onDeselect }: Props) {
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [budgetItem, setBudgetItem] = useState<TiktokActionItem | null>(null);
   const [bulkBudgetOpen, setBulkBudgetOpen] = useState(false);
 
   const count = items.length;
-  const single = count === 1 ? items[0] : null;
   const label = entityType === 'campaign' ? 'campaign' : 'ad group';
   const anyEnabled = items.some((i) => i.status === 'ENABLE');
   const allDisabled = items.every((i) => i.status !== 'ENABLE');
-
-  const budgetTarget: BudgetTarget | null = budgetItem ? (() => {
-    const budgetType = toBudgetTargetType(budgetItem.budget_mode);
-    return {
-      id: budgetItem.id,
-      name: budgetItem.name,
-      budget_type: budgetType,
-      daily_budget: budgetType === 'daily' ? budgetItem.budget : null,
-      lifetime_budget: budgetType === 'lifetime' ? budgetItem.budget : null,
-      entity_type: entityType === 'campaign' ? 'campaign' : 'adset',
-      currency: budgetItem.currency,
-      vndRate: 1,
-    };
-  })() : null;
 
   async function handleBulkStatus(action: 'pause' | 'enable') {
     setActionState('loading');
@@ -102,22 +90,6 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
     }
   }
 
-  async function handleBudgetConfirm(amount: number) {
-    if (!budgetItem) return;
-    const item = budgetItem;
-    setBudgetItem(null);
-    setActionState('loading');
-    setErrorMsg('');
-    try {
-      await patchEntity(entityType, item.id, item.advertiser_id, { action: 'budget', amount });
-      setActionState('done');
-      setTimeout(() => { setActionState('idle'); onActionComplete(); }, 800);
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Budget update failed');
-      setActionState('error');
-    }
-  }
-
   return (
     <>
       <div className="sticky bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 px-6 py-3 flex items-center gap-3 shadow-md">
@@ -142,34 +114,18 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
               Turn On
             </button>
           )}
-          {single && (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setBudgetItem(single)}
-                disabled={actionState === 'loading'}
-                className="px-4 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-              >
-                Update budget
-              </button>
-              {single.budget_mode === TIKTOK_BUDGET_MODE_DAY && (
-                <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day</span>
-              )}
-            </div>
-          )}
-          {count > 1 && (
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setBulkBudgetOpen(true)}
-                disabled={actionState === 'loading'}
-                className="px-4 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-              >
-                Update budget
-              </button>
-              {items.some((i) => i.budget_mode === TIKTOK_BUDGET_MODE_DAY) && (
-                <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day</span>
-              )}
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setBulkBudgetOpen(true)}
+              disabled={actionState === 'loading'}
+              className="px-4 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+            >
+              Update budget
+            </button>
+            {items.some((i) => isDailyBudgetMode(i.budget_mode)) && (
+              <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day</span>
+            )}
+          </div>
         </div>
 
         {actionState === 'loading' && <span className="text-sm text-slate-400 ml-2">Applying…</span>}
@@ -179,15 +135,13 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
         <button onClick={onDeselect} className="ml-auto text-xs text-slate-400 hover:text-slate-700">Deselect all</button>
       </div>
 
-      {budgetTarget && (
-        <BudgetModal target={budgetTarget} onConfirm={(amount) => handleBudgetConfirm(amount)} onClose={() => setBudgetItem(null)} />
-      )}
-      {bulkBudgetOpen && count > 1 && (
+      {bulkBudgetOpen && (
         <TiktokBulkBudgetModal
           entityType={entityType}
           items={items}
           minDailyBudget={minDailyBudget}
           concurrency={BULK_CONCURRENCY}
+          snapshotComparisons={snapshotComparisons}
           applyBudget={(item, amount) => patchEntity(entityType, item.id, item.advertiser_id, { action: 'budget', amount })}
           onClose={() => setBulkBudgetOpen(false)}
           onApplied={onActionComplete}

@@ -2,7 +2,7 @@
 
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import { formatUsd, formatNumber } from '@/lib/utils';
-import { TIKTOK_BUDGET_MODE_DAY, TIKTOK_BUDGET_MODE_TOTAL } from '@/lib/tiktok/budget-limits';
+import { isDailyBudgetMode, TIKTOK_BUDGET_MODE_TOTAL } from '@/lib/tiktok/budget-limits';
 import { SnapshotGroupHeaders, SnapshotColumnHeaders, SnapshotTotalsFiller, SnapshotRowCells } from './tiktok-snapshot-columns';
 import type { MergedTiktokCampaign, SnapshotComparison } from '@/lib/types';
 
@@ -83,7 +83,7 @@ export default function TiktokCampaignTable({
               <th className="sticky left-10 z-20 px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-300 border-b border-slate-300 bg-slate-100">Campaign</th>
               {showAdvertiserColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-slate-100 border-b border-slate-300">Advertiser</th>}
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-slate-100 border-b border-slate-300">Status</th>
-              <SnapshotColumnHeaders comparisons={snapshotComparisons} />
+              <SnapshotColumnHeaders comparisons={snapshotComparisons} sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
               <th className={th}>Budget</th>
               <th className={`${th} cursor-pointer`} onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className={th}>Impr.</th>
@@ -145,7 +145,7 @@ export default function TiktokCampaignTable({
                 </td>
                 <SnapshotRowCells campaign={c} comparisons={snapshotComparisons} />
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
-                  {formatUsd(c.budget)} <span className="text-slate-400 text-xs">{c.budget_mode === TIKTOK_BUDGET_MODE_DAY ? '/d' : c.budget_mode === TIKTOK_BUDGET_MODE_TOTAL ? ' lt' : ''}</span>
+                  {formatUsd(c.budget)} <span className="text-slate-400 text-xs">{isDailyBudgetMode(c.budget_mode) ? '/d' : c.budget_mode === TIKTOK_BUDGET_MODE_TOTAL ? ' lt' : ''}</span>
                 </td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">{formatUsd(c.spend)}</td>
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">{formatNumber(c.impressions)}</td>

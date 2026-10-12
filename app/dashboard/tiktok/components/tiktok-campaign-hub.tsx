@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeTiktokCampaigns } from '@/lib/tiktok/merge';
 import { filterTiktokCampaigns } from '@/lib/tiktok/filter-campaigns';
+import { tiktokSortValue } from '@/lib/tiktok/snapshot-helpers';
 import { fetchTiktokAdjustRevenue } from '@/lib/tiktok/fetch-adjust-revenue';
 import { formatUsd } from '@/lib/utils';
 import TiktokHeader from './tiktok-header';
@@ -105,14 +106,16 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
     [appByCampaignId],
   );
 
+  const snapshotComparisons = useMemo(() => (readOnly ? [] : snap.comparisons), [readOnly, snap.comparisons]);
+
   const displayedCampaigns = useMemo(() => {
     const filtered = filterTiktokCampaigns(mergedCampaigns, f.filters, appByCampaignId);
     return [...filtered].sort((a, b) => {
-      const av = (a[sortCol as keyof MergedTiktokCampaign] as number | null) ?? 0;
-      const bv = (b[sortCol as keyof MergedTiktokCampaign] as number | null) ?? 0;
+      const av = tiktokSortValue(a, sortCol, snapshotComparisons);
+      const bv = tiktokSortValue(b, sortCol, snapshotComparisons);
       return sortDir === 'asc' ? av - bv : bv - av;
     });
-  }, [mergedCampaigns, f.filters, appByCampaignId, sortCol, sortDir]);
+  }, [mergedCampaigns, f.filters, appByCampaignId, sortCol, sortDir, snapshotComparisons]);
 
   const totalSpend = mergedCampaigns.reduce((s, c) => s + c.spend, 0);
 
@@ -175,7 +178,7 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
               onCampaignActionComplete={handleFetchData}
               viewAs={viewingUserId ?? undefined}
               readOnly={readOnly}
-              snapshotComparisons={readOnly ? [] : snap.comparisons}
+              snapshotComparisons={snapshotComparisons}
             />
           </div>
         )}

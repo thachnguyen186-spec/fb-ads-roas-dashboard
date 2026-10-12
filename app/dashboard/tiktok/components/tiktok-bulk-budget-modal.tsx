@@ -1,13 +1,18 @@
 /**
- * Bulk budget editor for 2+ selected TikTok campaigns / ad groups — mirrors FB's
- * adset-bulk-budget-modal (per-row editable "New Budget") plus a "set all" shortcut.
+ * Budget editor for 1+ selected TikTok campaigns / ad groups — mirrors FB's adset-bulk-budget-modal
+ * (comparative Spend/ROAS/%Profit/Profit columns with a Current/snapshot version selector, per-row
+ * editable "New Budget") plus a "set all" shortcut and FB's -50/-20/+20/+50% quick buttons.
  * INFINITE-mode items have no budget at this level and are listed as skipped, never PATCHed.
  */
 
 'use client';
 
 import { useState } from 'react';
-import { TIKTOK_BUDGET_MODE_DAY, TIKTOK_BUDGET_MODE_INFINITE, TIKTOK_BUDGET_MODE_TOTAL } from '@/lib/tiktok/budget-limits';
+import { isDailyBudgetMode, toBudgetTargetType } from '@/lib/tiktok/budget-limits';
+import type { SnapshotComparison } from '@/lib/types';
+import TiktokBulkBudgetRow, { type RowResult } from './tiktok-bulk-budget-row';
+import TiktokBudgetPctButtons from './tiktok-budget-pct-buttons';
+import { metricsForVersion } from './tiktok-budget-metrics';
 import type { TiktokActionItem } from './tiktok-action-bar';
 
 interface Props {
@@ -15,18 +20,13 @@ interface Props {
   items: TiktokActionItem[];
   /** DAY-mode minimum for this entity level (campaign 50, ad group 20). */
   minDailyBudget: number;
-  /** Max parallel PATCHes — shared with the action bar's bulk status actions. */
   concurrency: number;
+  /** Campaign-level snapshots for the version selector; [] for ad groups (snapshots are campaign-only). */
+  snapshotComparisons: SnapshotComparison[];
   applyBudget: (item: TiktokActionItem, amount: number) => Promise<void>;
   onClose: () => void;
   /** Fired after every apply run (even partial failure) so the parent refetches. */
   onApplied: () => void;
-}
-
-type RowResult = { ok: true } | { ok: false; error: string };
-
-function fmtUsd(v: number): string {
-  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function sanitizeInput(raw: string): string {
@@ -35,8 +35,9 @@ function sanitizeInput(raw: string): string {
   return dec.length > 0 ? `${int}.${dec.join('')}` : int;
 }
 
-export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudget, concurrency, applyBudget, onClose, onApplied }: Props) {
-  const isSkipped = (i: TiktokActionItem) => i.budget_mode === TIKTOK_BUDGET_MODE_INFINITE;
+export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudget, concurrency, snapshotComparisons, applyBudget, onClose, onApplied }: Props) {
+  // Skip rows with no editable budget here (INFINITE / unknown mode) so one can't block Apply.
+  const isSkipped = (i: TiktokActionItem) => !['daily', 'lifetime'].includes(toBudgetTargetType(i.budget_mode));
   const editable = items.filter((i) => !isSkipped(i));
   const label = entityType === 'campaign' ? 'campaign' : 'ad group';
 
@@ -46,11 +47,13 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
   const [setAll, setSetAll] = useState('');
   const [applying, setApplying] = useState(false);
   const [results, setResults] = useState<Record<string, RowResult>>({});
+  const [versionId, setVersionId] = useState('current');
+  const selectedSnapshot = versionId === 'current' ? null : snapshotComparisons.find((c) => c.id === versionId) ?? null;
 
   function rowError(item: TiktokActionItem): string | null {
     const n = parseFloat(amounts[item.id] ?? '');
     if (isNaN(n) || n <= 0) return 'Enter an amount';
-    if (item.budget_mode === TIKTOK_BUDGET_MODE_DAY && n < minDailyBudget) return `Min $${minDailyBudget}/day`;
+    if (isDailyBudgetMode(item.budget_mode) && n < minDailyBudget) return `Min $${minDailyBudget}/day`;
     return null;
   }
 
@@ -58,6 +61,14 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
     const v = sanitizeInput(raw);
     setSetAll(v);
     setAmounts(Object.fromEntries(editable.map((i) => [i.id, v === '' ? String(i.budget) : v])));
+  }
+
+  /** Quick adjust: each editable row = its ORIGINAL budget × (1 + pct). Min-budget violations surface via rowError. */
+  function applyPct(pct: number) {
+    setSetAll('');
+    setAmounts(Object.fromEntries(
+      editable.map((i) => [i.id, String(Math.max(1, Math.round(i.budget * (1 + pct / 100) * 100) / 100))]),
+    ));
   }
 
   const invalidCount = editable.filter((i) => rowError(i) !== null).length;
@@ -92,19 +103,32 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-4xl p-6 space-y-4 max-h-[90vh] flex flex-col">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="font-semibold text-slate-900">Bulk Change {entityType === 'campaign' ? 'Campaign' : 'Ad Group'} Budget</h2>
+            <h2 className="font-semibold text-slate-900">{items.length > 1 ? 'Bulk Change' : 'Change'} {entityType === 'campaign' ? 'Campaign' : 'Ad Group'} Budget</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               {editable.length} {label}{editable.length !== 1 ? 's' : ''} editable
               {items.length > editable.length && ` · ${items.length - editable.length} skipped`}
             </p>
           </div>
-          <button onClick={handleClose} disabled={applying} className="text-slate-400 hover:text-slate-700 disabled:opacity-50 text-xl leading-none">✕</button>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500">Metrics version:</label>
+            <select
+              value={versionId}
+              onChange={(e) => setVersionId(e.target.value)}
+              className="px-2 py-1 border border-slate-300 rounded text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="current">Current</option>
+              {snapshotComparisons.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button onClick={handleClose} disabled={applying} className="text-slate-400 hover:text-slate-700 disabled:opacity-50 text-xl leading-none ml-2">✕</button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
           <label className="text-xs text-slate-500">Set all to:</label>
           <div className="flex items-center gap-1">
             <span className="text-slate-400">$</span>
@@ -118,6 +142,7 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
               className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-right text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 tabular-nums"
             />
           </div>
+          <TiktokBudgetPctButtons disabled={applying || editable.length === 0} onPct={applyPct} />
           <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day (daily budgets)</span>
         </div>
 
@@ -126,6 +151,10 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
             <thead className="sticky top-0 bg-white">
               <tr className="border-b border-slate-200 text-xs text-slate-500 font-medium">
                 <th className="px-3 py-2 text-left">{entityType === 'campaign' ? 'Campaign' : 'Ad Group'}</th>
+                <th className="px-3 py-2 text-right">Spend</th>
+                <th className="px-3 py-2 text-right">ROAS</th>
+                <th className="px-3 py-2 text-right">%Profit</th>
+                <th className="px-3 py-2 text-right">Profit</th>
                 <th className="px-3 py-2 text-right">Old Budget</th>
                 <th className="px-3 py-2 text-right">New Budget</th>
                 <th className="px-3 py-2 w-8" />
@@ -134,44 +163,19 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
             <tbody className="divide-y divide-slate-100">
               {items.map((item) => {
                 const skipped = isSkipped(item);
-                const result = results[item.id];
-                const err = skipped ? null : rowError(item);
-                const suffix = item.budget_mode === TIKTOK_BUDGET_MODE_DAY ? '/day' : item.budget_mode === TIKTOK_BUDGET_MODE_TOTAL ? ' total' : '';
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50">
-                    <td className="px-3 py-2.5">
-                      <div className="font-medium text-slate-800 truncate max-w-[220px]" title={item.name}>{item.name}</div>
-                      <div className="text-xs text-slate-400 font-mono">{item.id}</div>
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-500">
-                      {skipped ? <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Skipped</span> : fmtUsd(item.budget) + suffix}
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      {skipped ? (
-                        <span className="text-xs text-slate-400">{entityType === 'campaign' ? 'budget set on ad groups' : 'no budget at this level'}</span>
-                      ) : (
-                        <div className="flex flex-col items-end gap-0.5">
-                          <div className="flex items-center gap-1">
-                            <span className="text-slate-400">$</span>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={amounts[item.id] ?? ''}
-                              onChange={(e) => setAmounts((a) => ({ ...a, [item.id]: sanitizeInput(e.target.value) }))}
-                              disabled={applying}
-                              className="w-28 px-2 py-1 border border-slate-300 rounded text-sm text-right text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 tabular-nums"
-                            />
-                          </div>
-                          {err && <span className="text-[10px] text-red-500">{err}</span>}
-                          {result && !result.ok && <span className="text-[10px] text-red-500 max-w-[200px] truncate" title={result.error}>{result.error}</span>}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 w-8 text-center">
-                      {result?.ok === true && <span className="text-emerald-600 text-xs">✓</span>}
-                      {result?.ok === false && <span className="text-red-600 text-xs">✗</span>}
-                    </td>
-                  </tr>
+                  <TiktokBulkBudgetRow
+                    key={item.id}
+                    item={item}
+                    entityType={entityType}
+                    skipped={skipped}
+                    metrics={metricsForVersion(item.id, item.metrics, selectedSnapshot)}
+                    value={amounts[item.id] ?? ''}
+                    error={skipped ? null : rowError(item)}
+                    result={results[item.id]}
+                    disabled={applying}
+                    onChange={(raw) => setAmounts((a) => ({ ...a, [item.id]: sanitizeInput(raw) }))}
+                  />
                 );
               })}
             </tbody>
@@ -187,7 +191,7 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
             disabled={applying || editable.length === 0 || invalidCount > 0}
             className="flex-1 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors font-medium"
           >
-            {applying ? 'Applying…' : `Apply All (${editable.length})`}
+            {applying ? 'Applying…' : editable.length === 1 ? 'Apply' : `Apply All (${editable.length})`}
           </button>
         </div>
       </div>

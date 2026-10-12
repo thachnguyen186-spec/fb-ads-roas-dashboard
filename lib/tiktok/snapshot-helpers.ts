@@ -41,3 +41,23 @@ export function buildSnapshotComparisons(
     } satisfies SnapshotComparison];
   });
 }
+
+/**
+ * Numeric sort value for a campaign under `sortCol`. Handles plain keys plus the snapshot keys
+ * `snap:<id>:<field>` / `delta:<id>:<field>` (same key scheme and null→0 rule as the FB hub).
+ * delta = (next-newer snapshot or live row) - snapshot.
+ */
+export function tiktokSortValue(c: MergedTiktokCampaign, sortCol: string, comparisons: SnapshotComparison[]): number {
+  if (!sortCol.startsWith('snap:') && !sortCol.startsWith('delta:')) {
+    return (c[sortCol as keyof MergedTiktokCampaign] as number | null) ?? 0;
+  }
+  const [type, compId, field] = sortCol.split(':');
+  const comp = comparisons.find((x) => x.id === compId);
+  const snapVal = (comp?.campaignMap.get(c.campaign_id)?.[field as keyof SnapshotRow] as number | null | undefined) ?? null;
+  if (snapVal == null) return 0;
+  if (type === 'snap') return snapVal;
+  const prevVal = comp?.prevCampaignMap
+    ? ((comp.prevCampaignMap.get(c.campaign_id)?.[field as keyof SnapshotRow] as number | null | undefined) ?? null)
+    : ((c[field as keyof MergedTiktokCampaign] as number | null) ?? null);
+  return prevVal != null ? prevVal - snapVal : 0;
+}

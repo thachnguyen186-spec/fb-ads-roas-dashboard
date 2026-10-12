@@ -91,6 +91,7 @@ export default function TiktokResultsPanel({
     () => displayedCampaigns.filter((c) => selectedIds.has(c.campaign_id)).map((c) => ({
       id: c.campaign_id, name: c.campaign_name, status: c.status, budget: c.budget,
       budget_mode: c.budget_mode, advertiser_id: c.advertiser_id, currency: c.currency,
+      metrics: { spend: c.spend, roas: c.roas, profit_pct: c.profit_pct, profit: c.profit },
     })),
     [displayedCampaigns, selectedIds],
   );
@@ -98,6 +99,7 @@ export default function TiktokResultsPanel({
     () => displayedAdgroups.filter((a) => selectedAdgroupIds.has(a.adgroup_id)).map((a) => ({
       id: a.adgroup_id, name: a.adgroup_name, status: a.status, budget: a.budget,
       budget_mode: a.budget_mode, advertiser_id: a.advertiser_id, currency: a.currency,
+      metrics: { spend: a.spend, roas: a.roas, profit_pct: a.profit_pct, profit: a.profit },
     })),
     [displayedAdgroups, selectedAdgroupIds],
   );
@@ -151,6 +153,7 @@ export default function TiktokResultsPanel({
           entityType="campaign"
           items={selectedCampaignItems}
           minDailyBudget={MIN_DAILY_BUDGET_CAMPAIGN}
+          snapshotComparisons={snapshotComparisons ?? []}
           onActionComplete={onCampaignActionComplete}
           onDeselect={() => onSelectionChange(new Set())}
         />
@@ -160,6 +163,7 @@ export default function TiktokResultsPanel({
           entityType="adgroup"
           items={selectedAdgroupItems}
           minDailyBudget={MIN_DAILY_BUDGET_ADGROUP}
+          snapshotComparisons={[]}
           onActionComplete={loadAdgroups}
           onDeselect={() => setSelectedAdgroupIds(new Set())}
         />
