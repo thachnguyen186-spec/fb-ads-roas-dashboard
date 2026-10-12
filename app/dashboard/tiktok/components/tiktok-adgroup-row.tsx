@@ -15,10 +15,11 @@ interface Props {
   savingBudget: boolean;
   showAdvertiserColumn: boolean;
   minDailyBudget: number;
+  readOnly: boolean;
 }
 
 export default function TiktokAdgroupRow({
-  adgroup: a, isSelected, onToggle, onEditBudget, savingBudget, showAdvertiserColumn, minDailyBudget,
+  adgroup: a, isSelected, onToggle, onEditBudget, savingBudget, showAdvertiserColumn, minDailyBudget, readOnly,
 }: Props) {
   return (
     <tr className={`group hover:bg-slate-50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}>
@@ -44,7 +45,7 @@ export default function TiktokAdgroupRow({
         <div className="flex items-center justify-end gap-1.5 tabular-nums text-slate-700">
           <span>{formatUsd(a.budget)}</span>
           <span className="text-slate-400 text-xs">{a.budget_mode === TIKTOK_BUDGET_MODE_DAY ? '/d' : a.budget_mode === TIKTOK_BUDGET_MODE_TOTAL ? ' lt' : ''}</span>
-          {savingBudget ? (
+          {readOnly ? null : savingBudget ? (
             <span className="text-slate-400 text-xs">…</span>
           ) : (
             <button

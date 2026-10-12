@@ -159,6 +159,67 @@ create table if not exists public.tiktok_advertiser_accounts (
 
 alter table public.tiktok_advertiser_accounts enable row level security;
 
+-- ─── TikTok Ads: PER-USER connections (plan 261012-1101) ─────────────────────
+-- Idempotent. Additive: safe to run while the old org-wide code is still deployed.
+-- RLS enabled with NO policies on both tables: service-role client only (tokens).
+create table if not exists public.tiktok_connections (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  access_token text not null,
+  refresh_token text,                 -- null for long-term Marketing API tokens
+  token_expires_at timestamptz,       -- null = never expires (only revocable)
+  connected_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.tiktok_connections enable row level security;
+
+create table if not exists public.tiktok_ad_accounts (
+  advertiser_id text not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  currency text not null default 'USD',
+  is_selected boolean not null default true,
+  primary key (advertiser_id, user_id)
+);
+create index if not exists tiktok_ad_accounts_user_id_idx on public.tiktok_ad_accounts (user_id);
+alter table public.tiktok_ad_accounts enable row level security;
+
+-- One-time data move: org-wide singleton -> connected_by's personal rows. Re-runnable.
+do $$
+declare v_owner uuid;
+begin
+  if to_regclass('public.tiktok_connection') is null then
+    raise notice 'tiktok_connection not present - nothing to migrate';
+    return;
+  end if;
+  -- Durable run-once marker (old code ignores the column): re-running this file must not
+  -- resurrect a token the admin later disconnected, or advertiser rows a sync removed.
+  execute 'alter table public.tiktok_connection add column if not exists migrated_per_user_at timestamptz';
+  if exists (select 1 from public.tiktok_connection where id and migrated_per_user_at is not null) then
+    raise notice 'tiktok_connection already migrated - skipped';
+    return;
+  end if;
+  select connected_by into v_owner from public.tiktok_connection
+   where id and access_token is not null;
+  if v_owner is null then
+    raise notice 'No singleton token or connected_by is null - skipped (admin reconnects)';
+    return;
+  end if;
+  insert into public.tiktok_connections (user_id, access_token, refresh_token, token_expires_at, connected_at, updated_at)
+  -- No refresh_token = long-term token; the old row's expiry was a guessed 24h, so drop it.
+  select v_owner, access_token, refresh_token,
+         case when refresh_token is null then null else token_expires_at end,
+         coalesce(connected_at, now()), coalesce(updated_at, now())
+    from public.tiktok_connection where id
+  on conflict (user_id) do nothing;
+  if to_regclass('public.tiktok_advertiser_accounts') is not null then
+    insert into public.tiktok_ad_accounts (advertiser_id, user_id, name, currency, is_selected)
+    select advertiser_id, v_owner, name, currency, is_selected
+      from public.tiktok_advertiser_accounts
+    on conflict (advertiser_id, user_id) do nothing;
+  end if;
+  update public.tiktok_connection set migrated_per_user_at = now() where id;
+end $$;
+
 -- ─── account_owners: person-in-charge / department mapping for Accounting Export ──
 -- Org-wide, service-role-only (mirrors tiktok_advertiser_accounts): RLS enabled with
 -- NO policies — only createServiceClient() reads/writes; the API route enforces access.

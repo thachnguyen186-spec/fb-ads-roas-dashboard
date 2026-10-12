@@ -1,14 +1,13 @@
 /**
  * PATCH /api/tiktok/adgroups/[adgroupId]
- * Same shape as /api/tiktok/campaigns/[campaignId] at ad-group level — role gate, advertiser
- * + ownership validation, DAILY-mode-only budget minimum (Phase 4 Red Team Fixes).
+ * Same shape as /api/tiktok/campaigns/[campaignId] at ad-group level — own selected advertiser
+ * + own token (any role), ad-group ownership check, DAILY-mode-only budget minimum.
  */
 
 import { NextRequest } from 'next/server';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth-guards';
+import { createClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
+import { resolveOwnAdvertiserToken } from '@/lib/tiktok/control-guard';
 import { verifyAdGroupOwnership } from '@/lib/tiktok/campaigns';
 import { updateAdGroupStatus, updateAdGroupBudget } from '@/lib/tiktok/campaign-actions';
 import { MIN_DAILY_BUDGET_ADGROUP, TIKTOK_BUDGET_MODE_DAY } from '@/lib/tiktok/budget-limits';
@@ -27,9 +26,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  const denied = await requireRole(user.id, ['admin', 'leader']);
-  if (denied) return denied;
-
   let body: ActionBody;
   try {
     body = await request.json() as ActionBody;
@@ -38,22 +34,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
   if (!body.advertiser_id) return errorResponse('advertiser_id is required', 400);
 
-  const service = createServiceClient();
-  const { data: account } = await service
-    .from('tiktok_advertiser_accounts')
-    .select('advertiser_id')
-    .eq('advertiser_id', body.advertiser_id)
-    .eq('is_selected', true)
-    .maybeSingle();
-  if (!account) return errorResponse('Unknown or unselected advertiser_id', 403);
-
-  let token: string;
-  try {
-    token = await getValidAccessToken();
-  } catch (err) {
-    const { status, message } = describeAuthError(err);
-    return errorResponse(message, status);
-  }
+  const token = await resolveOwnAdvertiserToken(user.id, body.advertiser_id);
+  if (token instanceof Response) return token;
 
   const owned = await verifyAdGroupOwnership(token, body.advertiser_id, adgroupId).catch(() => null);
   if (!owned) return errorResponse('Ad group does not belong to the supplied advertiser_id', 403);

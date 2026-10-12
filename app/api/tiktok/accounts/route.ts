@@ -1,17 +1,18 @@
 /**
- * GET   /api/tiktok/accounts  → connection status ({connected, connected_at}, never token
- *                                fields) + advertiser account list. admin|leader.
- * PATCH /api/tiktok/accounts  → {advertiser_id, is_selected} toggle (admin|leader, rejects
- *                                is_selected=true for non-USD — Plan 1 is USD-only) OR
- *                                {action:'disconnect'} (admin-only, always clears both tables).
+ * Per-user TikTok connection. Any authenticated role; every query is scoped to the
+ * requester's user_id (never another user's rows, never token fields).
+ *
+ * GET   /api/tiktok/accounts  → {connected, connected_at, accounts} for the requester.
+ * PATCH /api/tiktok/accounts  → {advertiser_id, is_selected} toggle (rejects is_selected=true
+ *                                for non-USD — Plan 1 is USD-only), OR {action:'resync_names'},
+ *                                OR {action:'disconnect'} (clears the requester's rows + connection).
  */
 
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth-guards';
 import { errorResponse } from '@/lib/utils';
 import { getConnectionStatus, deleteConnection, getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
-import { fetchAdvertiserInfo } from '@/lib/tiktok/advertiser-info';
+import { resyncUserAdvertiserNames } from '@/lib/tiktok/advertiser-sync';
 import type { TiktokAdvertiserAccount } from '@/lib/types';
 
 export async function GET() {
@@ -19,13 +20,10 @@ export async function GET() {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  const denied = await requireRole(user.id, ['admin', 'leader']);
-  if (denied) return denied;
-
   const service = createServiceClient();
   const [status, accountsRes] = await Promise.all([
-    getConnectionStatus(),
-    service.from('tiktok_advertiser_accounts').select('advertiser_id,name,currency,is_selected'),
+    getConnectionStatus(user.id),
+    service.from('tiktok_ad_accounts').select('advertiser_id,name,currency,is_selected').eq('user_id', user.id),
   ]);
 
   return Response.json({
@@ -41,59 +39,38 @@ interface PatchBody {
   is_selected?: boolean;
 }
 
-/**
- * Refreshes name/currency for every already-connected advertiser using the stored org token —
- * no OAuth round-trip. Exists because a past chunking bug (fixed in the sync path) left many
- * advertiser rows with name == advertiser_id baked in; this lets an admin/leader correct that
- * without disconnecting, which would also wipe every is_selected choice.
- */
-async function handleResyncNames(): Promise<Response> {
+/** Refreshes name/currency for the requester's advertisers with their stored token (no OAuth round-trip). */
+async function handleResyncNames(userId: string): Promise<Response> {
   let token: string;
   try {
-    token = await getValidAccessToken();
+    token = await getValidAccessToken(userId);
   } catch (err) {
     const { status, message } = describeAuthError(err);
     return errorResponse(message, status);
   }
 
-  const service = createServiceClient();
-  const { data, error: selectError } = await service.from('tiktok_advertiser_accounts').select('advertiser_id,currency');
-  if (selectError) return errorResponse(selectError.message, 500);
-  const existing = (data ?? []) as { advertiser_id: string; currency: string }[];
-  if (existing.length === 0) return Response.json({ updated: 0, total: 0, errors: [] });
-
-  const { info, errors } = await fetchAdvertiserInfo(existing.map((r) => r.advertiser_id), token);
-  // Only rows TikTok actually resolved are written — a failed lookup must never overwrite a
-  // stored name with the raw id, or stamp 'USD' over a real currency (which would bypass the
-  // USD-only selection gate). Name-only fallback results keep the stored currency.
-  const rows = existing
-    .filter((r) => info.has(r.advertiser_id))
-    .map((r) => {
-      const resolved = info.get(r.advertiser_id)!;
-      return { advertiser_id: r.advertiser_id, name: resolved.name, currency: resolved.currency ?? r.currency };
-    });
-  if (rows.length > 0) {
-    // is_selected intentionally omitted — existing rows keep their current selection.
-    const { error } = await service.from('tiktok_advertiser_accounts').upsert(rows, { onConflict: 'advertiser_id' });
-    if (error) return errorResponse(error.message, 500);
+  try {
+    return Response.json(await resyncUserAdvertiserNames(userId, token));
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : 'Resync failed', 500);
   }
-
-  return Response.json({ updated: rows.length, total: existing.length, errors });
 }
 
 /**
- * Disconnects the org-wide connection. TikTok's Business API does not document a token
- * revocation/deauthorization endpoint (research report §1/§2 — none found), so this only
- * removes the local record; the UI text on the Settings card must say the token stays
- * valid at TikTok until natural expiry (see tiktok-connection-card.tsx).
+ * Disconnects the requester's own connection. TikTok's Business API documents no token
+ * revocation endpoint, so this only removes local records; the token stays valid at TikTok
+ * until natural expiry (the Settings card says so).
  */
-async function handleDisconnect(): Promise<Response> {
+async function handleDisconnect(userId: string): Promise<Response> {
   const service = createServiceClient();
-  // Advertiser rows deleted first: if this step fails, the connection stays intact ("still
-  // connected") rather than landing on the more confusing "disconnected but rows orphaned".
-  const { error } = await service.from('tiktok_advertiser_accounts').delete().neq('advertiser_id', '');
+  // Rows deleted first: if this fails, the connection stays intact rather than orphaning rows.
+  const { error } = await service.from('tiktok_ad_accounts').delete().eq('user_id', userId);
   if (error) return errorResponse(error.message, 500);
-  await deleteConnection();
+  try {
+    await deleteConnection(userId);
+  } catch (err) {
+    return errorResponse(err instanceof Error ? err.message : 'Disconnect failed', 500);
+  }
   return Response.json({ success: true, revoked_at_tiktok: false });
 }
 
@@ -109,18 +86,8 @@ export async function PATCH(request: NextRequest) {
     return errorResponse('Invalid JSON body', 400);
   }
 
-  if (body.action === 'disconnect') {
-    const denied = await requireRole(user.id, ['admin']);
-    if (denied) return denied;
-    return handleDisconnect();
-  }
-
-  const denied = await requireRole(user.id, ['admin', 'leader']);
-  if (denied) return denied;
-
-  if (body.action === 'resync_names') {
-    return handleResyncNames();
-  }
+  if (body.action === 'disconnect') return handleDisconnect(user.id);
+  if (body.action === 'resync_names') return handleResyncNames(user.id);
 
   if (typeof body.advertiser_id !== 'string' || typeof body.is_selected !== 'boolean') {
     return errorResponse('advertiser_id (string) and is_selected (boolean) required', 400);
@@ -129,9 +96,10 @@ export async function PATCH(request: NextRequest) {
   const service = createServiceClient();
 
   const { data: account } = await service
-    .from('tiktok_advertiser_accounts')
+    .from('tiktok_ad_accounts')
     .select('currency')
     .eq('advertiser_id', body.advertiser_id)
+    .eq('user_id', user.id)
     .maybeSingle();
   if (!account) return errorResponse('Advertiser account not found', 404);
 
@@ -140,9 +108,10 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { error } = await service
-    .from('tiktok_advertiser_accounts')
+    .from('tiktok_ad_accounts')
     .update({ is_selected: body.is_selected })
-    .eq('advertiser_id', body.advertiser_id);
+    .eq('advertiser_id', body.advertiser_id)
+    .eq('user_id', user.id);
   if (error) return errorResponse(error.message, 500);
 
   return Response.json({ success: true });

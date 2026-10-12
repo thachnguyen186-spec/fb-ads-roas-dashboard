@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { TiktokAdvertiserAccount } from '@/lib/types';
+import type { TiktokAdvertiserAccount, UserRole } from '@/lib/types';
 
 interface TiktokConnectionCardProps {
-  /** Guaranteed 'admin' or 'leader' by the parent — staff never renders this card. */
-  role: 'admin' | 'leader';
+  /** Only gates the admin-facing callback-URL hint; connect/disconnect are available to every role. */
+  role: UserRole;
 }
 
 type Banner = { type: 'success' | 'error'; message: string } | null;
@@ -100,7 +100,7 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
 
   async function handleDisconnect() {
     const confirmed = window.confirm(
-      'Disconnect TikTok? This removes the org-wide connection and every advertiser selection. ' +
+      'Disconnect TikTok? This removes YOUR connection and advertiser selections. ' +
       'The token stays valid at TikTok until it naturally expires — revoke it from TikTok Business Center if compromised.',
     );
     if (!confirmed) return;
@@ -132,7 +132,7 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
       <div>
         <h2 className="font-semibold text-slate-900">TikTok Ads Connection</h2>
         <p className="text-xs text-slate-500 mt-1">
-          Org-wide connection — one admin authorizes once, everyone shares the same advertiser accounts.
+          Your personal TikTok connection. Accounts you authorize appear on your TikTok dashboard (visible to your leader/admin).
         </p>
       </div>
 
@@ -147,20 +147,18 @@ export default function TiktokConnectionCard({ role }: TiktokConnectionCardProps
             {connected ? `Connected${connectedAt ? ` since ${new Date(connectedAt).toLocaleString()}` : ''}` : 'Not connected'}
           </span>
         </div>
-        {role === 'admin' && (
-          connected ? (
-            <button
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-              className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
-            >
-              {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-            </button>
-          ) : (
-            <a href="/api/tiktok/oauth/start" className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors">
-              Connect TikTok
-            </a>
-          )
+        {connected ? (
+          <button
+            onClick={handleDisconnect}
+            disabled={disconnecting}
+            className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+          >
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        ) : (
+          <a href="/api/tiktok/oauth/start" className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+            Connect TikTok
+          </a>
         )}
       </div>
 

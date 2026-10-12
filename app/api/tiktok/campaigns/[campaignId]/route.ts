@@ -1,16 +1,13 @@
 /**
  * PATCH /api/tiktok/campaigns/[campaignId]
- * Executes pause/enable/budget actions against TikTok's shared org-wide credential.
- * Role-gated admin|leader — unlike FB's per-user token, TikTok control acts on every
- * connected advertiser account, so an authenticated-only gate would let any staff account
- * pause or re-budget the entire org's spend (Phase 4 Red Team Fix #1).
+ * Executes pause/enable/budget actions. Any role may act, but only on advertisers they
+ * connected + selected, using their own token (mirrors FB own-token rule; viewAs ignored).
  */
 
 import { NextRequest } from 'next/server';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth-guards';
+import { createClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
-import { getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
+import { resolveOwnAdvertiserToken } from '@/lib/tiktok/control-guard';
 import { verifyCampaignOwnership } from '@/lib/tiktok/campaigns';
 import { updateCampaignStatus, updateCampaignBudget } from '@/lib/tiktok/campaign-actions';
 import { MIN_DAILY_BUDGET_CAMPAIGN, TIKTOK_BUDGET_MODE_DAY } from '@/lib/tiktok/budget-limits';
@@ -29,9 +26,6 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  const denied = await requireRole(user.id, ['admin', 'leader']);
-  if (denied) return denied;
-
   let body: ActionBody;
   try {
     body = await request.json() as ActionBody;
@@ -40,22 +34,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
   if (!body.advertiser_id) return errorResponse('advertiser_id is required', 400);
 
-  const service = createServiceClient();
-  const { data: account } = await service
-    .from('tiktok_advertiser_accounts')
-    .select('advertiser_id')
-    .eq('advertiser_id', body.advertiser_id)
-    .eq('is_selected', true)
-    .maybeSingle();
-  if (!account) return errorResponse('Unknown or unselected advertiser_id', 403);
-
-  let token: string;
-  try {
-    token = await getValidAccessToken();
-  } catch (err) {
-    const { status, message } = describeAuthError(err);
-    return errorResponse(message, status);
-  }
+  const token = await resolveOwnAdvertiserToken(user.id, body.advertiser_id);
+  if (token instanceof Response) return token;
 
   const owned = await verifyCampaignOwnership(token, body.advertiser_id, campaignId).catch(() => null);
   if (!owned) return errorResponse('Campaign does not belong to the supplied advertiser_id', 403);

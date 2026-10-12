@@ -1,17 +1,18 @@
 /**
  * GET /api/tiktok/campaigns
- * Fetches today's TikTok campaigns across every selected advertiser account, overlaid with
- * today's spend from the Reporting API. Read access is intentionally open to all authenticated
- * users (Phase 3 Key Insights) — write/control actions are role-gated separately (Phase 4).
+ * Fetches today's TikTok campaigns across the target user's selected advertiser accounts,
+ * overlaid with today's spend from the Reporting API. Target = ?viewAs (must pass canViewAs)
+ * or the requester. Read is open to all roles; control routes use the requester's own token.
  *
- * getValidAccessToken() is called ONCE and reused for every advertiser (never per-advertiser —
- * Phase 1 fan-out contract). Advertisers are processed in small concurrent batches, not a single
+ * getValidAccessToken(target) is called ONCE and reused for every advertiser (never
+ * per-advertiser — fan-out contract). Advertisers are processed in small concurrent batches, not a single
  * unbounded Promise.all, to stay under TikTok's rate limit (Phase 1 Risk Assessment).
  */
 
 import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
+import { canViewAs } from '@/lib/auth-guards';
 import { getValidAccessToken, describeAuthError } from '@/lib/tiktok/tiktok-connection';
 import { fetchCampaigns, fetchAdGroups } from '@/lib/tiktok/campaigns';
 import { fetchTodaySpend } from '@/lib/tiktok/reporting';
@@ -44,19 +45,35 @@ export async function GET(request: NextRequest) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
+  // viewAs: leader/admin read another user's accounts with THAT user's token (read-only).
+  const viewAs = request.nextUrl.searchParams.get('viewAs');
+  const isViewAs = !!viewAs && viewAs !== user.id;
+  const target = isViewAs ? viewAs : user.id;
+  if (isViewAs) {
+    const denied = await canViewAs(user.id, target);
+    if (denied) return denied;
+  }
+
   const service = createServiceClient();
-  const { data } = await service
-    .from('tiktok_advertiser_accounts')
+  const { data, error: dbError } = await service
+    .from('tiktok_ad_accounts')
     .select('advertiser_id,name,currency,is_selected')
+    .eq('user_id', target)
     .eq('is_selected', true);
+  if (dbError) return errorResponse('Failed to load TikTok advertiser accounts', 500);
   const accounts = (data ?? []) as TiktokAdvertiserAccount[];
   if (accounts.length === 0) {
-    return errorResponse('No TikTok advertiser accounts selected. Connect in Settings.', 400);
+    return errorResponse(
+      isViewAs
+        ? 'This user has no selected TikTok advertiser accounts.'
+        : 'No TikTok advertiser accounts selected. Connect in Settings.',
+      400,
+    );
   }
 
   let token: string;
   try {
-    token = await getValidAccessToken();
+    token = await getValidAccessToken(target);
   } catch (err) {
     const { status, message } = describeAuthError(err);
     return errorResponse(message, status);

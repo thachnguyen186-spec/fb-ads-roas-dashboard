@@ -1,18 +1,17 @@
 /**
  * GET /api/tiktok/oauth/callback
- * Admin-only. Validates the CSRF `state` cookie, exchanges the auth code for tokens,
- * saves the singleton connection, and syncs `tiktok_advertiser_accounts` — preserving
- * is_selected for advertisers already present, removing stale rows no longer granted.
+ * Any authenticated user (per-user connection). Validates the CSRF `state` cookie (bound to
+ * the user who started the flow), exchanges the auth code for tokens, saves that user's
+ * connection, and syncs their `tiktok_ad_accounts` rows.
  */
 
 import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth-guards';
+import { createClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
 import { exchangeAuthCode, saveConnection, type TiktokTokenExchangeData } from '@/lib/tiktok/tiktok-connection';
-import { fetchAdvertiserInfo } from '@/lib/tiktok/advertiser-info';
-import { TIKTOK_OAUTH_STATE_COOKIE } from '@/lib/tiktok/oauth-state';
+import { syncUserAdvertisers } from '@/lib/tiktok/advertiser-sync';
+import { TIKTOK_OAUTH_STATE_COOKIE, matchesOauthState } from '@/lib/tiktok/oauth-state';
 
 /**
  * Scope ID(s) required for campaign/ad-group read+write + reporting (research report
@@ -21,45 +20,6 @@ import { TIKTOK_OAUTH_STATE_COOKIE } from '@/lib/tiktok/oauth-state';
  * than blocking every connection attempt on an unverified guess.
  */
 const REQUIRED_SCOPES: number[] = [];
-
-/**
- * Upserts new/existing advertisers (never touching is_selected) and deletes rows no longer
- * granted. An empty advertiserIds is treated as a failed sync (throws) rather than "TikTok
- * says you now have zero accounts" — a scope hiccup or API glitch must not silently wipe
- * every previously-selected advertiser row.
- */
-async function syncAdvertiserAccounts(advertiserIds: string[], token: string): Promise<void> {
-  if (advertiserIds.length === 0) {
-    throw new Error('TikTok authorization returned zero advertiser accounts.');
-  }
-
-  const service = createServiceClient();
-  const { info: infoMap } = await fetchAdvertiserInfo(advertiserIds, token);
-  const { data: storedRows } = await service.from('tiktok_advertiser_accounts').select('advertiser_id,name,currency');
-  const stored = new Map(
-    ((storedRows ?? []) as { advertiser_id: string; name: string; currency: string }[]).map((r) => [r.advertiser_id, r]),
-  );
-
-  // Unresolved lookups keep the stored name/currency — never overwrite a real currency with the
-  // 'USD' fallback (that would bypass the USD-only selection gate). 'USD' only seeds brand-new rows.
-  const rows = advertiserIds.map((id) => ({
-    advertiser_id: id,
-    name: infoMap.get(id)?.name ?? stored.get(id)?.name ?? id,
-    currency: infoMap.get(id)?.currency ?? stored.get(id)?.currency ?? 'USD',
-  }));
-  // is_selected is intentionally omitted: existing rows keep their current selection,
-  // new rows get the column default (true).
-  const { error } = await service.from('tiktok_advertiser_accounts').upsert(rows, { onConflict: 'advertiser_id' });
-  if (error) throw new Error(error.message);
-
-  const { data: existing } = await service.from('tiktok_advertiser_accounts').select('advertiser_id');
-  const staleIds = ((existing ?? []) as { advertiser_id: string }[])
-    .map((r) => r.advertiser_id)
-    .filter((id) => !advertiserIds.includes(id));
-  if (staleIds.length > 0) {
-    await service.from('tiktok_advertiser_accounts').delete().in('advertiser_id', staleIds);
-  }
-}
 
 function hasRequiredScopes(granted: number[] | undefined): boolean {
   if (REQUIRED_SCOPES.length === 0) return true;
@@ -72,9 +32,6 @@ export async function GET(request: NextRequest) {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
 
-  const denied = await requireRole(user.id, ['admin']);
-  if (denied) return denied;
-
   const settingsUrl = (status: 'connected' | 'error', reason?: string, detail?: string) => {
     const url = new URL('/settings', request.url);
     url.searchParams.set('tiktok', status);
@@ -84,7 +41,7 @@ export async function GET(request: NextRequest) {
     return url.toString();
   };
 
-  /** Logs the real error to Vercel's function logs (admin-only route — safe to log verbatim)
+  /** Logs the real error to Vercel's function logs (error details go only to the same user — safe to log verbatim)
    * and returns a short message safe to surface in the Settings UI. */
   function logAndDescribe(step: string, err: unknown): string {
     console.error(`[tiktok oauth callback] ${step} failed:`, err);
@@ -98,9 +55,9 @@ export async function GET(request: NextRequest) {
   cookieStore.delete(TIKTOK_OAUTH_STATE_COOKIE);
 
   // CSRF check first: a missing/mismatched state is a real tampering/expiry signal regardless
-  // of auth_code. Only once state is confirmed valid does a missing auth_code mean the admin
+  // of auth_code. Only once state is confirmed valid does a missing auth_code mean the user
   // denied/cancelled authorization at the TikTok portal (distinct, less alarming UX message).
-  if (!state || !cookieState || state !== cookieState) {
+  if (!matchesOauthState(cookieState, user.id, state)) {
     return Response.redirect(settingsUrl('error', 'state'), 302);
   }
   if (!authCode) {
@@ -125,11 +82,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    await syncAdvertiserAccounts(tokenData.advertiser_ids ?? [], tokenData.access_token);
+    await syncUserAdvertisers(user.id, tokenData.advertiser_ids ?? [], tokenData.access_token);
   } catch (err) {
-    // Connection is already live at this point — don't send the admin back through a fresh
+    // Connection is already live at this point — don't send the user back through a fresh
     // OAuth round-trip; tell them the account list needs a retry instead.
-    return Response.redirect(settingsUrl('connected', 'sync_failed', logAndDescribe('syncAdvertiserAccounts', err)), 302);
+    return Response.redirect(settingsUrl('connected', 'sync_failed', logAndDescribe('syncUserAdvertisers', err)), 302);
   }
 
   return Response.redirect(settingsUrl('connected'), 302);

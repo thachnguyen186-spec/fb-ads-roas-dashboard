@@ -220,7 +220,7 @@ export default function SettingsPage() {
             )}
 
             {/* TikTok Ads Connection */}
-            {(role === 'admin' || role === 'leader') && <TiktokConnectionCard role={role} />}
+            <TiktokConnectionCard role={role} />
 
             {/* Save */}
             <div className="space-y-2">

@@ -1,7 +1,7 @@
 /**
- * TikTok org-wide OAuth connection lifecycle (singleton `tiktok_connection` row).
- * This is the ONLY module that reads/writes `tiktok_connection` — other lib/tiktok/*
- * modules receive a bare access token + advertiser_id and never touch the DB.
+ * TikTok per-user OAuth connection lifecycle (`tiktok_connections`, one row per user).
+ * This is the ONLY module that reads/writes `tiktok_connections` — other lib/tiktok/*
+ * modules receive a bare access token + advertiser_id and never touch the token table.
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
@@ -11,11 +11,12 @@ import { tiktokPost } from './tiktok-client';
 const REFRESH_BUFFER_MS = 30 * 60 * 1000;
 
 interface TiktokConnectionRow {
-  id: boolean;
+  user_id: string;
   access_token: string;
-  refresh_token: string;
-  token_expires_at: string;
-  connected_by: string | null;
+  /** Null for Marketing API advertiser tokens — they are long-term and come without one. */
+  refresh_token: string | null;
+  /** Null = long-term token that never expires (only revocable). */
+  token_expires_at: string | null;
   connected_at: string;
   updated_at: string;
 }
@@ -24,70 +25,76 @@ export interface TiktokTokenExchangeData {
   access_token: string;
   /** Not always rotated by TikTok, but persisted whenever present — see writeTokens(). */
   refresh_token?: string;
-  access_token_expire_in: number;
+  /** Absent for long-term advertiser tokens (Marketing API v1.3) — see writeTokens(). */
+  access_token_expire_in?: number;
   advertiser_ids: string[];
   scope: number[];
 }
 
 /** Internal-only: full row including tokens. Callers outside lib/tiktok/* must never forward this. */
-export async function getConnection(): Promise<TiktokConnectionRow | null> {
+export async function getConnection(userId: string): Promise<TiktokConnectionRow | null> {
   const service = createServiceClient();
-  const { data } = await service
-    .from('tiktok_connection')
+  const { data, error } = await service
+    .from('tiktok_connections')
     .select('*')
-    .eq('id', true)
+    .eq('user_id', userId)
     .maybeSingle();
+  // Surface DB errors instead of misreporting them as "not connected".
+  if (error) throw new Error(`Failed to load TikTok connection: ${error.message}`);
   return (data as TiktokConnectionRow | null) ?? null;
 }
 
 /** Safe for API responses — never selects access_token/refresh_token. */
-export async function getConnectionStatus(): Promise<{ connected: boolean; connected_at: string | null }> {
+export async function getConnectionStatus(userId: string): Promise<{ connected: boolean; connected_at: string | null }> {
   const service = createServiceClient();
   const { data } = await service
-    .from('tiktok_connection')
+    .from('tiktok_connections')
     .select('connected_at')
-    .eq('id', true)
+    .eq('user_id', userId)
     .maybeSingle();
   const row = data as { connected_at: string | null } | null;
   return { connected: !!row, connected_at: row?.connected_at ?? null };
 }
 
+/** Subset of `userIds` that have a TikTok connection. Selects user_id only — safe for loaders. */
+export async function listConnectedUserIds(userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const service = createServiceClient();
+  const { data, error } = await service.from('tiktok_connections').select('user_id').in('user_id', userIds);
+  if (error) throw new Error(`Failed to load TikTok connections: ${error.message}`);
+  return ((data ?? []) as { user_id: string }[]).map((r) => r.user_id);
+}
+
+/** Null expiry = long-term token, never "expiring". */
 export function isTokenExpiringSoon(expiresAt: string | null): boolean {
-  if (!expiresAt) return true;
+  if (!expiresAt) return false;
   return new Date(expiresAt).getTime() - Date.now() < REFRESH_BUFFER_MS;
 }
 
-/** TikTok's documented access-token lifetime (research report, §1) — used when a live
- * response omits or malforms access_token_expire_in, so a shape surprise degrades to a
- * safe default instead of crashing the whole connection (isTokenExpiringSoon will still
- * trigger a refresh well before any real expiry, so an inaccurate fallback is self-healing). */
-const DEFAULT_TOKEN_LIFETIME_SECONDS = 86400;
-
-/** Persists tokens from an exchange/refresh response. Always writes refresh_token defensively when present. */
-async function writeTokens(
-  data: TiktokTokenExchangeData,
-  connectedBy: string | null,
-  connectedAt: string | null,
-): Promise<void> {
+/** Persists tokens from an exchange/refresh response. Always writes refresh_token defensively when present.
+ * Marketing API advertiser tokens are long-term (no access_token_expire_in, no refresh_token —
+ * TikTok docs "Obtain a long-term access token"), so a missing expiry is stored as null rather
+ * than guessed: a guessed 24h expiry made us "refresh" a token that has no refresh flow,
+ * which TikTok rejects ("auth_code: Missing data for required field"). */
+async function writeTokens(data: TiktokTokenExchangeData, userId: string, connectedAt: string | null, freshConnect = false): Promise<void> {
   const service = createServiceClient();
   const expireInSeconds = Number(data.access_token_expire_in);
-  if (!Number.isFinite(expireInSeconds)) {
-    // Never log `data` itself — it contains access_token/refresh_token. Field names only.
-    console.warn('[tiktok] access_token_expire_in missing/invalid, defaulting to 24h. Response keys:', Object.keys(data));
-  }
-  const safeExpireInSeconds = Number.isFinite(expireInSeconds) ? expireInSeconds : DEFAULT_TOKEN_LIFETIME_SECONDS;
+  const tokenExpiresAt = data.access_token_expire_in != null && Number.isFinite(expireInSeconds)
+    ? new Date(Date.now() + expireInSeconds * 1000).toISOString()
+    : null;
 
   const row: Record<string, unknown> = {
-    id: true,
+    user_id: userId,
     access_token: data.access_token,
-    token_expires_at: new Date(Date.now() + safeExpireInSeconds * 1000).toISOString(),
+    token_expires_at: tokenExpiresAt,
     updated_at: new Date().toISOString(),
   };
   if (data.refresh_token) row.refresh_token = data.refresh_token;
-  if (connectedBy) row.connected_by = connectedBy;
+  // Fresh connect: clear any old refresh_token so it can't pair with the new access token.
+  else if (freshConnect) row.refresh_token = null;
   if (connectedAt) row.connected_at = connectedAt;
 
-  const { error } = await service.from('tiktok_connection').upsert(row, { onConflict: 'id' });
+  const { error } = await service.from('tiktok_connections').upsert(row, { onConflict: 'user_id' });
   if (error) throw new Error(`Failed to save TikTok connection: ${error.message}`);
 }
 
@@ -105,15 +112,15 @@ export async function exchangeAuthCode(authCode: string): Promise<TiktokTokenExc
   }, '');
 }
 
-/** Saves a fresh connection after a successful OAuth exchange. connected_by/connected_at reset to now. */
-export async function saveConnection(data: TiktokTokenExchangeData, connectedBy: string): Promise<void> {
-  await writeTokens(data, connectedBy, new Date().toISOString());
+/** Saves the user's fresh connection after a successful OAuth exchange. connected_at resets to now. */
+export async function saveConnection(data: TiktokTokenExchangeData, userId: string): Promise<void> {
+  await writeTokens(data, userId, new Date().toISOString(), true);
 }
 
-/** Deletes the singleton connection row. Does not touch tiktok_advertiser_accounts — caller's responsibility. */
-export async function deleteConnection(): Promise<void> {
+/** Deletes the user's connection row. Does not touch tiktok_ad_accounts — caller's responsibility. */
+export async function deleteConnection(userId: string): Promise<void> {
   const service = createServiceClient();
-  const { error } = await service.from('tiktok_connection').delete().eq('id', true);
+  const { error } = await service.from('tiktok_connections').delete().eq('user_id', userId);
   if (error) throw new Error(`Failed to delete TikTok connection: ${error.message}`);
 }
 
@@ -137,9 +144,7 @@ export async function refreshAccessToken(conn: TiktokConnectionRow): Promise<str
       grant_type: 'refresh_token',
     }, '');
   } catch (err) {
-    // TikTok itself rejected the refresh — race guard: another concurrent request may have
-    // already refreshed successfully in the meantime.
-    const fresh = await getConnection();
+    const fresh = await getConnection(conn.user_id);
     if (fresh && fresh.updated_at !== conn.updated_at && !isTokenExpiringSoon(fresh.token_expires_at)) {
       return fresh.access_token;
     }
@@ -148,29 +153,27 @@ export async function refreshAccessToken(conn: TiktokConnectionRow): Promise<str
 
   // TikTok call succeeded — a failure persisting it is a transient DB error, not an invalid
   // refresh_token, so it must not be misdiagnosed as TIKTOK_RECONNECT_REQUIRED.
-  await writeTokens(data, conn.connected_by, conn.connected_at);
+  await writeTokens(data, conn.user_id, conn.connected_at);
   return data.access_token;
 }
 
 /**
- * Returns a valid access token, refreshing if needed.
- * Fan-out callers (Phase 3) MUST call this once per request and reuse the
- * token across all advertisers — never once per advertiser.
+ * Returns the user's valid access token, refreshing if needed.
+ * Fan-out callers MUST call this once per user per request and reuse the token across
+ * that user's advertisers — never once per advertiser.
  */
-export async function getValidAccessToken(): Promise<string> {
-  const conn = await getConnection();
+export async function getValidAccessToken(userId: string): Promise<string> {
+  const conn = await getConnection(userId);
   if (!conn) throw new Error('TIKTOK_NOT_CONNECTED');
-  if (isTokenExpiringSoon(conn.token_expires_at)) {
+  // No refresh_token = long-term advertiser token: nothing to refresh, use as-is.
+  if (conn.refresh_token && isTokenExpiringSoon(conn.token_expires_at)) {
     return refreshAccessToken(conn);
   }
   return conn.access_token;
 }
 
-/** Maps a getValidAccessToken() failure to an HTTP status + user-facing message. Surfaces the
- * real underlying cause of a refresh failure (attached via `cause` in refreshAccessToken)
- * instead of a static string, so a real bug (e.g. a bad refresh_token) is diagnosable from the
- * UI rather than just telling the admin to reconnect every time. Shared by every route that
- * calls getValidAccessToken() to avoid repeating this mapping three times. */
+/** Maps a getValidAccessToken() failure to an HTTP status + user-facing message, surfacing the
+ * real cause of a refresh failure (attached via `cause`) so bugs are diagnosable from the UI. */
 export function describeAuthError(err: unknown): { status: number; message: string } {
   const message = err instanceof Error ? err.message : String(err);
   if (message === 'TIKTOK_NOT_CONNECTED') {

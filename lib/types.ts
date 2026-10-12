@@ -218,12 +218,19 @@ export interface BudgetTarget {
 
 // ─── TikTok Ads ──────────────────────────────────────────────────────────────
 
-/** Org-wide TikTok advertiser account (from the OAuth token's advertiser_ids, enriched via /advertiser/info/) */
+/** Per-user TikTok advertiser account (from that user's OAuth token advertiser_ids, enriched via /advertiser/info/) */
 export interface TiktokAdvertiserAccount {
   advertiser_id: string;
   name: string;
   currency: string;       // e.g. 'USD' — Plan 1 restricts selection to USD-only accounts
   is_selected: boolean;
+}
+
+/** A visible user (self/team/all per role) who has a TikTok connection — dashboard staff picker entry. */
+export interface TiktokStaffMember {
+  id: string;
+  email: string;
+  accounts: TiktokAdvertiserAccount[];
 }
 
 /** Live TikTok campaign from /campaign/get/, overlaid with today's spend from /report/integrated/get/ */
@@ -305,7 +312,7 @@ export interface AccountingExportRow {
 export interface AccountOwnerEntry {
   account_id: string;
   platform: 'facebook' | 'tiktok';
-  account_name: string;      // joined from fb_ad_accounts/tiktok_advertiser_accounts
+  account_name: string;      // joined from fb_ad_accounts/tiktok_ad_accounts
   currency: string;
   owner_label: string;
   department_label: string;

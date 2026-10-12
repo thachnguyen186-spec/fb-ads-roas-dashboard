@@ -1,6 +1,6 @@
 /**
  * GET  /api/account-owners  → every account the requester may manage (FB scoped by
- *      getVisibleUserIds, TikTok all), left-joined with any existing owner_label/department_label.
+ *      getVisibleUserIds, TikTok likewise via tiktok_ad_accounts), left-joined with any existing owner_label/department_label.
  * PATCH /api/account-owners → upserts owner_label and/or department_label with a per-platform
  *      existence/scope check and an updated_by audit stamp. Admin/leader only — staff get 403.
  *      Owner and department are independent fields: a client may send either or both keys;
@@ -45,7 +45,7 @@ export async function GET() {
   const service = createServiceClient();
   const [fbRes, ttRes, ownersRes] = await Promise.all([
     service.from('fb_ad_accounts').select('account_id,name,currency').in('user_id', visibleIds),
-    service.from('tiktok_advertiser_accounts').select('advertiser_id,name,currency'),
+    service.from('tiktok_ad_accounts').select('advertiser_id,name,currency').in('user_id', visibleIds),
     service.from('account_owners').select('account_id,platform,owner_label,department_label'),
   ]);
 
@@ -58,6 +58,10 @@ export async function GET() {
   const fbByAccount = new Map<string, FbAccountRow>();
   for (const a of (fbRes.data ?? []) as FbAccountRow[]) fbByAccount.set(a.account_id, a);
 
+  // De-dupe TikTok advertisers — the same advertiser can be connected by multiple visible users.
+  const ttByAdvertiser = new Map<string, TtAccountRow>();
+  for (const a of (ttRes.data ?? []) as TtAccountRow[]) ttByAdvertiser.set(a.advertiser_id, a);
+
   const accounts: AccountOwnerEntry[] = [
     ...[...fbByAccount.values()].map((a) => ({
       account_id: a.account_id,
@@ -67,7 +71,7 @@ export async function GET() {
       owner_label: ownerMap.get(`facebook:${a.account_id}`)?.owner_label ?? '',
       department_label: ownerMap.get(`facebook:${a.account_id}`)?.department_label ?? '',
     })),
-    ...((ttRes.data ?? []) as TtAccountRow[]).map((a) => ({
+    ...[...ttByAdvertiser.values()].map((a) => ({
       account_id: a.advertiser_id,
       platform: 'tiktok' as const,
       account_name: a.name,
@@ -106,25 +110,14 @@ export async function PATCH(request: NextRequest) {
 
   const service = createServiceClient();
 
-  if (platform === 'facebook') {
-    const role = ((await getUserRole(user.id)) ?? 'staff') as UserRole;
-    const visibleIds = await resolveVisibleIds(user.id, role);
-    if (visibleIds instanceof Response) return visibleIds;
-    const { data } = await service
-      .from('fb_ad_accounts')
-      .select('account_id')
-      .eq('account_id', account_id)
-      .in('user_id', visibleIds)
-      .limit(1);
-    if (!data || data.length === 0) return errorResponse('Forbidden — account not in your visible set', 403);
-  } else {
-    const { data } = await service
-      .from('tiktok_advertiser_accounts')
-      .select('advertiser_id')
-      .eq('advertiser_id', account_id)
-      .limit(1);
-    if (!data || data.length === 0) return errorResponse('TikTok advertiser not found', 404);
-  }
+  const role = ((await getUserRole(user.id)) ?? 'staff') as UserRole;
+  const visibleIds = await resolveVisibleIds(user.id, role);
+  if (visibleIds instanceof Response) return visibleIds;
+  const scoped = platform === 'facebook'
+    ? service.from('fb_ad_accounts').select('account_id').eq('account_id', account_id).in('user_id', visibleIds).limit(1)
+    : service.from('tiktok_ad_accounts').select('advertiser_id').eq('advertiser_id', account_id).in('user_id', visibleIds).limit(1);
+  const { data } = await scoped;
+  if (!data || data.length === 0) return errorResponse('Forbidden — account not in your visible set', 403);
 
   // Atomic partial upsert via RPC — NULL means "leave untouched." A plain select-then-upsert
   // here would have a TOCTOU race between the two independent per-field PATCH calls the UI

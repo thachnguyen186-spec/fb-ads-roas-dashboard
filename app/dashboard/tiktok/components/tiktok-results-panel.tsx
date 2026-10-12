@@ -30,11 +30,15 @@ interface Props {
   showAdvertiserColumn: boolean;
   adjustRows: AdjustRow[];
   onCampaignActionComplete: () => void;
+  /** Viewed user's id (leader/admin viewAs); undefined = own accounts. */
+  viewAs?: string;
+  /** True while viewing another user: control routes only work on own advertisers. */
+  readOnly: boolean;
 }
 
 export default function TiktokResultsPanel({
   allCampaigns, displayedCampaigns, sortCol, sortDir, onSort, selectedIds, onSelectionChange,
-  showAdvertiserColumn, adjustRows, onCampaignActionComplete,
+  showAdvertiserColumn, adjustRows, onCampaignActionComplete, viewAs, readOnly,
 }: Props) {
   const [showAdgroupOnly, setShowAdgroupOnly] = useState(false);
   const [rawAdgroups, setRawAdgroups] = useState<MergedTiktokAdGroup[]>([]);
@@ -46,7 +50,10 @@ export default function TiktokResultsPanel({
     setLoadingAdgroups(true);
     setAdgroupError('');
     try {
-      const res = await fetch('/api/tiktok/campaigns?level=adgroup');
+      const url = new URL('/api/tiktok/campaigns', window.location.origin);
+      url.searchParams.set('level', 'adgroup');
+      if (viewAs) url.searchParams.set('viewAs', viewAs);
+      const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch TikTok ad groups');
       const cohortMap = aggregateByAdSetId(adjustRows);
@@ -130,12 +137,13 @@ export default function TiktokResultsPanel({
               showAdvertiserColumn={showAdvertiserColumn}
               minDailyBudget={MIN_DAILY_BUDGET_ADGROUP}
               onBudgetUpdated={loadAdgroups}
+              readOnly={readOnly}
             />
           )
         )}
       </div>
 
-      {!showAdgroupOnly && selectedCampaignItems.length > 0 && (
+      {!readOnly && !showAdgroupOnly && selectedCampaignItems.length > 0 && (
         <TiktokActionBar
           entityType="campaign"
           items={selectedCampaignItems}
@@ -144,7 +152,7 @@ export default function TiktokResultsPanel({
           onDeselect={() => onSelectionChange(new Set())}
         />
       )}
-      {showAdgroupOnly && selectedAdgroupItems.length > 0 && (
+      {!readOnly && showAdgroupOnly && selectedAdgroupItems.length > 0 && (
         <TiktokActionBar
           entityType="adgroup"
           items={selectedAdgroupItems}

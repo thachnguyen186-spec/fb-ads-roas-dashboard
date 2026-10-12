@@ -1,25 +1,20 @@
 /**
  * GET /api/tiktok/oauth/start
- * Admin-only (org-wide singleton connection — see phase-02 red-team fix; leader is
- * excluded because re-authorizing rebinds the org's entire TikTok integration).
- * Generates a CSRF `state` nonce in a short-lived httpOnly cookie and redirects to
- * TikTok's authorize URL.
+ * Any authenticated user (per-user connection — each user authorizes their own token).
+ * Generates a CSRF nonce, stores `${user.id}:${nonce}` in a short-lived httpOnly cookie
+ * (binds the flow to this user), and redirects to TikTok's authorize URL with state=nonce.
  */
 
 import { randomUUID } from 'crypto';
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
-import { requireRole } from '@/lib/auth-guards';
 import { errorResponse } from '@/lib/utils';
-import { TIKTOK_OAUTH_STATE_COOKIE } from '@/lib/tiktok/oauth-state';
+import { TIKTOK_OAUTH_STATE_COOKIE, buildOauthStateCookie } from '@/lib/tiktok/oauth-state';
 
 export async function GET() {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) return errorResponse('Unauthorized', 401);
-
-  const denied = await requireRole(user.id, ['admin']);
-  if (denied) return denied;
 
   const appId = process.env.TIKTOK_APP_ID;
   const redirectUri = process.env.TIKTOK_OAUTH_REDIRECT_URI;
@@ -29,7 +24,7 @@ export async function GET() {
 
   const state = randomUUID();
   const cookieStore = await cookies();
-  cookieStore.set(TIKTOK_OAUTH_STATE_COOKIE, state, {
+  cookieStore.set(TIKTOK_OAUTH_STATE_COOKIE, buildOauthStateCookie(user.id, state), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
