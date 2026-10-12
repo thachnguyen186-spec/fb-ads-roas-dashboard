@@ -10,7 +10,6 @@ import { errorResponse } from '@/lib/utils';
 import { resolveOwnAdvertiserToken } from '@/lib/tiktok/control-guard';
 import { verifyAdGroupOwnership } from '@/lib/tiktok/campaigns';
 import { updateAdGroupStatus, updateAdGroupBudget } from '@/lib/tiktok/campaign-actions';
-import { MIN_DAILY_BUDGET_ADGROUP, isDailyBudgetMode } from '@/lib/tiktok/budget-limits';
 
 type Params = { params: Promise<{ adgroupId: string }> };
 
@@ -53,15 +52,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       const { amount } = body;
       if (!Number.isFinite(amount) || amount <= 0) return errorResponse('Invalid budget: amount must be > 0', 400);
       // budget_mode comes from the ownership lookup (TikTok's real, stored value), never the client body.
-      if (isDailyBudgetMode(owned.budget_mode) && amount < MIN_DAILY_BUDGET_ADGROUP) {
-        return errorResponse(`Daily budget must be at least $${MIN_DAILY_BUDGET_ADGROUP}`, 400);
-      }
+      // No local minimum: TikTok enforces its own (varies by account/currency) and its error is returned.
       await updateAdGroupBudget(token, body.advertiser_id, adgroupId, amount);
       return Response.json({ success: true });
     }
     return errorResponse('Unknown action', 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'TikTok API error';
+    console.error('[tiktok adgroup action] failed:', body.action, message);
     return errorResponse(message, 502);
   }
 }

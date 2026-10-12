@@ -12,7 +12,6 @@
 import { useMemo, useState } from 'react';
 import { aggregateByAdSetId, aggregateAllRevByAdSetId } from '@/lib/adjust/csv-parser';
 import { mergeTiktokAdGroups } from '@/lib/tiktok/merge';
-import { MIN_DAILY_BUDGET_CAMPAIGN, MIN_DAILY_BUDGET_ADGROUP } from '@/lib/tiktok/budget-limits';
 import TiktokCampaignTable from './tiktok-campaign-table';
 import TiktokAdgroupFlatView from './tiktok-adgroup-flat-view';
 import TiktokActionBar, { type TiktokActionItem } from './tiktok-action-bar';
@@ -140,7 +139,6 @@ export default function TiktokResultsPanel({
               selectedIds={selectedAdgroupIds}
               onSelectionChange={setSelectedAdgroupIds}
               showAdvertiserColumn={showAdvertiserColumn}
-              minDailyBudget={MIN_DAILY_BUDGET_ADGROUP}
               onBudgetUpdated={loadAdgroups}
               readOnly={readOnly}
             />
@@ -152,7 +150,6 @@ export default function TiktokResultsPanel({
         <TiktokActionBar
           entityType="campaign"
           items={selectedCampaignItems}
-          minDailyBudget={MIN_DAILY_BUDGET_CAMPAIGN}
           snapshotComparisons={snapshotComparisons ?? []}
           onActionComplete={onCampaignActionComplete}
           onDeselect={() => onSelectionChange(new Set())}
@@ -162,7 +159,6 @@ export default function TiktokResultsPanel({
         <TiktokActionBar
           entityType="adgroup"
           items={selectedAdgroupItems}
-          minDailyBudget={MIN_DAILY_BUDGET_ADGROUP}
           snapshotComparisons={[]}
           onActionComplete={loadAdgroups}
           onDeselect={() => setSelectedAdgroupIds(new Set())}

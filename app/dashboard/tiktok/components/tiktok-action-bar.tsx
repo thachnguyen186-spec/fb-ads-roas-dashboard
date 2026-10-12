@@ -8,7 +8,6 @@
 'use client';
 
 import { useState } from 'react';
-import { isDailyBudgetMode } from '@/lib/tiktok/budget-limits';
 import type { SnapshotComparison } from '@/lib/types';
 import TiktokBulkBudgetModal from './tiktok-bulk-budget-modal';
 import type { TiktokItemMetrics } from './tiktok-budget-metrics';
@@ -28,7 +27,6 @@ export interface TiktokActionItem {
 interface Props {
   entityType: 'campaign' | 'adgroup';
   items: TiktokActionItem[];
-  minDailyBudget: number;
   /** Campaign-level snapshots for the budget modal; [] for ad groups. */
   snapshotComparisons: SnapshotComparison[];
   onActionComplete: () => void;
@@ -53,7 +51,7 @@ async function patchEntity(entityType: 'campaign' | 'adgroup', id: string, adver
   if (!res.ok) throw new Error(data.error ?? 'Action failed');
 }
 
-export default function TiktokActionBar({ entityType, items, minDailyBudget, snapshotComparisons, onActionComplete, onDeselect }: Props) {
+export default function TiktokActionBar({ entityType, items, snapshotComparisons, onActionComplete, onDeselect }: Props) {
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [bulkBudgetOpen, setBulkBudgetOpen] = useState(false);
@@ -66,7 +64,7 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, sna
   async function handleBulkStatus(action: 'pause' | 'enable') {
     setActionState('loading');
     setErrorMsg('');
-    const results: Array<{ name: string; ok: boolean }> = [];
+    const results: Array<{ name: string; ok: boolean; error?: string }> = [];
     for (let i = 0; i < items.length; i += BULK_CONCURRENCY) {
       const batch = items.slice(i, i + BULK_CONCURRENCY);
       const batchResults = await Promise.all(
@@ -78,15 +76,16 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, sna
       );
       results.push(...batchResults);
     }
-    // Refetch regardless of outcome — successful items in a partial failure did change state.
-    onActionComplete();
     const failed = results.filter((r) => !r.ok);
     if (failed.length > 0) {
-      setErrorMsg(`${failed.length} of ${results.length} failed to ${action}: ${failed.map((f) => f.name).join(', ')}`);
+      // No auto-refetch on failure: it unmounts this bar and wipes the error before it's read.
+      // The user refreshes via "Refresh" (partial successes did change state).
+      const reasons = [...new Set(failed.map((f) => f.error))].join(' | ');
+      setErrorMsg(`${failed.length} of ${results.length} failed to ${action}: ${reasons}`);
       setActionState('error');
     } else {
       setActionState('done');
-      setTimeout(() => setActionState('idle'), 800);
+      setTimeout(() => { setActionState('idle'); onActionComplete(); }, 800);
     }
   }
 
@@ -122,15 +121,16 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, sna
             >
               Update budget
             </button>
-            {items.some((i) => isDailyBudgetMode(i.budget_mode)) && (
-              <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day</span>
-            )}
           </div>
         </div>
 
         {actionState === 'loading' && <span className="text-sm text-slate-400 ml-2">Applying…</span>}
         {actionState === 'done' && <span className="text-sm text-emerald-600 ml-2">Done</span>}
-        {actionState === 'error' && <span className="text-sm text-red-600 ml-2">{errorMsg}</span>}
+        {actionState === 'error' && (
+          <span className="text-sm text-red-600 ml-2">
+            {errorMsg} <button onClick={onActionComplete} className="underline text-red-700 ml-1">Refresh</button>
+          </span>
+        )}
 
         <button onClick={onDeselect} className="ml-auto text-xs text-slate-400 hover:text-slate-700">Deselect all</button>
       </div>
@@ -139,7 +139,6 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, sna
         <TiktokBulkBudgetModal
           entityType={entityType}
           items={items}
-          minDailyBudget={minDailyBudget}
           concurrency={BULK_CONCURRENCY}
           snapshotComparisons={snapshotComparisons}
           applyBudget={(item, amount) => patchEntity(entityType, item.id, item.advertiser_id, { action: 'budget', amount })}

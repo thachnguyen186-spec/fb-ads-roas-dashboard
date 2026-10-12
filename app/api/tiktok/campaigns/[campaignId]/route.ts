@@ -10,7 +10,6 @@ import { errorResponse } from '@/lib/utils';
 import { resolveOwnAdvertiserToken } from '@/lib/tiktok/control-guard';
 import { verifyCampaignOwnership } from '@/lib/tiktok/campaigns';
 import { updateCampaignStatus, updateCampaignBudget } from '@/lib/tiktok/campaign-actions';
-import { MIN_DAILY_BUDGET_CAMPAIGN, isDailyBudgetMode } from '@/lib/tiktok/budget-limits';
 
 type Params = { params: Promise<{ campaignId: string }> };
 
@@ -52,17 +51,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     if (body.action === 'budget') {
       const { amount } = body;
       if (!Number.isFinite(amount) || amount <= 0) return errorResponse('Invalid budget: amount must be > 0', 400);
-      // budget_mode comes from the ownership lookup (TikTok's real, stored value), never the
-      // client body — LIFETIME minimum is dynamic (daily min × duration), so only DAILY is checked.
-      if (isDailyBudgetMode(owned.budget_mode) && amount < MIN_DAILY_BUDGET_CAMPAIGN) {
-        return errorResponse(`Daily budget must be at least $${MIN_DAILY_BUDGET_CAMPAIGN}`, 400);
-      }
+      // No local minimum: TikTok enforces its own (varies by account/currency) and its error is returned.
       await updateCampaignBudget(token, body.advertiser_id, campaignId, amount);
       return Response.json({ success: true });
     }
     return errorResponse('Unknown action', 400);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'TikTok API error';
+    console.error('[tiktok campaign action] failed:', body.action, message);
     return errorResponse(message, 502);
   }
 }

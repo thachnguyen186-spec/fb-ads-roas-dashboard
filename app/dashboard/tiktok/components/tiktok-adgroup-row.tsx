@@ -14,12 +14,11 @@ interface Props {
   onEditBudget: () => void;
   savingBudget: boolean;
   showAdvertiserColumn: boolean;
-  minDailyBudget: number;
   readOnly: boolean;
 }
 
 export default function TiktokAdgroupRow({
-  adgroup: a, isSelected, onToggle, onEditBudget, savingBudget, showAdvertiserColumn, minDailyBudget, readOnly,
+  adgroup: a, isSelected, onToggle, onEditBudget, savingBudget, showAdvertiserColumn, readOnly,
 }: Props) {
   return (
     <tr className={`group hover:bg-slate-50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}>
@@ -51,7 +50,7 @@ export default function TiktokAdgroupRow({
             <button
               onClick={onEditBudget}
               className="text-indigo-500 hover:text-indigo-700 transition-colors text-xs"
-              title={isDailyBudgetMode(a.budget_mode) ? `Edit budget (min $${minDailyBudget}/day)` : 'Edit budget'}
+              title="Edit budget"
             >✎</button>
           )}
         </div>

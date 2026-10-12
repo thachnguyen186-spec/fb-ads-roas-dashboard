@@ -7,6 +7,9 @@
  * Upgraded Smart Plus ads.") and must use /smart_plus/* (paths + fields per TikTok's official
  * tiktok-business-api-sdk yml specs). Each action tries the standard endpoint first and falls
  * back to Smart+ only on that specific rejection.
+ *
+ * Status endpoints take `operation_status` (live TikTok rejects the old `status` field with
+ * "operation_status: Missing data for required field" — verified 2026-10-12).
  */
 
 import { tiktokPost } from './tiktok-client';
@@ -66,7 +69,7 @@ export async function updateCampaignBudget(token: string, advertiserId: string, 
 export async function updateCampaignStatus(token: string, advertiserId: string, campaignIds: string[], status: Status): Promise<void> {
   await updateStatusBatched(
     campaignIds,
-    (batch) => tiktokPost('/campaign/status/update/', { advertiser_id: advertiserId, campaign_ids: batch, status }, token),
+    (batch) => tiktokPost('/campaign/status/update/', { advertiser_id: advertiserId, campaign_ids: batch, operation_status: status }, token),
     (batch) => tiktokPost('/smart_plus/campaign/status/update/', { advertiser_id: advertiserId, campaign_ids: batch, operation_status: status }, token),
   );
 }
@@ -82,7 +85,7 @@ export async function updateAdGroupBudget(token: string, advertiserId: string, a
 export async function updateAdGroupStatus(token: string, advertiserId: string, adgroupIds: string[], status: Status): Promise<void> {
   await updateStatusBatched(
     adgroupIds,
-    (batch) => tiktokPost('/adgroup/status/update/', { advertiser_id: advertiserId, adgroup_ids: batch, status }, token),
+    (batch) => tiktokPost('/adgroup/status/update/', { advertiser_id: advertiserId, adgroup_ids: batch, operation_status: status }, token),
     (batch) => tiktokPost('/smart_plus/adgroup/status/update/', { advertiser_id: advertiserId, adgroup_ids: batch, operation_status: status }, token),
   );
 }

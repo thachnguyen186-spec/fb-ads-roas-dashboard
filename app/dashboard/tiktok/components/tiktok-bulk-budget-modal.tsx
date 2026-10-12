@@ -8,7 +8,7 @@
 'use client';
 
 import { useState } from 'react';
-import { isDailyBudgetMode, toBudgetTargetType } from '@/lib/tiktok/budget-limits';
+import { toBudgetTargetType } from '@/lib/tiktok/budget-limits';
 import type { SnapshotComparison } from '@/lib/types';
 import TiktokBulkBudgetRow, { type RowResult } from './tiktok-bulk-budget-row';
 import TiktokBudgetPctButtons from './tiktok-budget-pct-buttons';
@@ -19,7 +19,6 @@ interface Props {
   entityType: 'campaign' | 'adgroup';
   items: TiktokActionItem[];
   /** DAY-mode minimum for this entity level (campaign 50, ad group 20). */
-  minDailyBudget: number;
   concurrency: number;
   /** Campaign-level snapshots for the version selector; [] for ad groups (snapshots are campaign-only). */
   snapshotComparisons: SnapshotComparison[];
@@ -35,7 +34,7 @@ function sanitizeInput(raw: string): string {
   return dec.length > 0 ? `${int}.${dec.join('')}` : int;
 }
 
-export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudget, concurrency, snapshotComparisons, applyBudget, onClose, onApplied }: Props) {
+export default function TiktokBulkBudgetModal({ entityType, items, concurrency, snapshotComparisons, applyBudget, onClose, onApplied }: Props) {
   // Skip rows with no editable budget here (INFINITE / unknown mode) so one can't block Apply.
   const isSkipped = (i: TiktokActionItem) => !['daily', 'lifetime'].includes(toBudgetTargetType(i.budget_mode));
   const editable = items.filter((i) => !isSkipped(i));
@@ -53,7 +52,6 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
   function rowError(item: TiktokActionItem): string | null {
     const n = parseFloat(amounts[item.id] ?? '');
     if (isNaN(n) || n <= 0) return 'Enter an amount';
-    if (isDailyBudgetMode(item.budget_mode) && n < minDailyBudget) return `Min $${minDailyBudget}/day`;
     return null;
   }
 
@@ -143,7 +141,6 @@ export default function TiktokBulkBudgetModal({ entityType, items, minDailyBudge
             />
           </div>
           <TiktokBudgetPctButtons disabled={applying || editable.length === 0} onPct={applyPct} />
-          <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day (daily budgets)</span>
         </div>
 
         <div className="overflow-auto flex-1">

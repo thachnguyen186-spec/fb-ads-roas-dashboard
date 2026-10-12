@@ -19,13 +19,12 @@ interface Props {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
   showAdvertiserColumn: boolean;
-  minDailyBudget: number;
   onBudgetUpdated: () => void;
   readOnly: boolean;
 }
 
 export default function TiktokAdgroupFlatView({
-  adgroups, selectedIds, onSelectionChange, showAdvertiserColumn, minDailyBudget, onBudgetUpdated, readOnly,
+  adgroups, selectedIds, onSelectionChange, showAdvertiserColumn, onBudgetUpdated, readOnly,
 }: Props) {
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [budgetRow, setBudgetRow] = useState<FlatTiktokAdGroup | null>(null);
@@ -168,7 +167,6 @@ export default function TiktokAdgroupFlatView({
                 onEditBudget={() => openBudgetEdit(a)}
                 savingBudget={saving && budgetRow?.adgroup_id === a.adgroup_id}
                 showAdvertiserColumn={showAdvertiserColumn}
-                minDailyBudget={minDailyBudget}
                 readOnly={readOnly}
               />
             ))}
