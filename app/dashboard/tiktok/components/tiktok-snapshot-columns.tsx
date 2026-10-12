@@ -5,6 +5,7 @@
 import { Fragment } from 'react';
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import { formatUsd } from '@/lib/utils';
+import { snapshotSubtotals } from '@/lib/tiktok/snapshot-subtotals';
 import type { MergedTiktokCampaign, SnapshotComparison, SnapshotRow } from '@/lib/types';
 
 /** Columns added per snapshot comparison (keep in sync with the cells below). */
@@ -69,13 +70,33 @@ export function SnapshotColumnHeaders({ comparisons, sortCol, sortDir, onSort }:
   );
 }
 
-/** Blank cells for the totals row so column alignment is preserved. */
-export function SnapshotTotalsFiller({ count }: { count: number }) {
+/** Totals-row cells per snapshot: aggregated saved metrics + deltas (FB snapSubtotals parity). */
+export function SnapshotTotalsCells({ campaigns, comparisons, liveProfitPct }: {
+  campaigns: MergedTiktokCampaign[]; comparisons: SnapshotComparison[]; liveProfitPct: number | null;
+}) {
+  const T = 'px-3 py-2 text-right tabular-nums text-xs font-semibold border-b-2';
+  const OLD_T = `${T} bg-amber-100 border-amber-300`;
+  const DELTA_T = `${T} bg-sky-100 border-sky-300`;
+  const signColor = (v: number | null) => (v === null ? 'text-slate-400' : v >= 0 ? 'text-emerald-600' : 'text-red-600');
   return (
     <>
-      {Array.from({ length: count * SNAPSHOT_COLS_PER_COMPARISON }, (_, k) => (
-        <th key={k} className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" />
-      ))}
+      {comparisons.map((comp) => {
+        const st = snapshotSubtotals(campaigns, comp, liveProfitPct);
+        return (
+          <Fragment key={comp.id}>
+            <th className={`${OLD_T} text-slate-700`}>{st.spend > 0 ? formatUsd(st.spend) : '—'}</th>
+            <th className={`${OLD_T} text-slate-700`}>{st.revenue > 0 ? formatUsd(st.revenue) : '—'}</th>
+            <th className={`${OLD_T} ${roasColorClass(st.roas)}`}>{st.roas !== null ? formatRoas(st.roas) : '—'}</th>
+            <th className={`${OLD_T} ${signColor(st.profitPct)}`}>{st.profitPct !== null ? formatProfit(st.profitPct) : '—'}</th>
+            <th className={`${OLD_T} ${signColor(st.profit)}`}>{st.profit !== null ? formatUsd(st.profit) : '—'}</th>
+            <th className={`${DELTA_T} ${deltaColor(st.deltaSpend)}`}>{fmtDelta(st.deltaSpend)}</th>
+            <th className={`${DELTA_T} ${deltaColor(st.deltaRevenue)}`}>{fmtDelta(st.deltaRevenue)}</th>
+            <th className={`${DELTA_T} ${deltaColor(st.deltaRoas)}`}>{st.deltaRoas !== null ? `${st.deltaRoas >= 0 ? '+' : ''}${st.deltaRoas.toFixed(2)}x` : '—'}</th>
+            <th className={`${DELTA_T} ${deltaColor(st.deltaProfitPct)}`}>{st.deltaProfitPct !== null ? `${st.deltaProfitPct >= 0 ? '+' : ''}${st.deltaProfitPct.toFixed(1)}%` : '—'}</th>
+            <th className={`${DELTA_T} ${deltaColor(st.deltaProfit)}`}>{fmtDelta(st.deltaProfit)}</th>
+          </Fragment>
+        );
+      })}
     </>
   );
 }

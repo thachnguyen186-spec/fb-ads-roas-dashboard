@@ -3,7 +3,7 @@
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import { formatUsd, formatNumber } from '@/lib/utils';
 import { isDailyBudgetMode, TIKTOK_BUDGET_MODE_TOTAL } from '@/lib/tiktok/budget-limits';
-import { SnapshotGroupHeaders, SnapshotColumnHeaders, SnapshotTotalsFiller, SnapshotRowCells } from './tiktok-snapshot-columns';
+import { SnapshotGroupHeaders, SnapshotColumnHeaders, SnapshotTotalsCells, SnapshotRowCells } from './tiktok-snapshot-columns';
 import type { MergedTiktokCampaign, SnapshotComparison } from '@/lib/types';
 
 function SortBtn({ col, sortCol, sortDir, onSort }: {
@@ -102,7 +102,7 @@ export default function TiktokCampaignTable({
               </th>
               {showAdvertiserColumn && <th className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" />}
               <th className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" />
-              <SnapshotTotalsFiller count={snapshotComparisons.length} />
+              <SnapshotTotalsCells campaigns={campaigns} comparisons={snapshotComparisons} liveProfitPct={avgProfitPct} />
               <th className="px-3 py-2 text-right bg-slate-100 border-b-2 border-slate-400 text-slate-400">—</th>
               <th className="px-3 py-2 text-right tabular-nums bg-slate-100 border-b-2 border-slate-400">{formatUsd(totalSpend)}</th>
               <th className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" colSpan={2} />

@@ -73,13 +73,35 @@ async function fetchAllPages<T>(
   return items;
 }
 
+/** TikTok's /campaign/get/ and /adgroup/get/ accept at most 100 ids per `filtering` list. */
+const FILTER_ID_CHUNK = 100;
+
+/** Fetches only the given ids (chunked), or every row when ids is undefined. */
+async function fetchFiltered<T>(
+  path: string,
+  advertiserId: string,
+  idField: 'campaign_ids' | 'adgroup_ids',
+  ids: string[] | undefined,
+  token: string,
+): Promise<T[]> {
+  if (!ids) return fetchAllPages<T>(path, { advertiser_id: advertiserId }, token);
+  const rows: T[] = [];
+  for (let i = 0; i < ids.length; i += FILTER_ID_CHUNK) {
+    const filtering = JSON.stringify({ [idField]: ids.slice(i, i + FILTER_ID_CHUNK) });
+    rows.push(...await fetchAllPages<T>(path, { advertiser_id: advertiserId, filtering }, token));
+  }
+  return rows;
+}
+
+/** `campaignIds` limits the fetch to those campaigns (e.g. only ones with spend today). */
 export async function fetchCampaigns(
   token: string,
   advertiserId: string,
   advertiserName: string,
   currency: string,
+  campaignIds?: string[],
 ): Promise<TiktokCampaignRow[]> {
-  const raws = await fetchAllPages<RawCampaign>('/campaign/get/', { advertiser_id: advertiserId }, token);
+  const raws = await fetchFiltered<RawCampaign>('/campaign/get/', advertiserId, 'campaign_ids', campaignIds, token);
   return raws.map((raw) => ({
     campaign_id: raw.campaign_id,
     campaign_name: raw.campaign_name,
@@ -137,12 +159,9 @@ export async function fetchAdGroups(
   advertiserId: string,
   advertiserName: string,
   currency: string,
-  campaignId?: string,
+  adgroupIds?: string[],
 ): Promise<TiktokAdGroupRow[]> {
-  const baseParams: Record<string, string> = { advertiser_id: advertiserId };
-  if (campaignId) baseParams.filtering = JSON.stringify({ campaign_ids: [campaignId] });
-
-  const raws = await fetchAllPages<RawAdGroup>('/adgroup/get/', baseParams, token);
+  const raws = await fetchFiltered<RawAdGroup>('/adgroup/get/', advertiserId, 'adgroup_ids', adgroupIds, token);
   return raws.map((raw) => ({
     adgroup_id: raw.adgroup_id,
     adgroup_name: raw.adgroup_name,

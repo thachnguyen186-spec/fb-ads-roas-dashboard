@@ -21,20 +21,26 @@ import type { TiktokAdvertiserAccount, TiktokCampaignRow, TiktokAdGroupRow } fro
 /** Advertisers processed per batch — bounded concurrency, not full fan-out. */
 const CONCURRENCY = 3;
 
+/** Ids with spend today. Only these are loaded: accounts carry thousands of idle campaigns,
+ * and shipping them all made the dashboard slow (user request: today's spenders only). */
+function idsWithSpend(spendMap: Map<string, { spend: number }>): string[] {
+  return [...spendMap.entries()].filter(([, m]) => m.spend > 0).map(([id]) => id);
+}
+
 async function fetchForAdvertiser(token: string, account: TiktokAdvertiserAccount): Promise<TiktokCampaignRow[]> {
-  const [campaigns, spendMap] = await Promise.all([
-    fetchCampaigns(token, account.advertiser_id, account.name, account.currency),
-    fetchTodaySpend(token, account.advertiser_id, 'CAMPAIGN'),
-  ]);
+  const spendMap = await fetchTodaySpend(token, account.advertiser_id, 'CAMPAIGN');
+  const ids = idsWithSpend(spendMap);
+  if (ids.length === 0) return [];
+  const campaigns = await fetchCampaigns(token, account.advertiser_id, account.name, account.currency, ids);
   return campaigns.map((c) => ({ ...c, ...(spendMap.get(c.campaign_id) ?? {}) }));
 }
 
-/** Ad-group equivalent of fetchForAdvertiser, used by the ?level=adgroup branch (Phase 4). */
+/** Ad-group equivalent of fetchForAdvertiser, used by the ?level=adgroup branch. */
 async function fetchAdGroupsForAdvertiser(token: string, account: TiktokAdvertiserAccount): Promise<TiktokAdGroupRow[]> {
-  const [adgroups, spendMap] = await Promise.all([
-    fetchAdGroups(token, account.advertiser_id, account.name, account.currency),
-    fetchTodaySpend(token, account.advertiser_id, 'ADGROUP'),
-  ]);
+  const spendMap = await fetchTodaySpend(token, account.advertiser_id, 'ADGROUP');
+  const ids = idsWithSpend(spendMap);
+  if (ids.length === 0) return [];
+  const adgroups = await fetchAdGroups(token, account.advertiser_id, account.name, account.currency, ids);
   return adgroups.map((a) => ({ ...a, ...(spendMap.get(a.adgroup_id) ?? {}) }));
 }
 
