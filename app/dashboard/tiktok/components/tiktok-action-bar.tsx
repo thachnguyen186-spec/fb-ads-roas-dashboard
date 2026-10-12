@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { TIKTOK_BUDGET_MODE_DAY, toBudgetTargetType } from '@/lib/tiktok/budget-limits';
 import type { BudgetTarget } from '@/lib/types';
 import BudgetModal from '@/app/dashboard/components/budget-modal';
+import TiktokBulkBudgetModal from './tiktok-bulk-budget-modal';
 
 export interface TiktokActionItem {
   id: string;
@@ -52,6 +53,7 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [budgetItem, setBudgetItem] = useState<TiktokActionItem | null>(null);
+  const [bulkBudgetOpen, setBulkBudgetOpen] = useState(false);
 
   const count = items.length;
   const single = count === 1 ? items[0] : null;
@@ -154,6 +156,20 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
               )}
             </div>
           )}
+          {count > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setBulkBudgetOpen(true)}
+                disabled={actionState === 'loading'}
+                className="px-4 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+              >
+                Update budget
+              </button>
+              {items.some((i) => i.budget_mode === TIKTOK_BUDGET_MODE_DAY) && (
+                <span className="text-[10px] text-slate-400">Min ${minDailyBudget}/day</span>
+              )}
+            </div>
+          )}
         </div>
 
         {actionState === 'loading' && <span className="text-sm text-slate-400 ml-2">Applying…</span>}
@@ -165,6 +181,17 @@ export default function TiktokActionBar({ entityType, items, minDailyBudget, onA
 
       {budgetTarget && (
         <BudgetModal target={budgetTarget} onConfirm={(amount) => handleBudgetConfirm(amount)} onClose={() => setBudgetItem(null)} />
+      )}
+      {bulkBudgetOpen && count > 1 && (
+        <TiktokBulkBudgetModal
+          entityType={entityType}
+          items={items}
+          minDailyBudget={minDailyBudget}
+          concurrency={BULK_CONCURRENCY}
+          applyBudget={(item, amount) => patchEntity(entityType, item.id, item.advertiser_id, { action: 'budget', amount })}
+          onClose={() => setBulkBudgetOpen(false)}
+          onApplied={onActionComplete}
+        />
       )}
     </>
   );

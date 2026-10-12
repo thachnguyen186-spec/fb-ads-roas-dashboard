@@ -16,7 +16,7 @@ import { MIN_DAILY_BUDGET_CAMPAIGN, MIN_DAILY_BUDGET_ADGROUP } from '@/lib/tikto
 import TiktokCampaignTable from './tiktok-campaign-table';
 import TiktokAdgroupFlatView from './tiktok-adgroup-flat-view';
 import TiktokActionBar, { type TiktokActionItem } from './tiktok-action-bar';
-import type { AdjustRow, FlatTiktokAdGroup, MergedTiktokAdGroup, MergedTiktokCampaign, TiktokAdGroupRow } from '@/lib/types';
+import type { AdjustRow, FlatTiktokAdGroup, MergedTiktokAdGroup, MergedTiktokCampaign, SnapshotComparison, TiktokAdGroupRow } from '@/lib/types';
 
 interface Props {
   /** Unfiltered — used only to resolve campaign_name for ad groups. */
@@ -34,11 +34,13 @@ interface Props {
   viewAs?: string;
   /** True while viewing another user: control routes only work on own advertisers. */
   readOnly: boolean;
+  /** Snapshot columns for the campaign table (campaign level only). */
+  snapshotComparisons?: SnapshotComparison[];
 }
 
 export default function TiktokResultsPanel({
   allCampaigns, displayedCampaigns, sortCol, sortDir, onSort, selectedIds, onSelectionChange,
-  showAdvertiserColumn, adjustRows, onCampaignActionComplete, viewAs, readOnly,
+  showAdvertiserColumn, adjustRows, onCampaignActionComplete, viewAs, readOnly, snapshotComparisons,
 }: Props) {
   const [showAdgroupOnly, setShowAdgroupOnly] = useState(false);
   const [rawAdgroups, setRawAdgroups] = useState<MergedTiktokAdGroup[]>([]);
@@ -122,6 +124,7 @@ export default function TiktokResultsPanel({
             sortDir={sortDir}
             onSort={onSort}
             showAdvertiserColumn={showAdvertiserColumn}
+            snapshotComparisons={snapshotComparisons}
           />
         )}
         {showAdgroupOnly && (

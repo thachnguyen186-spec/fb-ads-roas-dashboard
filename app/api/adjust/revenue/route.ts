@@ -25,6 +25,9 @@ import { createClient } from '@/lib/supabase/server';
 import { errorResponse } from '@/lib/utils';
 import { fetchAdjustRevenueToday } from '@/lib/adjust/api-client';
 
+// The Adjust CSV report takes ~16s; the platform default function timeout would kill it.
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -51,6 +54,8 @@ export async function GET(request: NextRequest) {
     return Response.json({ rows });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to fetch from Adjust API';
+    // Logged so the real cause shows in Vercel runtime logs (message is already truncated, no tokens).
+    console.error('[adjust revenue] failed:', partner, msg);
     return errorResponse(msg, 502);
   }
 }

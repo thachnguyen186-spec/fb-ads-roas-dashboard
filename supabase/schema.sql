@@ -122,6 +122,17 @@ create policy "Users manage own snapshots"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- Snapshots per platform (FB + TikTok dashboards keep separate snapshot lists). Idempotent;
+-- existing rows default to 'facebook'.
+alter table public.campaign_snapshots
+  add column if not exists platform text not null default 'facebook';
+do $$ begin
+  alter table public.campaign_snapshots
+    add constraint campaign_snapshots_platform_check check (platform in ('facebook','tiktok'));
+exception when duplicate_object then null; end $$;
+create index if not exists campaign_snapshots_user_platform_idx
+  on public.campaign_snapshots (user_id, platform, created_at desc);
+
 -- ─── Adjust API token ─────────────────────────────────────────────────────────
 -- Run this in Supabase SQL editor to add Adjust API token support.
 alter table public.profiles

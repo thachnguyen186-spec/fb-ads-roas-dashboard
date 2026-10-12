@@ -1,0 +1,105 @@
+'use client';
+
+/** Snapshot comparison columns for the TikTok campaign table (campaign level). Per snapshot: 5 saved metrics + 5 deltas. */
+
+import { Fragment } from 'react';
+import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
+import { formatUsd } from '@/lib/utils';
+import type { MergedTiktokCampaign, SnapshotComparison, SnapshotRow } from '@/lib/types';
+
+/** Columns added per snapshot comparison (keep in sync with the cells below). */
+export const SNAPSHOT_COLS_PER_COMPARISON = 10;
+
+const OLD_HEADERS = ['Spend', 'Revenue', 'ROAS', '%Profit', 'Profit'];
+const DELTA_CELL = 'px-3 py-2.5 text-right tabular-nums bg-sky-50/40 text-xs font-semibold';
+const OLD_CELL = 'px-3 py-2.5 text-right tabular-nums bg-amber-50/40 text-xs';
+
+function fmtDelta(v: number | null) {
+  return v !== null ? `${v >= 0 ? '+' : '-'}${formatUsd(Math.abs(v))}` : '—';
+}
+function deltaColor(v: number | null) {
+  return v === null ? 'text-slate-300' : v >= 0 ? 'text-emerald-600' : 'text-red-600';
+}
+
+/** Group header cells (one amber + one sky th per snapshot) for a top header row. */
+export function SnapshotGroupHeaders({ comparisons }: { comparisons: SnapshotComparison[] }) {
+  return (
+    <>
+      {comparisons.map((comp, i) => (
+        <Fragment key={comp.id}>
+          <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-amber-700 bg-amber-50 border-l border-amber-200 border-b border-amber-200 tracking-wide uppercase whitespace-nowrap">
+            #{i + 1} {comp.name}
+          </th>
+          <th colSpan={5} className="px-3 py-1.5 text-center text-xs font-semibold text-sky-700 bg-sky-50 border-l border-sky-200 border-b border-sky-200 tracking-wide uppercase whitespace-nowrap">
+            Δ vs {i === comparisons.length - 1 ? 'Current' : `#${i + 2}`}
+          </th>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** Column header cells for the metric header row. */
+export function SnapshotColumnHeaders({ comparisons }: { comparisons: SnapshotComparison[] }) {
+  return (
+    <>
+      {comparisons.map((comp) => (
+        <Fragment key={comp.id}>
+          {OLD_HEADERS.map((h, k) => (
+            <th key={`o${k}`} className={`px-3 py-2.5 text-right whitespace-nowrap bg-amber-50 border-b border-amber-200 text-xs font-semibold text-amber-800 ${k === 0 ? 'border-l border-amber-200' : ''}`}>{h}</th>
+          ))}
+          {OLD_HEADERS.map((h, k) => (
+            <th key={`d${k}`} className={`px-3 py-2.5 text-right whitespace-nowrap bg-sky-50 border-b border-sky-200 text-xs font-semibold text-sky-800 ${k === 0 ? 'border-l border-sky-200' : ''}`}>Δ {h}</th>
+          ))}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** Blank cells for the totals row so column alignment is preserved. */
+export function SnapshotTotalsFiller({ count }: { count: number }) {
+  return (
+    <>
+      {Array.from({ length: count * SNAPSHOT_COLS_PER_COMPARISON }, (_, k) => (
+        <th key={k} className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" />
+      ))}
+    </>
+  );
+}
+
+/** Row cells: saved snapshot metrics + deltas vs next-newer snapshot (or live data for the last one). */
+export function SnapshotRowCells({ campaign: c, comparisons }: { campaign: MergedTiktokCampaign; comparisons: SnapshotComparison[] }) {
+  return (
+    <>
+      {comparisons.map((comp) => {
+        const snap = comp.campaignMap.get(c.campaign_id) ?? null;
+        const prev = comp.prevCampaignMap
+          ? (comp.prevCampaignMap.get(c.campaign_id) ?? null)
+          : c;
+        const delta = (f: keyof Pick<SnapshotRow, 'spend' | 'adjust_revenue' | 'roas' | 'profit_pct' | 'profit'>): number | null => {
+          const a = prev?.[f] ?? null;
+          const b = snap?.[f] ?? null;
+          return a !== null && b !== null ? a - b : null;
+        };
+        const dSpend = delta('spend'); const dRev = delta('adjust_revenue'); const dRoas = delta('roas');
+        const dPct = delta('profit_pct'); const dProfit = delta('profit');
+        const dash = <span className="text-slate-300">—</span>;
+        return (
+          <Fragment key={comp.id}>
+            <td className={`${OLD_CELL} border-l border-amber-100 text-slate-700`}>{snap?.spend != null ? formatUsd(snap.spend) : dash}</td>
+            <td className={`${OLD_CELL} text-slate-700`}>{snap?.adjust_revenue != null ? formatUsd(snap.adjust_revenue) : dash}</td>
+            <td className={`${OLD_CELL} font-semibold ${roasColorClass(snap?.roas ?? null)}`}>{snap ? formatRoas(snap.roas) : dash}</td>
+            <td className={`${OLD_CELL} font-medium ${snap?.profit_pct == null ? 'text-slate-300' : snap.profit_pct >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{snap?.profit_pct != null ? formatProfit(snap.profit_pct) : '—'}</td>
+            <td className={`${OLD_CELL} font-medium ${snap?.profit == null ? 'text-slate-300' : snap.profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{snap?.profit != null ? formatUsd(snap.profit) : '—'}</td>
+            <td className={`${DELTA_CELL} border-l border-sky-100 ${deltaColor(dSpend)}`}>{fmtDelta(dSpend)}</td>
+            <td className={`${DELTA_CELL} ${deltaColor(dRev)}`}>{fmtDelta(dRev)}</td>
+            <td className={`${DELTA_CELL} ${deltaColor(dRoas)}`}>{dRoas !== null ? `${dRoas >= 0 ? '+' : ''}${dRoas.toFixed(2)}x` : '—'}</td>
+            <td className={`${DELTA_CELL} ${deltaColor(dPct)}`}>{dPct !== null ? `${dPct >= 0 ? '+' : ''}${dPct.toFixed(1)}%` : '—'}</td>
+            <td className={`${DELTA_CELL} ${deltaColor(dProfit)}`}>{fmtDelta(dProfit)}</td>
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}

@@ -56,7 +56,7 @@ export async function fetchAdjustAppTokens(token: string, accountId: string): Pr
 
   const res = await fetch(`https://automate.adjust.com/reports-service/filters_data?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!res.ok) {
@@ -128,8 +128,9 @@ export async function fetchAdjustRevenueToday(
 
   const res = await fetch(`${ADJUST_API_URL}?${params}`, {
     headers: { Authorization: `Bearer ${token}` },
-    // 30s timeout — Adjust CSV reports can be slow for large apps
-    signal: AbortSignal.timeout(30_000),
+    // 45s timeout: route maxDuration is 60 and app-token discovery above can use up to 10s, so the
+    // abort (and its logged error) fires before the platform kills the function. CSV takes 15s+.
+    signal: AbortSignal.timeout(45_000),
   });
 
   if (!res.ok) {

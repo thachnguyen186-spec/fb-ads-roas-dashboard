@@ -3,7 +3,8 @@
 import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
 import { formatUsd, formatNumber } from '@/lib/utils';
 import { TIKTOK_BUDGET_MODE_DAY, TIKTOK_BUDGET_MODE_TOTAL } from '@/lib/tiktok/budget-limits';
-import type { MergedTiktokCampaign } from '@/lib/types';
+import { SnapshotGroupHeaders, SnapshotColumnHeaders, SnapshotTotalsFiller, SnapshotRowCells } from './tiktok-snapshot-columns';
+import type { MergedTiktokCampaign, SnapshotComparison } from '@/lib/types';
 
 function SortBtn({ col, sortCol, sortDir, onSort }: {
   col: string; sortCol: string; sortDir: 'asc' | 'desc'; onSort: (c: string) => void;
@@ -23,10 +24,13 @@ interface Props {
   sortDir: 'asc' | 'desc';
   onSort: (col: string) => void;
   showAdvertiserColumn: boolean;
+  /** Ordered snapshot comparisons; empty = none selected. */
+  snapshotComparisons?: SnapshotComparison[];
 }
 
 export default function TiktokCampaignTable({
   campaigns, selectedIds, onSelectionChange, sortCol, sortDir, onSort, showAdvertiserColumn,
+  snapshotComparisons = [],
 }: Props) {
   const allSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.campaign_id));
 
@@ -62,6 +66,16 @@ export default function TiktokCampaignTable({
       <div className="flex-1 min-h-0 overflow-x-scroll overflow-y-scroll" style={{ scrollbarGutter: 'stable' }}>
         <table className="w-full text-sm" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead className="sticky top-0 z-10" style={{ boxShadow: '0 3px 10px rgba(0,0,0,0.12)' }}>
+            {snapshotComparisons.length > 0 && (
+              <tr>
+                <th className="sticky left-0 z-20 bg-slate-100 w-10 border-b border-slate-300" />
+                <th className="sticky left-10 z-20 bg-slate-100 border-r border-slate-300 border-b border-slate-300" />
+                {showAdvertiserColumn && <th className="bg-slate-100 border-b border-slate-300" />}
+                <th className="bg-slate-100 border-b border-slate-300" />
+                <SnapshotGroupHeaders comparisons={snapshotComparisons} />
+                <th colSpan={10} className="bg-slate-100 border-b border-slate-300" />
+              </tr>
+            )}
             <tr className="bg-slate-100 text-slate-600 font-semibold">
               <th className="sticky left-0 z-20 w-10 px-4 py-2.5 border-b border-slate-300 bg-slate-100">
                 <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded border-slate-300 bg-white h-5 w-5 cursor-pointer" />
@@ -69,6 +83,7 @@ export default function TiktokCampaignTable({
               <th className="sticky left-10 z-20 px-3 py-2.5 text-left whitespace-nowrap border-r border-slate-300 border-b border-slate-300 bg-slate-100">Campaign</th>
               {showAdvertiserColumn && <th className="px-3 py-2.5 text-left whitespace-nowrap bg-slate-100 border-b border-slate-300">Advertiser</th>}
               <th className="px-3 py-2.5 text-left whitespace-nowrap bg-slate-100 border-b border-slate-300">Status</th>
+              <SnapshotColumnHeaders comparisons={snapshotComparisons} />
               <th className={th}>Budget</th>
               <th className={`${th} cursor-pointer`} onClick={() => onSort('spend')}>Spend <SortBtn col="spend" sortCol={sortCol} sortDir={sortDir} onSort={onSort} /></th>
               <th className={th}>Impr.</th>
@@ -87,6 +102,7 @@ export default function TiktokCampaignTable({
               </th>
               {showAdvertiserColumn && <th className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" />}
               <th className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" />
+              <SnapshotTotalsFiller count={snapshotComparisons.length} />
               <th className="px-3 py-2 text-right bg-slate-100 border-b-2 border-slate-400 text-slate-400">—</th>
               <th className="px-3 py-2 text-right tabular-nums bg-slate-100 border-b-2 border-slate-400">{formatUsd(totalSpend)}</th>
               <th className="px-3 py-2 bg-slate-100 border-b-2 border-slate-400" colSpan={2} />
@@ -127,6 +143,7 @@ export default function TiktokCampaignTable({
                     ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700">Enabled</span>
                     : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Disabled</span>}
                 </td>
+                <SnapshotRowCells campaign={c} comparisons={snapshotComparisons} />
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
                   {formatUsd(c.budget)} <span className="text-slate-400 text-xs">{c.budget_mode === TIKTOK_BUDGET_MODE_DAY ? '/d' : c.budget_mode === TIKTOK_BUDGET_MODE_TOTAL ? ' lt' : ''}</span>
                 </td>

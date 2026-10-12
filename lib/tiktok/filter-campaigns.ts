@@ -12,13 +12,25 @@ export interface TiktokCampaignFilters {
   spendMax: string;
   budgetMin: string;
   budgetMax: string;
+  /** Selected app names (multi-select). Empty = no app filter. */
+  selectedApps?: string[];
 }
 
 export function filterTiktokCampaigns(
   campaigns: MergedTiktokCampaign[],
   filters: TiktokCampaignFilters,
+  /** campaign_id -> app name derived from Adjust rows; required for selectedApps to match anything. */
+  appByCampaignId: Map<string, string> = new Map(),
 ): MergedTiktokCampaign[] {
   let list = [...campaigns];
+
+  if (filters.selectedApps && filters.selectedApps.length > 0 && appByCampaignId.size > 0) {
+    const apps = filters.selectedApps;
+    list = list.filter((c) => {
+      const app = appByCampaignId.get(c.campaign_id);
+      return app !== undefined && apps.includes(app);
+    });
+  }
 
   const name = filters.campaignName.trim().toLowerCase();
   if (name) list = list.filter((c) => c.campaign_name.toLowerCase().includes(name));

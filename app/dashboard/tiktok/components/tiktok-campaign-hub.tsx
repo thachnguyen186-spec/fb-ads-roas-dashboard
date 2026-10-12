@@ -1,14 +1,18 @@
 'use client';
 
 import { useMemo, useRef, useState } from 'react';
-import { aggregateByCampaignId, aggregateAllRevByCampaignId } from '@/lib/adjust/csv-parser';
+import { aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeTiktokCampaigns } from '@/lib/tiktok/merge';
 import { filterTiktokCampaigns } from '@/lib/tiktok/filter-campaigns';
+import { fetchTiktokAdjustRevenue } from '@/lib/tiktok/fetch-adjust-revenue';
 import { formatUsd } from '@/lib/utils';
-import FilterBar from '@/app/dashboard/components/filter-bar';
 import TiktokHeader from './tiktok-header';
 import TiktokResultsPanel from './tiktok-results-panel';
 import TiktokFetchPanel from './tiktok-fetch-panel';
+import TiktokFilterSection from './tiktok-filter-section';
+import TiktokSnapshotSection from './tiktok-snapshot-section';
+import { useTiktokFilterState } from './use-tiktok-filter-state';
+import { useTiktokSnapshots } from './use-tiktok-snapshots';
 import type { AdjustRow, MergedTiktokCampaign, TiktokAdvertiserAccount, TiktokCampaignRow, TiktokStaffMember, UserRole } from '@/lib/types';
 
 type Phase = 'idle' | 'loading' | 'results' | 'error';
@@ -25,17 +29,15 @@ interface Props {
 export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken, selectedAdvertisers, userRole, staffList, userEmail }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  const [revenueError, setRevenueError] = useState('');
   const [mergedCampaigns, setMergedCampaigns] = useState<MergedTiktokCampaign[]>([]);
   const [adjustRows, setAdjustRows] = useState<AdjustRow[]>([]);
-  const [campaignNameFilter, setCampaignNameFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [accountFilter, setAccountFilter] = useState('');
-  const [roasMin, setRoasMin] = useState(''); const [roasMax, setRoasMax] = useState('');
-  const [spendMin, setSpendMin] = useState(''); const [spendMax, setSpendMax] = useState('');
-  const [budgetMin, setBudgetMin] = useState(''); const [budgetMax, setBudgetMax] = useState('');
+  const [appByCampaignId, setAppByCampaignId] = useState<Map<string, string>>(new Map());
+  const f = useTiktokFilterState();
   const [sortCol, setSortCol] = useState('spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const snap = useTiktokSnapshots(mergedCampaigns);
 
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const viewing = staffList.find((s) => s.id === viewingUserId) ?? null;
@@ -48,41 +50,37 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
     fetchSeq.current++;
     setViewingUserId(userId);
     setPhase('idle');
-    setErrorMsg('');
+    setErrorMsg(''); setRevenueError('');
     setMergedCampaigns([]);
     setAdjustRows([]);
+    setAppByCampaignId(new Map());
     setSelectedIds(new Set());
-    setCampaignNameFilter(''); setAccountFilter(''); setStatusFilter('all');
-    setRoasMin(''); setRoasMax(''); setSpendMin(''); setSpendMax('');
-    setBudgetMin(''); setBudgetMax('');
+    f.clearAll();
+    snap.reset();
   }
 
   async function handleFetchData() {
     const seq = ++fetchSeq.current;
     setPhase('loading');
-    setErrorMsg('');
+    setErrorMsg(''); setRevenueError('');
     try {
       const campaignsUrl = new URL('/api/tiktok/campaigns', window.location.origin);
       if (viewingUserId) campaignsUrl.searchParams.set('viewAs', viewingUserId);
-      const [campaignsRes, revenueRes] = await Promise.all([
-        fetch(campaignsUrl),
-        fetch('/api/adjust/revenue?partner=tiktok'),
-      ]);
+      const [campaignsRes, revenue] = await Promise.all([fetch(campaignsUrl), fetchTiktokAdjustRevenue()]);
       const campaignsData = await campaignsRes.json();
       if (seq !== fetchSeq.current) return;
       if (!campaignsRes.ok) throw new Error(campaignsData.error ?? 'Failed to fetch TikTok campaigns');
 
-      const revenueData = await revenueRes.json();
-      if (seq !== fetchSeq.current) return;
-      const rows: AdjustRow[] = revenueRes.ok ? (revenueData.rows ?? []) : [];
-      setAdjustRows(rows);
-
-      const cohortMap = aggregateByCampaignId(rows);
-      const allRevMap = aggregateAllRevByCampaignId(rows);
-      const merged = mergeTiktokCampaigns(campaignsData.campaigns as TiktokCampaignRow[], new Map(), cohortMap, allRevMap);
-      setMergedCampaigns(merged);
+      // A failed revenue call must not hide campaigns, but must be visible (not silently zero revenue).
+      setRevenueError(revenue.error ?? '');
+      setAdjustRows(revenue.rows);
+      setAppByCampaignId(aggregateAppByCampaignId(revenue.rows));
+      const cohortMap = aggregateByCampaignId(revenue.rows);
+      const allRevMap = aggregateAllRevByCampaignId(revenue.rows);
+      setMergedCampaigns(mergeTiktokCampaigns(campaignsData.campaigns as TiktokCampaignRow[], new Map(), cohortMap, allRevMap));
       setSelectedIds(new Set());
       setPhase('results');
+      if (!viewingUserId) snap.load();
     } catch (err) {
       if (seq !== fetchSeq.current) return; // stale fetch
       setErrorMsg(err instanceof Error ? err.message : 'Failed to fetch TikTok data');
@@ -101,17 +99,20 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [mergedCampaigns]);
 
+  // App names come from Adjust rows (TikTok API has no app dimension), same source as the FB hub.
+  const appOptions = useMemo(
+    () => Array.from(new Set(appByCampaignId.values())).sort((a, b) => a.localeCompare(b)),
+    [appByCampaignId],
+  );
+
   const displayedCampaigns = useMemo(() => {
-    const filtered = filterTiktokCampaigns(mergedCampaigns, {
-      campaignName: campaignNameFilter, statusFilter, accountFilter,
-      roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax,
-    });
+    const filtered = filterTiktokCampaigns(mergedCampaigns, f.filters, appByCampaignId);
     return [...filtered].sort((a, b) => {
       const av = (a[sortCol as keyof MergedTiktokCampaign] as number | null) ?? 0;
       const bv = (b[sortCol as keyof MergedTiktokCampaign] as number | null) ?? 0;
       return sortDir === 'asc' ? av - bv : bv - av;
     });
-  }, [mergedCampaigns, campaignNameFilter, statusFilter, accountFilter, roasMin, roasMax, spendMin, spendMax, budgetMin, budgetMax, sortCol, sortDir]);
+  }, [mergedCampaigns, f.filters, appByCampaignId, sortCol, sortDir]);
 
   const totalSpend = mergedCampaigns.reduce((s, c) => s + c.spend, 0);
 
@@ -144,37 +145,21 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
               <button onClick={() => setPhase('idle')} className="text-slate-500 hover:text-slate-700 font-medium whitespace-nowrap">Start Over</button>
             </div>
 
-            {/* Reusing the FB FilterBar as-is: appOptions=[] fully hides the app multi-select (TikTok
-                has no app-name dimension in Plan 1), and the keyword-chip handlers are no-ops since
-                that feature isn't needed here — decided in phase-03 Step 6 rather than forking a
-                tiktok-filter-bar.tsx. */}
-            <FilterBar
-              campaignName={campaignNameFilter}
-              onCampaignNameChange={setCampaignNameFilter}
-              campaignNameKeywords={[]}
-              onAddKeyword={() => {}}
-              onRemoveKeyword={() => {}}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              selectedApps={[]}
-              onSelectedAppsChange={() => {}}
-              appOptions={[]}
-              accountFilter={accountFilter}
-              onAccountFilterChange={setAccountFilter}
+            {revenueError && (
+              <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                Adjust revenue unavailable: {revenueError}. Revenue, ROAS and profit are not shown — click Start Over and fetch again to retry.
+              </div>
+            )}
+
+            {/* Snapshots are per-user (RLS) — hidden while viewing another user so their data is never compared against/saved as mine. */}
+            {!readOnly && <TiktokSnapshotSection snap={snap} revenueMissing={!!revenueError} />}
+
+            <TiktokFilterSection
+              state={f}
+              appOptions={appOptions}
               accountOptions={accountOptions}
-              roasMin={roasMin} roasMax={roasMax}
-              onRoasMinChange={setRoasMin} onRoasMaxChange={setRoasMax}
-              spendMin={spendMin} spendMax={spendMax}
-              onSpendMinChange={setSpendMin} onSpendMaxChange={setSpendMax}
-              budgetMin={budgetMin} budgetMax={budgetMax}
-              onBudgetMinChange={setBudgetMin} onBudgetMaxChange={setBudgetMax}
               totalCount={mergedCampaigns.length}
               filteredCount={displayedCampaigns.length}
-              onClearAll={() => {
-                setCampaignNameFilter(''); setAccountFilter('');
-                setRoasMin(''); setRoasMax(''); setSpendMin(''); setSpendMax('');
-                setBudgetMin(''); setBudgetMax(''); setStatusFilter('all');
-              }}
             />
 
             <TiktokResultsPanel
@@ -190,6 +175,7 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
               onCampaignActionComplete={handleFetchData}
               viewAs={viewingUserId ?? undefined}
               readOnly={readOnly}
+              snapshotComparisons={readOnly ? [] : snap.comparisons}
             />
           </div>
         )}
