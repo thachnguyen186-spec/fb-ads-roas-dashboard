@@ -12,6 +12,7 @@ import { MAX_SCHEDULE_DAYS, PUSH_MIN_LEAD_MIN } from './constants';
 import { getPageToken, markProfileInvalid } from './fb-profiles';
 import { decideFailure } from './push-outcome';
 import { pushPost } from './push-post';
+import { resolvePhotoPostId } from './resolve-photo-post-id';
 import type { PsPost } from './types';
 
 export const PUSH_BATCH_SIZE = 10;
@@ -84,7 +85,10 @@ export async function pushClaimedRows(rows: PsPost[], opts: { requeueStatus: Req
       return;
     }
     try {
-      const { fbPostId, fbPhotoId } = await pushPost(row, token);
+      const pushed = await pushPost(row, token);
+      const fbPhotoId = pushed.fbPhotoId;
+      // Graph can omit post_id for scheduled photos; recover it from the photo's page_story_id.
+      const fbPostId = pushed.fbPostId ?? (fbPhotoId ? await resolvePhotoPostId(fbPhotoId, row.page_id, token) : null);
       if (!fbPostId) { // photo created but no post id: never store the photo id as the post id
         await fail(row, 'Uncertain push outcome - photo created without post id - check Business Suite before retry', null, fbPhotoId);
         return;
