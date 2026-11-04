@@ -24,14 +24,11 @@ export default async function TiktokDashboardPage() {
   ]);
   const staffList = await loadTiktokStaffList(user.id, role);
 
-  // Adjust tokens are org-wide env vars — same check as the FB dashboard page.
-  const hasAdjustToken = !!process.env.ADJUST_API_TOKEN && !!process.env.ADJUST_ACCOUNT_ID;
   const selectedAdvertisers = (accountsRes.data ?? []) as TiktokAdvertiserAccount[];
 
   return (
     <TiktokCampaignHub
       hasTiktokConnection={status.connected}
-      hasAdjustToken={hasAdjustToken}
       selectedAdvertisers={selectedAdvertisers}
       userRole={role ?? 'staff'}
       staffList={staffList}

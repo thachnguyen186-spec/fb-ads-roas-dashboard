@@ -5,7 +5,6 @@ import { aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateAppByCampa
 import { mergeTiktokCampaigns } from '@/lib/tiktok/merge';
 import { filterTiktokCampaigns } from '@/lib/tiktok/filter-campaigns';
 import { tiktokSortValue } from '@/lib/tiktok/snapshot-helpers';
-import { fetchTiktokAdjustRevenue } from '@/lib/tiktok/fetch-adjust-revenue';
 import { formatUsd } from '@/lib/utils';
 import TiktokHeader from './tiktok-header';
 import TiktokResultsPanel from './tiktok-results-panel';
@@ -14,26 +13,34 @@ import TiktokFilterSection from './tiktok-filter-section';
 import TiktokSnapshotSection from './tiktok-snapshot-section';
 import { useTiktokFilterState } from './use-tiktok-filter-state';
 import { useTiktokSnapshots } from './use-tiktok-snapshots';
-import type { AdjustRow, MergedTiktokCampaign, TiktokAdvertiserAccount, TiktokCampaignRow, TiktokStaffMember, UserRole } from '@/lib/types';
+import { useTiktokAppsflyerRevenue } from './use-tiktok-appsflyer-revenue';
+import type { AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
+import type { AdjustRow, TiktokAdvertiserAccount, TiktokCampaignRow, TiktokStaffMember, UserRole } from '@/lib/types';
 
 type Phase = 'idle' | 'loading' | 'results' | 'error';
 
+const NO_ROWS: AdjustRow[] = [];
+
 interface Props {
   hasTiktokConnection: boolean;
-  hasAdjustToken: boolean;
   selectedAdvertisers: TiktokAdvertiserAccount[];
   userRole: UserRole;
   staffList: TiktokStaffMember[];
   userEmail: string;
 }
 
-export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken, selectedAdvertisers, userRole, staffList, userEmail }: Props) {
+export default function TiktokCampaignHub({ hasTiktokConnection, selectedAdvertisers, userRole, staffList, userEmail }: Props) {
   const [phase, setPhase] = useState<Phase>('idle');
   const [errorMsg, setErrorMsg] = useState('');
-  const [revenueError, setRevenueError] = useState('');
-  const [mergedCampaigns, setMergedCampaigns] = useState<MergedTiktokCampaign[]>([]);
-  const [adjustRows, setAdjustRows] = useState<AdjustRow[]>([]);
-  const [appByCampaignId, setAppByCampaignId] = useState<Map<string, string>>(new Map());
+  const [campaignRows, setCampaignRows] = useState<TiktokCampaignRow[]>([]);
+  const af = useTiktokAppsflyerRevenue();
+  // AppsFlyer-derived revenue rows (AdjustRow shape) — campaign_id + adset_id (= TikTok ad group id).
+  const revenueRows = af.match?.rows ?? NO_ROWS;
+  const mergedCampaigns = useMemo(
+    () => mergeTiktokCampaigns(campaignRows, new Map(), aggregateByCampaignId(revenueRows), aggregateAllRevByCampaignId(revenueRows)),
+    [campaignRows, revenueRows],
+  );
+  const appByCampaignId = useMemo(() => aggregateAppByCampaignId(revenueRows), [revenueRows]);
   const f = useTiktokFilterState();
   const [sortCol, setSortCol] = useState('spend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -51,34 +58,36 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
     fetchSeq.current++;
     setViewingUserId(userId);
     setPhase('idle');
-    setErrorMsg(''); setRevenueError('');
-    setMergedCampaigns([]);
-    setAdjustRows([]);
-    setAppByCampaignId(new Map());
+    setErrorMsg('');
+    setCampaignRows([]);
+    af.clearMatch(); // the uploaded file stays — it is org-wide, not per viewed user
     setSelectedIds(new Set());
     f.clearAll();
     snap.reset();
   }
 
+  /** New file (or cleared file): re-map onto the campaigns already loaded — no campaign refetch. */
+  function handleAppsflyerReady(result: AppsflyerParseResult | null) {
+    af.setFile(result);
+    void af.apply(campaignRows, viewingUserId);
+  }
+
   async function handleFetchData() {
     const seq = ++fetchSeq.current;
     setPhase('loading');
-    setErrorMsg(''); setRevenueError('');
+    setErrorMsg('');
     try {
       const campaignsUrl = new URL('/api/tiktok/campaigns', window.location.origin);
       if (viewingUserId) campaignsUrl.searchParams.set('viewAs', viewingUserId);
-      const [campaignsRes, revenue] = await Promise.all([fetch(campaignsUrl), fetchTiktokAdjustRevenue()]);
+      const campaignsRes = await fetch(campaignsUrl);
       const campaignsData = await campaignsRes.json();
       if (seq !== fetchSeq.current) return;
       if (!campaignsRes.ok) throw new Error(campaignsData.error ?? 'Failed to fetch TikTok campaigns');
 
-      // A failed revenue call must not hide campaigns, but must be visible (not silently zero revenue).
-      setRevenueError(revenue.error ?? '');
-      setAdjustRows(revenue.rows);
-      setAppByCampaignId(aggregateAppByCampaignId(revenue.rows));
-      const cohortMap = aggregateByCampaignId(revenue.rows);
-      const allRevMap = aggregateAllRevByCampaignId(revenue.rows);
-      setMergedCampaigns(mergeTiktokCampaigns(campaignsData.campaigns as TiktokCampaignRow[], new Map(), cohortMap, allRevMap));
+      const rows = (campaignsData.campaigns ?? []) as TiktokCampaignRow[];
+      setCampaignRows(rows);
+      // Campaigns render immediately; AppsFlyer revenue (if a file is uploaded) is mapped in the background.
+      void af.apply(rows, viewingUserId);
       setSelectedIds(new Set());
       setPhase('results');
       if (!viewingUserId) snap.load();
@@ -100,7 +109,7 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [mergedCampaigns]);
 
-  // App names come from Adjust rows (TikTok API has no app dimension), same source as the FB hub.
+  // App names come from the AppsFlyer rows (TikTok API has no app dimension), same source as the FB hub.
   const appOptions = useMemo(
     () => Array.from(new Set(appByCampaignId.values())).sort((a, b) => a.localeCompare(b)),
     [appByCampaignId],
@@ -134,11 +143,13 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
           viewingEmail={viewing?.email ?? null}
           connected={viewing ? true : hasTiktokConnection}
           advertiserCount={activeAdvertisers.length}
-          hasAdjustToken={hasAdjustToken}
           showFetchCard={phase !== 'results'}
           loading={phase === 'loading'}
           errorMsg={phase === 'error' ? errorMsg : ''}
           onFetch={handleFetchData}
+          appsflyer={af}
+          hasCampaigns={campaignRows.length > 0}
+          onAppsflyerReady={handleAppsflyerReady}
         />
 
         {phase === 'results' && (
@@ -148,14 +159,8 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
               <button onClick={() => setPhase('idle')} className="text-slate-500 hover:text-slate-700 font-medium whitespace-nowrap">Start Over</button>
             </div>
 
-            {revenueError && (
-              <div role="alert" className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
-                Adjust revenue unavailable: {revenueError}. Revenue, ROAS and profit are not shown — click Start Over and fetch again to retry.
-              </div>
-            )}
-
             {/* Snapshots are per-user (RLS) — hidden while viewing another user so their data is never compared against/saved as mine. */}
-            {!readOnly && <TiktokSnapshotSection snap={snap} revenueMissing={!!revenueError} />}
+            {!readOnly && <TiktokSnapshotSection snap={snap} revenueMissing={af.revenueMissing} />}
 
             <TiktokFilterSection
               state={f}
@@ -174,7 +179,7 @@ export default function TiktokCampaignHub({ hasTiktokConnection, hasAdjustToken,
               sortDir={sortDir}
               onSort={handleSort}
               showAdvertiserColumn={accountOptions.length > 1}
-              adjustRows={adjustRows}
+              adjustRows={revenueRows}
               onCampaignActionComplete={handleFetchData}
               viewAs={viewingUserId ?? undefined}
               readOnly={readOnly}

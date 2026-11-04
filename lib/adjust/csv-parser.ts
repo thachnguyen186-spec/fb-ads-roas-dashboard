@@ -1,115 +1,20 @@
 /**
- * Parses Adjust CSV exports using the known fixed schema:
- *   app, channel, campaign_network, campaign_id_network,
- *   adgroup_network, adgroup_id_network, cost, all_revenue, cohort_all_revenue
+ * Revenue aggregators shared by the FB and TikTok dashboards.
  *
- * Filters to Facebook rows only, skips invalid campaign IDs.
- * Produces two aggregation maps per entity:
- *   - cohort_all_revenue (D0 ROAS)
- *   - all_revenue (%Profit and Profit)
+ * Input rows are `AdjustRow` (the type name predates AppsFlyer); today they come from the
+ * AppsFlyer "by Ad ID" CSV via `lib/appsflyer/appsflyer-revenue-rows.ts`. Each entity gets two maps:
+ *   - `revenue`     → ROAS numerator
+ *   - `all_revenue` → %Profit and Profit
+ * (AppsFlyer provides a single figure, so both maps hold the same values.)
  *
- * Runs entirely client-side — no server upload.
+ * Runs entirely client-side.
  */
 
-import Papa from 'papaparse';
 import type { AdjustRow } from '@/lib/types';
 
-interface RawAdjustRow {
-  app: string;
-  channel: string;
-  campaign_network: string;
-  campaign_id_network: string;
-  adgroup_network: string;
-  adgroup_id_network: string;
-  cost: number | string;
-  all_revenue: number | string;
-  cohort_all_revenue: number | string;
-}
-
-/** Adjust exports these as campaign ID for unattributed traffic — skip them */
-const INVALID_IDS = new Set(['unknown', 'expired attributions', '']);
-
-function isValidCampaignId(id: string): boolean {
-  if (!id) return false;
-  if (INVALID_IDS.has(id.trim().toLowerCase())) return false;
-  return /^\d+$/.test(id.trim()); // FB campaign IDs are pure numeric strings
-}
-
-function toNum(val: number | string | undefined): number {
-  if (val === undefined || val === null || val === '') return 0;
-  const n = typeof val === 'number' ? val : parseFloat(String(val));
-  return isNaN(n) ? 0 : n;
-}
-
 /**
- * Parses the Adjust CSV file, filters to Facebook rows, and returns AdjustRows.
- * @param appFilter - Optional app name to restrict to one app in a multi-app CSV
- */
-export function parseAdjustCsv(file: File, appFilter?: string): Promise<AdjustRow[]> {
-  return new Promise((resolve, reject) => {
-    Papa.parse<RawAdjustRow>(file, {
-      header: true,
-      // dynamicTyping MUST stay off: 18-digit FB campaign IDs exceed Number.MAX_SAFE_INTEGER
-      // and would be silently rounded if coerced to numbers, breaking all campaign_id matching.
-      // Numeric fields are converted explicitly via toNum() below.
-      dynamicTyping: false,
-      skipEmptyLines: true,
-      complete(results) {
-        const rows: AdjustRow[] = [];
-        for (const row of results.data) {
-          if (String(row.channel ?? '').toLowerCase() !== 'facebook') continue;
-          if (!isValidCampaignId(String(row.campaign_id_network ?? ''))) continue;
-          if (appFilter && row.app !== appFilter) continue;
-
-          const adsetId = String(row.adgroup_id_network ?? '').trim();
-          rows.push({
-            campaign_id: String(row.campaign_id_network).trim(),
-            campaign_name: row.campaign_network ?? '',
-            app: row.app ?? '',
-            // cohort_all_revenue → D0 ROAS numerator
-            revenue: toNum(row.cohort_all_revenue),
-            // all_revenue → %Profit and Profit calculations
-            all_revenue: toNum(row.all_revenue),
-            adset_id: adsetId || undefined,
-            adset_name: row.adgroup_network ? String(row.adgroup_network) : undefined,
-          });
-        }
-        resolve(rows);
-      },
-      error(err) {
-        reject(new Error(`CSV parse error: ${err.message}`));
-      },
-    });
-  });
-}
-
-/**
- * Reads only the unique app names from the CSV for the app filter dropdown.
- * Faster than full parse — stops caring about other columns.
- */
-export function parseAppsFromCsv(file: File): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    Papa.parse<RawAdjustRow>(file, {
-      header: true,
-      dynamicTyping: false,
-      skipEmptyLines: true,
-      complete(results) {
-        const apps = new Set<string>();
-        for (const row of results.data) {
-          if (row.app) apps.add(row.app);
-        }
-        resolve([...apps].sort());
-      },
-      error(err) {
-        reject(new Error(`CSV parse error: ${err.message}`));
-      },
-    });
-  });
-}
-
-/**
- * Aggregates AdjustRows by campaign_id, summing cohort_all_revenue.
- * Used for D0 ROAS = cohort_all_revenue / spend.
+ * Aggregates rows by campaign_id, summing `revenue`.
+ * Used for ROAS = revenue / spend.
  */
 export function aggregateByCampaignId(rows: AdjustRow[]): Map<string, number> {
   const map = new Map<string, number>();
@@ -120,7 +25,7 @@ export function aggregateByCampaignId(rows: AdjustRow[]): Map<string, number> {
 }
 
 /**
- * Aggregates AdjustRows by campaign_id, summing all_revenue.
+ * Aggregates rows by campaign_id, summing all_revenue.
  * Used for %Profit and Profit = (all_revenue - spend) calculations.
  */
 export function aggregateAllRevByCampaignId(rows: AdjustRow[]): Map<string, number> {
@@ -132,8 +37,8 @@ export function aggregateAllRevByCampaignId(rows: AdjustRow[]): Map<string, numb
 }
 
 /**
- * Returns a map of campaign_id → app_name from Adjust rows.
- * Used to populate the App filter dropdown using CSV data (not FB API app_name which is often null).
+ * Returns a map of campaign_id → app_name from revenue rows.
+ * Used to populate the App filter dropdown (FB API app_name is often null).
  */
 export function aggregateAppByCampaignId(rows: AdjustRow[]): Map<string, string> {
   const map = new Map<string, string>();
@@ -146,8 +51,8 @@ export function aggregateAppByCampaignId(rows: AdjustRow[]): Map<string, string>
 }
 
 /**
- * Aggregates AdjustRows by adset_id, summing cohort_all_revenue.
- * Used for adset-level D0 ROAS in the expanded view.
+ * Aggregates rows by adset_id, summing `revenue`.
+ * Used for adset-level ROAS in the expanded view.
  */
 export function aggregateByAdSetId(rows: AdjustRow[]): Map<string, number> {
   const map = new Map<string, number>();
@@ -159,7 +64,7 @@ export function aggregateByAdSetId(rows: AdjustRow[]): Map<string, number> {
 }
 
 /**
- * Aggregates AdjustRows by adset_id, summing all_revenue.
+ * Aggregates rows by adset_id, summing all_revenue.
  * Used for adset-level %Profit and Profit in the expanded view.
  */
 export function aggregateAllRevByAdSetId(rows: AdjustRow[]): Map<string, number> {

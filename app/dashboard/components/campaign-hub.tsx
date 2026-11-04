@@ -1,15 +1,17 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Flame, ChevronLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { parseAdjustCsv, aggregateByCampaignId, aggregateAllRevByCampaignId, aggregateByAdSetId, aggregateAllRevByAdSetId, aggregateAppByCampaignId } from '@/lib/adjust/csv-parser';
 import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
 import { getInitials } from '@/lib/utils';
-import type { AdjustRow, AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotComparison, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
-import AdjustCsvUpload from './adjust-csv-upload';
+import type { AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
+import type { AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotComparison, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
+import AppsflyerCsvUpload from './appsflyer-csv-upload';
+import AppsflyerRevenueStatus from './appsflyer-revenue-status';
+import { useAppsflyerRevenue } from './use-appsflyer-revenue';
 import CampaignTable from './campaign-table';
 import FilterBar from './filter-bar';
 import ActionBar from './action-bar';
@@ -22,15 +24,13 @@ type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
 
 interface Props {
   hasToken: boolean;
-  /** Whether the user has configured an Adjust API token in Settings */
-  hasAdjustToken: boolean;
   selectedAccounts: FbAdAccount[];
   userRole: UserRole;
   staffList: StaffMember[];
   userEmail: string;
 }
 
-export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts, userRole, staffList, userEmail }: Props) {
+export default function CampaignHub({ hasToken, selectedAccounts, userRole, staffList, userEmail }: Props) {
   const router = useRouter();
 
   // Leader/admin: which staff member to view (null = own data)
@@ -38,18 +38,15 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const viewingStaff = staffList.find((s) => s.id === viewingStaffId) ?? null;
 
   const [phase, setPhase] = useState<Phase>('idle');
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [appFilter, setAppFilter] = useState<string | undefined>(undefined);
   const [rawFbCampaigns, setRawFbCampaigns] = useState<CampaignRow[]>([]);
-  const [adjustMapState, setAdjustMapState] = useState<Map<string, number>>(new Map());           // cohort_all_revenue by campaign
-  const [adjustAllRevMapState, setAdjustAllRevMapState] = useState<Map<string, number>>(new Map()); // all_revenue by campaign
-  const [adjustAdSetMapState, setAdjustAdSetMapState] = useState<Map<string, number>>(new Map());   // cohort_all_revenue by adset
-  const [adjustAllRevAdSetMapState, setAdjustAllRevAdSetMapState] = useState<Map<string, number>>(new Map()); // all_revenue by adset
-  const [adjustAppMapState, setAdjustAppMapState] = useState<Map<string, string>>(new Map());
-  // Adjust API fetch state
-  const [adjustApiRows, setAdjustApiRows] = useState<AdjustRow[] | null>(null); // non-null = API mode
-  const [apiFetching, setApiFetching] = useState(false);
-  const [apiFetchError, setApiFetchError] = useState('');
+  // AppsFlyer CSV → per-campaign / per-adset revenue maps (names kept from the Adjust era)
+  const appsflyer = useAppsflyerRevenue(rawFbCampaigns);
+  const {
+    campaignRev: adjustMapState, campaignAllRev: adjustAllRevMapState,
+    adsetRev: adjustAdSetMapState, adsetAllRev: adjustAllRevAdSetMapState, appByCampaign: adjustAppMapState,
+  } = appsflyer.maps;
+  // Bumped per Analyze and by Start Over / staff switch — a late Analyze never renders under the wrong user.
+  const analyzeSeq = useRef(0);
   // Adset-only flat view
   const [showAdsetOnly, setShowAdsetOnly] = useState(false);
   const [rawFlatAdSets, setRawFlatAdSets] = useState<Array<AdSetRow & { campaign_name: string }>>([]);
@@ -57,7 +54,6 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const [selectedFlatAdsetIds, setSelectedFlatAdsetIds] = useState<Set<string>>(new Set());
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-  const [mergedCampaigns, setMergedCampaigns] = useState<MergedCampaign[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [roasMin, setRoasMin] = useState('');
   const [roasMax, setRoasMax] = useState('');
@@ -74,6 +70,11 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [vndRate, setVndRate] = useState(26000);
   const [rateInput, setRateInput] = useState('26000');
+  // Derived, so the latest campaigns and the latest revenue always combine, whichever finished last.
+  const mergedCampaigns = useMemo(
+    () => mergeCampaigns(rawFbCampaigns, adjustMapState, adjustAllRevMapState, vndRate),
+    [rawFbCampaigns, adjustMapState, adjustAllRevMapState, vndRate],
+  );
   // Snapshots — multi-compare support
   const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
   /** Ordered list of snapshot IDs added to comparison (index 0 = first added) */
@@ -105,21 +106,13 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
   );
 
   function handleStartOver() {
+    analyzeSeq.current++;
     setPhase('idle');
-    setCsvFile(null);
     setRawFbCampaigns([]);
-    setAdjustMapState(new Map());
-    setAdjustAllRevMapState(new Map());
-    setAdjustAdSetMapState(new Map());
-    setAdjustAllRevAdSetMapState(new Map());
-    setAdjustAppMapState(new Map());
-    setAdjustApiRows(null);
-    setApiFetching(false);
-    setApiFetchError('');
+    appsflyer.reset();
     setShowAdsetOnly(false);
     setRawFlatAdSets([]);
     setSelectedFlatAdsetIds(new Set());
-    setMergedCampaigns([]);
     setSelectedIds(new Set());
     setAccountFilter('');
     setAppNameFilter([]);
@@ -156,30 +149,6 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     if (res.ok) {
       const data = await res.json();
       setSnapshots(data.snapshots ?? []);
-    }
-  }
-
-  /** Fetch today's Adjust revenue via API token (primary mode when token is configured) */
-  async function handleFetchFromApi() {
-    setApiFetching(true);
-    setApiFetchError('');
-    try {
-      const res = await fetch('/api/adjust/revenue');
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Failed to fetch from Adjust API');
-      const rows = data.rows as AdjustRow[];
-      setAdjustApiRows(rows);
-      // Run aggregations — same functions as CSV path so both converge at handleAnalyze
-      setAdjustMapState(aggregateByCampaignId(rows));
-      setAdjustAllRevMapState(aggregateAllRevByCampaignId(rows));
-      setAdjustAdSetMapState(aggregateByAdSetId(rows));
-      setAdjustAllRevAdSetMapState(aggregateAllRevByAdSetId(rows));
-      setAdjustAppMapState(aggregateAppByCampaignId(rows));
-      setPhase('csv_ready'); // enables the "Fetch & Analyze" step 2 button
-    } catch (err) {
-      setApiFetchError(err instanceof Error ? err.message : 'Failed to fetch from Adjust API');
-    } finally {
-      setApiFetching(false);
     }
   }
 
@@ -287,7 +256,6 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     const rate = parseFloat(rateInput);
     if (isNaN(rate) || rate <= 0) return;
     setVndRate(rate);
-    setMergedCampaigns(mergeCampaigns(rawFbCampaigns, adjustMapState, adjustAllRevMapState, rate));
   }
 
   async function loadAllAdsets(campaigns: MergedCampaign[]) {
@@ -315,59 +283,46 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     handleStartOver();
   }
 
-  function handleCsvReady(file: File, filter: string | undefined) {
-    setCsvFile(file);
-    setAppFilter(filter);
-    setPhase('csv_ready');
+  /** Step 1 drop zone: a parsed file enables Analyze; a failed/cleared file disables it. */
+  function handleCsvReady(result: AppsflyerParseResult | null) {
+    appsflyer.setParsed(result);
+    setPhase(result ? 'csv_ready' : 'idle');
+  }
+
+  /** File replaced from the results view: re-map ads; the merged campaigns follow the new maps. */
+  function handleAppsflyerReplace(result: AppsflyerParseResult) {
+    void appsflyer.applyRevenue(viewingStaffId, result); // errors surface in AppsflyerRevenueStatus
+  }
+
+  async function fetchFbCampaigns(): Promise<CampaignRow[]> {
+    const url = new URL('/api/campaigns', window.location.origin);
+    if (viewingStaffId) url.searchParams.set('viewAs', viewingStaffId);
+    const res = await fetch(url.toString());
+    const data = await res.json().catch(() => ({})) as { campaigns?: CampaignRow[]; error?: string };
+    if (!res.ok || data.error) throw new Error(data.error ?? `Failed to fetch campaigns (${res.status})`);
+    return data.campaigns ?? [];
   }
 
   async function handleAnalyze() {
-    if (!adjustApiRows && !csvFile) return;
+    if (!appsflyer.parsed) return;
+    const seq = ++analyzeSeq.current;
     setPhase('analyzing');
     setErrorMsg('');
     setSelectedIds(new Set());
     setAccountFilter('');
 
-    try {
-      const url = new URL('/api/campaigns', window.location.origin);
-      if (viewingStaffId) url.searchParams.set('viewAs', viewingStaffId);
-
-      if (adjustApiRows) {
-        // API mode: aggregation maps already populated by handleFetchFromApi — just fetch FB
-        const fbRes = await fetch(url.toString()).then((r) => r.json());
-        if (fbRes.error) throw new Error(fbRes.error);
-        const fbCampaigns = fbRes.campaigns as CampaignRow[];
-        setRawFbCampaigns(fbCampaigns);
-        const merged = mergeCampaigns(fbCampaigns, adjustMapState, adjustAllRevMapState, vndRate);
-        setMergedCampaigns(merged);
-      } else {
-        // CSV mode: parse CSV + fetch FB in parallel
-        const [fbRes, adjustRows] = await Promise.all([
-          fetch(url.toString()).then((r) => r.json()),
-          parseAdjustCsv(csvFile!, appFilter),
-        ]);
-        if (fbRes.error) throw new Error(fbRes.error);
-        const adjustMap = aggregateByCampaignId(adjustRows);
-        const adjustAllRevMap = aggregateAllRevByCampaignId(adjustRows);
-        const adjustAdSetMap = aggregateByAdSetId(adjustRows);
-        const adjustAllRevAdSetMap = aggregateAllRevByAdSetId(adjustRows);
-        const adjustAppMap = aggregateAppByCampaignId(adjustRows);
-        const fbCampaigns = fbRes.campaigns as CampaignRow[];
-        setRawFbCampaigns(fbCampaigns);
-        setAdjustMapState(adjustMap);
-        setAdjustAllRevMapState(adjustAllRevMap);
-        setAdjustAdSetMapState(adjustAdSetMap);
-        setAdjustAllRevAdSetMapState(adjustAllRevAdSetMap);
-        setAdjustAppMapState(adjustAppMap);
-        const merged = mergeCampaigns(fbCampaigns, adjustMap, adjustAllRevMap, vndRate);
-        setMergedCampaigns(merged);
-      }
-      setPhase('results');
-      fetchSnapshots(); // load saved snapshots when results are ready
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Unknown error');
+    // FB campaigns + AppsFlyer ad → campaign mapping in parallel. A failed mapping only drops the
+    // revenue (shown by AppsflyerRevenueStatus); the campaigns still load.
+    const [fbResult] = await Promise.allSettled([fetchFbCampaigns(), appsflyer.applyRevenue(viewingStaffId)]);
+    if (seq !== analyzeSeq.current) return; // superseded by Start Over, a staff switch or a newer Analyze
+    if (fbResult.status === 'rejected') {
+      setErrorMsg(fbResult.reason instanceof Error ? fbResult.reason.message : 'Unknown error');
       setPhase('error');
+      return;
     }
+    setRawFbCampaigns(fbResult.value);
+    setPhase('results');
+    fetchSnapshots(); // load saved snapshots when results are ready
   }
 
   function handleSort(col: string) {
@@ -382,7 +337,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [mergedCampaigns]);
 
-  // Unique app names from Adjust CSV (more reliable than FB app_name which is null for non-app campaigns)
+  // Unique app names from the AppsFlyer CSV (more reliable than FB app_name which is null for non-app campaigns)
   const appOptions = useMemo(() => {
     const seen = new Set<string>();
     for (const appName of adjustAppMapState.values()) {
@@ -540,7 +495,6 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
     if (showAdsetOnly && campaignsForStatus.length > 0) {
       loadAllAdsets(campaignsForStatus);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignsForStatus, showAdsetOnly]);
 
   return (
@@ -631,53 +585,14 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
               </div>
             )}
 
-            {/* Step 1: Adjust Data */}
+            {/* Step 1: AppsFlyer revenue */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-semibold">1</span>
-                <h2 className="font-medium text-slate-900">
-                  {hasAdjustToken ? 'Fetch Adjust Revenue' : 'Upload Adjust CSV'}
-                </h2>
+                <h2 className="font-medium text-slate-900">Upload AppsFlyer CSV</h2>
               </div>
-
-              {hasAdjustToken ? (
-                <div className="space-y-3">
-                  {adjustApiRows ? (
-                    <div className="flex items-center gap-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-700">
-                      <span>✓</span>
-                      <span>Adjust data loaded ({adjustApiRows.length} row{adjustApiRows.length !== 1 ? 's' : ''})</span>
-                      <button
-                        onClick={() => { setAdjustApiRows(null); setPhase('idle'); }}
-                        className="ml-auto text-emerald-600 hover:text-emerald-800 underline"
-                      >
-                        Reload
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        onClick={handleFetchFromApi}
-                        disabled={apiFetching || !hasFbConfig}
-                        className="w-full py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                      >
-                        {apiFetching ? 'Fetching from Adjust…' : "Fetch Today's Data from Adjust API"}
-                      </button>
-                      {apiFetchError && <p className="text-xs text-red-600">{apiFetchError}</p>}
-                    </>
-                  )}
-                  <details className="text-xs text-slate-500">
-                    <summary className="cursor-pointer hover:text-slate-700 select-none">Use CSV instead (fallback)</summary>
-                    <div className="mt-2">
-                      <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
-                    </div>
-                  </details>
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs text-slate-500">Export from Adjust → Analytics → Campaign report</p>
-                  <AdjustCsvUpload onReady={handleCsvReady} disabled={!hasFbConfig} />
-                </>
-              )}
+              <p className="text-xs text-slate-500">Export today&apos;s App performance by Ad ID report from AppsFlyer</p>
+              <AppsflyerCsvUpload key={appsflyer.uploadKey} onReady={handleCsvReady} disabled={!hasFbConfig} />
             </div>
 
             {phase === 'csv_ready' && (
@@ -776,16 +691,28 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
                 </button>
               </div>
 
+              <AppsflyerRevenueStatus
+                summary={appsflyer.summary}
+                warnings={appsflyer.warnings}
+                error={appsflyer.error}
+                mapping={appsflyer.mapping}
+                onReplace={handleAppsflyerReplace}
+              />
+
               {/* Snapshot save + multi-compare selector */}
               <SnapshotToolbar
                 snapshots={snapshots}
                 comparedIds={comparedSnapshotIds}
                 onAdd={handleAddSnapshot}
                 onRemove={handleRemoveSnapshot}
-                onSave={handleSaveSnapshot}
+                onSave={appsflyer.revenueIncomplete ? async () => {} : handleSaveSnapshot}
                 onDelete={handleDeleteSnapshot}
                 saving={savingSnapshot}
               />
+              {/* A snapshot of partial revenue would make every later delta wrong. */}
+              {appsflyer.revenueIncomplete && (
+                <p className="text-xs text-amber-700">Saving snapshots is disabled until AppsFlyer revenue is fully matched (see the AppsFlyer status above).</p>
+              )}
               {snapshotError && (
                 <div className="flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
                   <span>Snapshot error: {snapshotError}</span>
@@ -874,7 +801,7 @@ export default function CampaignHub({ hasToken, hasAdjustToken, selectedAccounts
         <ActionBar
           selectedCampaigns={selectedCampaigns}
           allAccounts={selectedAccounts}
-          onActionComplete={() => { if (csvFile || adjustApiRows) { setPhase('analyzing'); handleAnalyze(); } }}
+          onActionComplete={() => { if (appsflyer.parsed) { setPhase('analyzing'); handleAnalyze(); } }}
           onDeselect={() => setSelectedIds(new Set())}
           vndRate={vndRate}
         />

@@ -3,9 +3,9 @@
  * /campaign/get/ and /adgroup/get/ only return budget — actual spend comes from here.
  *
  * Timezone note: TikTok's documented Reporting API params are UTC-only — no
- * utc_offset/timezone override was found (unlike Adjust's utc_offset param used in
- * lib/adjust/api-client.ts). "Today" below is therefore the UTC calendar day, which can
- * disagree with Adjust's Asia/Bangkok "today" by up to 7 hours at the day boundary.
+ * utc_offset/timezone override was found. "Today" below is therefore the UTC calendar day,
+ * which can disagree with the Asia/Bangkok "today" of the AppsFlyer CSV export by up to
+ * 7 hours at the day boundary.
  * This is the same UTC-vs-Bangkok mismatch class already fixed once for FB — Phase 3 must
  * surface this drift explicitly in the UI, not just document it here.
  */

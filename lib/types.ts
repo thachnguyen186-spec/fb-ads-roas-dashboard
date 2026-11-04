@@ -72,7 +72,7 @@ export interface CampaignRow {
   cpi: number | null;
 }
 
-/** Row from Adjust CSV after filtering + aggregation */
+/** Campaign/ad-set revenue row. Name predates AppsFlyer: built from the AppsFlyer CSV (lib/appsflyer/appsflyer-revenue-rows.ts). */
 export interface AdjustRow {
   campaign_id: string;   // campaign_id_network column
   campaign_name: string; // campaign_network column

@@ -287,7 +287,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
                 Facebook Ads Data
               </th>
               <th className="px-3 py-1.5 text-center text-xs font-semibold text-emerald-700 bg-emerald-50 border-r border-emerald-200 border-b border-emerald-200 tracking-wide uppercase">
-                Adjust CSV
+                AppsFlyer
               </th>
               <th colSpan={4} className="px-3 py-1.5 text-center text-xs font-semibold text-purple-700 bg-purple-50 border-b border-purple-200 tracking-wide uppercase">
                 Result

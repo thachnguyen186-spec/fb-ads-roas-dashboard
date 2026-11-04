@@ -27,6 +27,7 @@ interface Props {
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
   showAdvertiserColumn: boolean;
+  /** AppsFlyer-derived revenue rows; adset_id = TikTok ad group id. */
   adjustRows: AdjustRow[];
   onCampaignActionComplete: () => void;
   /** Viewed user's id (leader/admin viewAs); undefined = own accounts. */
@@ -42,10 +43,16 @@ export default function TiktokResultsPanel({
   showAdvertiserColumn, adjustRows, onCampaignActionComplete, viewAs, readOnly, snapshotComparisons,
 }: Props) {
   const [showAdgroupOnly, setShowAdgroupOnly] = useState(false);
-  const [rawAdgroups, setRawAdgroups] = useState<MergedTiktokAdGroup[]>([]);
+  const [adgroupRows, setAdgroupRows] = useState<TiktokAdGroupRow[]>([]);
   const [loadingAdgroups, setLoadingAdgroups] = useState(false);
   const [adgroupError, setAdgroupError] = useState('');
   const [selectedAdgroupIds, setSelectedAdgroupIds] = useState<Set<string>>(new Set());
+
+  // Merged on render (not at load time) so a newly uploaded AppsFlyer file updates loaded ad groups too.
+  const rawAdgroups = useMemo<MergedTiktokAdGroup[]>(
+    () => mergeTiktokAdGroups(adgroupRows, new Map(), aggregateByAdSetId(adjustRows), aggregateAllRevByAdSetId(adjustRows)),
+    [adgroupRows, adjustRows],
+  );
 
   async function loadAdgroups() {
     setLoadingAdgroups(true);
@@ -57,9 +64,7 @@ export default function TiktokResultsPanel({
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to fetch TikTok ad groups');
-      const cohortMap = aggregateByAdSetId(adjustRows);
-      const allRevMap = aggregateAllRevByAdSetId(adjustRows);
-      setRawAdgroups(mergeTiktokAdGroups(data.adgroups as TiktokAdGroupRow[], new Map(), cohortMap, allRevMap));
+      setAdgroupRows((data.adgroups ?? []) as TiktokAdGroupRow[]);
       setSelectedAdgroupIds(new Set());
     } catch (err) {
       setAdgroupError(err instanceof Error ? err.message : 'Failed to fetch TikTok ad groups');
@@ -71,7 +76,7 @@ export default function TiktokResultsPanel({
   function toggleAdgroupView() {
     const next = !showAdgroupOnly;
     setShowAdgroupOnly(next);
-    if (next && rawAdgroups.length === 0) loadAdgroups();
+    if (next && adgroupRows.length === 0) loadAdgroups();
   }
 
   const campaignNameById = useMemo(

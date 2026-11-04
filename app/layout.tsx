@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "FB Ads ROAS Dashboard",
-  description: "Facebook Ads + Adjust ROAS campaign management tool",
+  description: "Facebook + TikTok Ads ROAS campaign management tool (AppsFlyer revenue)",
 };
 
 export default function RootLayout({
