@@ -4,7 +4,7 @@
  * and a collapsible drop zone to replace the file (re-maps and re-merges in place). */
 
 import { formatUsd } from '@/lib/utils';
-import { corruptedIdsMessage, type AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
+import { corruptedIdsMessage, countLabel, type AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
 import AppsflyerCsvUpload from './appsflyer-csv-upload';
 import type { AppsflyerMatchSummary } from './use-appsflyer-revenue';
 
@@ -24,7 +24,7 @@ export default function AppsflyerRevenueStatus({ summary, warnings, error, mappi
           {mapping
             ? 'AppsFlyer: matching ads to campaigns…'
             : summary
-            ? `AppsFlyer: ${summary.matchedAds} of ${summary.totalAds} ads in the file matched to these campaigns · ${formatUsd(summary.matchedRevenue)}`
+            ? `AppsFlyer: ${summary.matchedAds} of ${countLabel(summary.totalAds, summary.level)} in the file matched to these campaigns · ${formatUsd(summary.matchedRevenue)}`
             : 'AppsFlyer: no file loaded'}
         </span>
         <details className="ml-auto">
@@ -42,7 +42,7 @@ export default function AppsflyerRevenueStatus({ summary, warnings, error, mappi
       )}
       {summary && summary.corruptedAds > 0 && (
         <div className="px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-          {corruptedIdsMessage(summary.corruptedAds)}
+          {corruptedIdsMessage(summary.corruptedAds, summary.level)}
         </div>
       )}
       {warnings.length > 0 && (

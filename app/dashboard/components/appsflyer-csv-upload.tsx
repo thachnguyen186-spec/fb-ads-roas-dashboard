@@ -1,10 +1,10 @@
 'use client';
 
-/** Drop zone for an AppsFlyer "App performance by Ad ID" CSV. Parses in the browser (nothing is
+/** Drop zone for an AppsFlyer "App performance by Ad ID" or "by Campaign ID" CSV. Parses in the browser (nothing is
  * uploaded or stored) and hands the parsed ad rows to the parent. Shared by FB and TikTok dashboards. */
 
 import { useRef, useState } from 'react';
-import { corruptedIdsMessage, parseAppsflyerCsv, type AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
+import { corruptedIdsMessage, countLabel, idLabel, parseAppsflyerCsv, type AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
 import { formatUsd } from '@/lib/utils';
 
 interface Props {
@@ -26,8 +26,8 @@ export default function AppsflyerCsvUpload({ onReady, disabled }: Props) {
       const result = await parseAppsflyerCsv(f);
       if (result.rows.length === 0) {
         throw new Error(result.corruptedRows > 0
-          ? corruptedIdsMessage(result.corruptedRows)
-          : 'No ads with a numeric Ad ID found in this file.');
+          ? corruptedIdsMessage(result.corruptedRows, result.level)
+          : `No rows with a numeric ${idLabel(result.level)} found in this file.`);
       }
       setFileName(f.name);
       setSummary(result);
@@ -77,7 +77,8 @@ export default function AppsflyerCsvUpload({ onReady, disabled }: Props) {
           <div>
             <p className="text-sm font-medium text-emerald-700 truncate">{fileName}</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              {summary.rows.length} ads · {formatUsd(summary.totalRevenue - summary.skippedRevenue - summary.corruptedRevenue)} revenue
+              {countLabel(summary.rows.length, summary.level)} · {formatUsd(summary.totalRevenue - summary.skippedRevenue - summary.corruptedRevenue)} revenue
+              {summary.level === 'campaign' && ' · campaign totals only (no ad set revenue)'}
               {summary.skippedRows > 0 && ` · ${summary.skippedRows} unattributed row${summary.skippedRows !== 1 ? 's' : ''} skipped`}
               {' · click to replace'}
             </p>
@@ -85,13 +86,13 @@ export default function AppsflyerCsvUpload({ onReady, disabled }: Props) {
         ) : (
           <div>
             <p className="text-sm text-slate-500">Drop AppsFlyer CSV here or click to browse</p>
-            <p className="text-xs text-slate-400 mt-0.5">AppsFlyer → App performance by Ad ID export (.csv)</p>
+            <p className="text-xs text-slate-400 mt-0.5">AppsFlyer → App performance by Ad ID or by Campaign ID export (.csv)</p>
           </div>
         )}
       </div>
       {summary && summary.corruptedRows > 0 && (
         <p className="text-xs text-amber-700">
-          {corruptedIdsMessage(summary.corruptedRows)} Their {formatUsd(summary.corruptedRevenue)} revenue is not counted.
+          {corruptedIdsMessage(summary.corruptedRows, summary.level)} Their {formatUsd(summary.corruptedRevenue)} revenue is not counted.
         </p>
       )}
       {error && <p className="text-xs text-red-600">{error}</p>}

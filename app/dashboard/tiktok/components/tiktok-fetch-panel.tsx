@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import AppsflyerCsvUpload from '@/app/dashboard/components/appsflyer-csv-upload';
 import { formatUsd } from '@/lib/utils';
-import type { AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
+import { countLabel, type AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
 import type { useTiktokAppsflyerRevenue } from './use-tiktok-appsflyer-revenue';
 
 interface Props {
@@ -38,7 +38,7 @@ function AppsflyerStatus({ af, hasCampaigns, showFetchCard }: { af: Props['appsf
   if (af.file && af.match && hasCampaigns) {
     return (
       <p className="text-xs text-slate-600">
-        AppsFlyer: {af.match.matchedAds} of {af.file.rows.length} ads matched to these campaigns · {formatUsd(af.match.matchedRevenue)} revenue
+        AppsFlyer: {af.match.matchedAds} of {countLabel(af.file.rows.length, af.file.level)} matched to these campaigns · {formatUsd(af.match.matchedRevenue)} revenue
       </p>
     );
   }

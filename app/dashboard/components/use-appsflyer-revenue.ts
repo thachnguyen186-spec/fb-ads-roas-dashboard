@@ -14,8 +14,8 @@ import {
   aggregateAllRevByAdSetId, aggregateAllRevByCampaignId, aggregateAppByCampaignId,
   aggregateByAdSetId, aggregateByCampaignId,
 } from '@/lib/adjust/csv-parser';
-import type { AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
-import { toRevenueRows, type AdPlacement } from '@/lib/appsflyer/appsflyer-revenue-rows';
+import type { AppsflyerLevel, AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
+import { campaignFilePlacements, toRevenueRows, type AdPlacement } from '@/lib/appsflyer/appsflyer-revenue-rows';
 import type { AdjustRow, CampaignRow } from '@/lib/types';
 
 export interface RevenueMaps {
@@ -30,9 +30,11 @@ export interface RevenueMaps {
 }
 
 export interface AppsflyerMatchSummary {
-  /** Ads matched to one of the loaded campaigns. */
+  /** Whether the counts below are ads or campaigns. */
+  level: AppsflyerLevel;
+  /** File rows (ads or campaigns) matched to one of the loaded campaigns. */
   matchedAds: number;
-  /** Numeric Ad IDs in the file (all media sources). */
+  /** Numeric IDs in the file (all media sources). */
   totalAds: number;
   matchedRevenue: number;
   /** IDs Excel turned into scientific notation — their revenue cannot be matched. */
@@ -69,10 +71,11 @@ function buildMaps(rows: AdjustRow[]): RevenueMaps {
 }
 
 async function fetchPlacements(parsed: AppsflyerParseResult, viewAs: string | null): Promise<Placements> {
+  if (parsed.level === 'campaign') return { placements: campaignFilePlacements(parsed.rows), warnings: [] };
   const res = await fetch('/api/campaigns/ad-map', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ad_ids: parsed.rows.map((r) => r.ad_id), ...(viewAs ? { viewAs } : {}) }),
+    body: JSON.stringify({ ad_ids: parsed.rows.map((r) => r.id), ...(viewAs ? { viewAs } : {}) }),
   });
   // Platform timeouts return non-JSON bodies — fall back to the HTTP status.
   const data = await res.json().catch(() => ({})) as AdMapResponse;
@@ -106,10 +109,10 @@ export function useAppsflyerRevenue(campaigns: CampaignRow[]) {
     let matchedRevenue = 0;
     for (const row of applied.rows) {
       if (!campaignIds.has(row.campaign_id)) continue;
-      matchedAds++; // toRevenueRows emits one row per ad
+      matchedAds++; // toRevenueRows emits one row per file row
       matchedRevenue += row.revenue;
     }
-    return { matchedAds, totalAds: applied.source.rows.length, matchedRevenue, corruptedAds: applied.source.corruptedRows };
+    return { level: applied.source.level, matchedAds, totalAds: applied.source.rows.length, matchedRevenue, corruptedAds: applied.source.corruptedRows };
   }, [applied, campaigns]);
 
   function setParsed(next: AppsflyerParseResult | null) {

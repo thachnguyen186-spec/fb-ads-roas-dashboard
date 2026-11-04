@@ -7,7 +7,7 @@
  * drops stale responses so a slow old mapping never overwrites a newer one (same as the hub's fetchSeq). */
 
 import { useRef, useState } from 'react';
-import { toRevenueRows, type AdPlacement, type AppsflyerMatchResult } from '@/lib/appsflyer/appsflyer-revenue-rows';
+import { campaignFilePlacements, toRevenueRows, type AdPlacement, type AppsflyerMatchResult } from '@/lib/appsflyer/appsflyer-revenue-rows';
 import type { AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
 import type { TiktokCampaignRow } from '@/lib/types';
 
@@ -49,8 +49,10 @@ export function useTiktokAppsflyerRevenue() {
   }
 
   /** Placements for `campaigns`' advertisers. Only unresolved ids are sent, and only to advertisers
-   * not yet scanned for them, so a refetch after a campaign action usually needs no request. */
+   * not yet scanned for them, so a refetch after a campaign action usually needs no request.
+   * A "by Campaign ID" file needs no request at all. */
   async function resolvePlacements(current: AppsflyerParseResult, campaigns: TiktokCampaignRow[], viewAs: string | null) {
+    if (current.level === 'campaign') return campaignFilePlacements(current.rows);
     const prev = cacheRef.current;
     const cache: PlacementCache = prev && prev.file === current && prev.viewAs === viewAs
       ? prev
@@ -58,7 +60,7 @@ export function useTiktokAppsflyerRevenue() {
     cacheRef.current = cache;
     const known = cache.placements;
     const advertisers = [...new Set(campaigns.map((c) => c.advertiser_id))].filter((id) => !cache.scanned.has(id));
-    const unresolved = current.rows.map((r) => r.ad_id).filter((id) => !known[id]);
+    const unresolved = current.rows.map((r) => r.id).filter((id) => !known[id]);
     if (advertisers.length > 0 && unresolved.length > 0) {
       Object.assign(known, await fetchPlacements(unresolved, advertisers, viewAs));
     }

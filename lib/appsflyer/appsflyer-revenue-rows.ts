@@ -1,5 +1,5 @@
 /**
- * Turns AppsFlyer ad-level revenue into the campaign/ad-set revenue rows every dashboard
+ * Turns AppsFlyer ad- or campaign-level revenue into the campaign/ad-set revenue rows every dashboard
  * already consumes (AdjustRow — the name predates AppsFlyer; aggregation, merge, ROAS/profit,
  * app filter and snapshots all key off it unchanged).
  *
@@ -22,11 +22,17 @@ export interface AppsflyerMatchResult {
   matchedRevenue: number;
 }
 
+/** A "by Campaign ID" file needs no platform lookup: each row is its own campaign, with no ad set
+ * (ad set / ad group rows then show no revenue). */
+export function campaignFilePlacements(rows: AppsflyerAdRow[]): Record<string, AdPlacement> {
+  return Object.fromEntries(rows.map((r) => [r.id, { campaign_id: r.id, adset_id: '' }]));
+}
+
 export function toRevenueRows(adRows: AppsflyerAdRow[], placements: Record<string, AdPlacement>): AppsflyerMatchResult {
   const rows: AdjustRow[] = [];
   let matchedRevenue = 0;
   for (const ad of adRows) {
-    const place = placements[ad.ad_id];
+    const place = placements[ad.id];
     if (!place) continue;
     matchedRevenue += ad.revenue;
     rows.push({
