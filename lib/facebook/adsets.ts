@@ -154,6 +154,7 @@ export async function fetchAdSets(
     if (!page.paging?.next) break;
   } while (after);
 
-  // Only return adsets that actually spent today
-  return adsets.filter((a) => a.spend > 0);
+  // Same rule as the campaign list: running ad sets (their budgets must stay editable even before
+  // they spend) plus paused ones that spent today.
+  return adsets.filter((a) => a.effective_status === 'ACTIVE' || a.spend > 0);
 }

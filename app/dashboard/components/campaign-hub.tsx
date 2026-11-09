@@ -22,6 +22,11 @@ import ExportSpendModal from './export-spend-modal';
 
 type Phase = 'idle' | 'csv_ready' | 'analyzing' | 'results' | 'error';
 
+type FlatRawAdSet = AdSetRow & { campaign_name: string };
+
+/** Campaigns whose ad sets load in parallel in the ad-set-only view. */
+const ADSET_LOAD_CONCURRENCY = 6;
+
 interface Props {
   hasToken: boolean;
   selectedAccounts: FbAdAccount[];
@@ -49,8 +54,11 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const analyzeSeq = useRef(0);
   // Adset-only flat view
   const [showAdsetOnly, setShowAdsetOnly] = useState(false);
-  const [rawFlatAdSets, setRawFlatAdSets] = useState<Array<AdSetRow & { campaign_name: string }>>([]);
+  const [rawFlatAdSets, setRawFlatAdSets] = useState<FlatRawAdSet[]>([]);
   const [loadingAllAdsets, setLoadingAllAdsets] = useState(false);
+  const [flatAdsetsError, setFlatAdsetsError] = useState('');
+  // Bumped per ad-set-only load so a slow older load never overwrites a newer one.
+  const loadAdsetsSeq = useRef(0);
   const [selectedFlatAdsetIds, setSelectedFlatAdsetIds] = useState<Set<string>>(new Set());
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -111,6 +119,9 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     setRawFbCampaigns([]);
     appsflyer.reset();
     setShowAdsetOnly(false);
+    loadAdsetsSeq.current++;
+    setLoadingAllAdsets(false);
+    setFlatAdsetsError('');
     setRawFlatAdSets([]);
     setSelectedFlatAdsetIds(new Set());
     setSelectedIds(new Set());
@@ -258,23 +269,53 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
     setVndRate(rate);
   }
 
+  async function fetchCampaignAdsets(c: MergedCampaign): Promise<FlatRawAdSet[]> {
+    const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
+    const res = await fetch(url);
+    // Platform timeouts return non-JSON bodies — fall back to the HTTP status.
+    const data = await res.json().catch(() => ({})) as { adsets?: AdSetRow[]; error?: string };
+    if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+    return (data.adsets ?? []).map((a) => ({ ...a, campaign_name: c.campaign_name }));
+  }
+
   async function loadAllAdsets(campaigns: MergedCampaign[]) {
+    const mySeq = ++loadAdsetsSeq.current;
     setLoadingAllAdsets(true);
     setRawFlatAdSets([]);
     setSelectedFlatAdsetIds(new Set());
+    setFlatAdsetsError('');
+    const rows: FlatRawAdSet[] = [];
+    const failed: string[] = [];
+    // Bounded so a long campaign list does not fire every Graph call at once and trip FB rate limits.
+    for (let i = 0; i < campaigns.length; i += ADSET_LOAD_CONCURRENCY) {
+      await Promise.all(campaigns.slice(i, i + ADSET_LOAD_CONCURRENCY).map(async (c) => {
+        try {
+          rows.push(...await fetchCampaignAdsets(c));
+        } catch (err) {
+          failed.push(`${c.campaign_name}: ${err instanceof Error ? err.message : 'failed'}`);
+        }
+      }));
+      if (mySeq !== loadAdsetsSeq.current) return; // filters changed meanwhile — a newer load owns the table
+    }
+    setRawFlatAdSets(rows);
+    if (failed.length > 0) {
+      setFlatAdsetsError(`Ad sets of ${failed.length} campaign${failed.length !== 1 ? 's' : ''} could not be loaded — ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '; …' : ''}`);
+    }
+    setLoadingAllAdsets(false);
+  }
+
+  /** After a budget edit in the ad-set-only view: reload just that campaign's ad sets, keeping the table in place. */
+  async function refreshFlatAdsetsOf(campaignId: string) {
+    const c = mergedCampaigns.find((m) => m.campaign_id === campaignId);
+    if (!c) return;
+    const seq = loadAdsetsSeq.current;
     try {
-      const results = await Promise.all(
-        campaigns.map(async (c) => {
-          const url = `/api/campaigns/${c.campaign_id}/adsets?accountId=${encodeURIComponent(c.account_id)}&accountName=${encodeURIComponent(c.account_name)}&currency=${encodeURIComponent(c.currency)}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          if (!res.ok) return [];
-          return (data.adsets as AdSetRow[]).map((a) => ({ ...a, campaign_name: c.campaign_name }));
-        }),
-      );
-      setRawFlatAdSets(results.flat());
-    } finally {
-      setLoadingAllAdsets(false);
+      const fresh = await fetchCampaignAdsets(c);
+      if (seq !== loadAdsetsSeq.current) return;
+      setRawFlatAdSets((prev) => [...prev.filter((a) => a.campaign_id !== campaignId), ...fresh]);
+    } catch (err) {
+      if (seq !== loadAdsetsSeq.current) return;
+      setFlatAdsetsError(`Budget saved, but reloading ${c.campaign_name} failed: ${err instanceof Error ? err.message : 'unknown error'}`);
     }
   }
 
@@ -492,9 +533,8 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   // campaignsForStatus = filteredCampaignsBase + campaign status filter (no sort),
   // so sort changes don't trigger unnecessary re-fetches.
   useEffect(() => {
-    if (showAdsetOnly && campaignsForStatus.length > 0) {
-      loadAllAdsets(campaignsForStatus);
-    }
+    // An empty campaign list still loads (to nothing) so ad sets of filtered-out campaigns do not linger.
+    if (showAdsetOnly) loadAllAdsets(campaignsForStatus);
   }, [campaignsForStatus, showAdsetOnly]);
 
   return (
@@ -754,6 +794,13 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
 
             </div>
 
+            {showAdsetOnly && flatAdsetsError && (
+              <div className="mb-2 flex items-center gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+                <span>{flatAdsetsError}</span>
+                <button onClick={() => setFlatAdsetsError('')} className="text-red-400 hover:text-red-700 ml-auto">✕</button>
+              </div>
+            )}
+
             {/* Table area — fixed viewport-relative height; scrolls internally on both axes */}
             <div className="h-[calc(100vh-340px)] min-h-[420px] overflow-hidden pb-3">
               {/* Campaign table */}
@@ -789,6 +836,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                     showAccountColumn={accountOptions.length > 1}
                     snapshotComparisons={snapshotComparisons}
                     zoom={zoom}
+                    onBudgetUpdated={refreshFlatAdsetsOf}
                   />
                 )
               )}
@@ -823,7 +871,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
           onClose={() => setShowBulkModal(false)}
           onApplied={() => {
             setShowBulkModal(false);
-            loadAllAdsets(displayedCampaigns);
+            loadAllAdsets(campaignsForStatus);
           }}
         />
       )}

@@ -32,9 +32,11 @@ interface Props {
   /** Ordered snapshot comparisons. Empty array = no snapshot selected. */
   snapshotComparisons: SnapshotComparison[];
   zoom?: number;
+  /** Called with the ad set's campaign after a budget edit succeeds, so the parent can reload it. */
+  onBudgetUpdated?: (campaignId: string) => void | Promise<void>;
 }
 
-export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn, snapshotComparisons, zoom = 100 }: Props) {
+export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn, snapshotComparisons, zoom = 100, onBudgetUpdated }: Props) {
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -115,6 +117,8 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Budget update failed');
+      const campaignId = adsets.find((a) => a.adset_id === target.id)?.campaign_id;
+      if (campaignId) await onBudgetUpdated?.(campaignId);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Budget update failed');
     } finally {
@@ -257,7 +261,7 @@ export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, 
   if (adsets.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-10 text-center text-sm text-slate-400">
-        No ad sets found. Try expanding campaigns first or check your filters.
+        No active ad sets and none with spend today in the filtered campaigns. Check your filters.
       </div>
     );
   }
