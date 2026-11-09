@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useMemo, useState } from 'react';
-import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
+import { roasColorClass, formatRoas, formatProfit, withSoleAdsetRevenue } from '@/lib/adjust/merge';
 import type { BudgetTarget, MergedAdSet, SnapshotAdSetRow, SnapshotComparison } from '@/lib/types';
 import BudgetModal from './budget-modal';
 
@@ -36,7 +36,8 @@ interface Props {
   onBudgetUpdated?: (campaignId: string) => void | Promise<void>;
 }
 
-export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn, snapshotComparisons, zoom = 100, onBudgetUpdated }: Props) {
+export default function AdsetFlatView({ adsets, selectedIds, onSelectionChange, vndRate, showAccountColumn, snapshotComparisons: rawComparisons, zoom = 100, onBudgetUpdated }: Props) {
+  const snapshotComparisons = useMemo(() => withSoleAdsetRevenue(rawComparisons, adsets), [rawComparisons, adsets]);
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');

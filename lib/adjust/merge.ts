@@ -7,7 +7,7 @@
  * Profit  = all_revenue - spend  (adjustAllRevMap)
  */
 
-import type { AdSetRow, CampaignRow, MergedAdSet, MergedCampaign } from '@/lib/types';
+import type { AdSetRow, CampaignRow, MergedAdSet, MergedCampaign, SnapshotAdSetRow, SnapshotComparison, SnapshotRow } from '@/lib/types';
 
 export function computeRoas(cohortRevenue: number | null, spend: number): number | null {
   if (cohortRevenue === null || spend === 0) return null;
@@ -79,16 +79,23 @@ export function mergeAdSets(
   adjustCohortMap: Map<string, number>,
   adjustAllRevMap: Map<string, number>,
   vndRate: number = 26000,
+  /** Campaign-level revenue, used for an ad set that is its campaign's only one and has no revenue of its own. */
+  campaignRev?: CampaignRevenueMaps,
 ): MergedAdSet[] {
   return fbAdSets.map((adset) => {
+    const useCampaign = !!campaignRev && !!adset.sole_adset
+      && !adjustCohortMap.has(adset.adset_id) && !adjustAllRevMap.has(adset.adset_id);
+    const revKey = useCampaign ? adset.campaign_id : adset.adset_id;
+    const cohortMap = useCampaign ? campaignRev.cohort : adjustCohortMap;
+    const allRevMap = useCampaign ? campaignRev.allRev : adjustAllRevMap;
     const isVnd = adset.currency === 'VND';
     // Insights (spend/cpc/cpi) are returned as VND numbers → divide by vndRate for USD.
     // Budgets are returned in VND smallest unit (1 VND), but centsToUsd already divided by 100,
     // so to get USD: multiply by 100 then divide by vndRate (= multiply by 100/vndRate).
     const insightRate = isVnd ? vndRate : 1;
     const budgetFactor = isVnd ? 100 / vndRate : 1;
-    const adjustRevenue = adjustCohortMap.get(adset.adset_id) ?? null;
-    const adjustAllRevenue = adjustAllRevMap.get(adset.adset_id) ?? null;
+    const adjustRevenue = cohortMap.get(revKey) ?? null;
+    const adjustAllRevenue = allRevMap.get(revKey) ?? null;
     const spendUsd = adset.spend / insightRate;
     return {
       ...adset,
@@ -106,6 +113,42 @@ export function mergeAdSets(
       has_adjust_data: adjustRevenue !== null || adjustAllRevenue !== null,
     };
   });
+}
+
+export interface CampaignRevenueMaps {
+  cohort: Map<string, number>;
+  allRev: Map<string, number>;
+}
+
+function fillFromCampaign(
+  adsetMap: Map<string, SnapshotAdSetRow>,
+  campaignMap: Map<string, SnapshotRow>,
+  sole: AdSetRow[],
+): Map<string, SnapshotAdSetRow> {
+  let out: Map<string, SnapshotAdSetRow> | null = null;
+  for (const a of sole) {
+    const snap = adsetMap.get(a.adset_id);
+    const camp = campaignMap.get(a.campaign_id);
+    if (!snap || snap.adjust_revenue != null || camp?.adjust_revenue == null) continue;
+    out ??= new Map(adsetMap);
+    // Same spend as the campaign (its only ad set), so the campaign's ROAS / profit carry over unchanged.
+    out.set(a.adset_id, { ...snap, adjust_revenue: camp.adjust_revenue, roas: camp.roas, profit_pct: camp.profit_pct, profit: camp.profit });
+  }
+  return out ?? adsetMap;
+}
+
+/**
+ * Snapshot comparisons with revenue filled in for ad sets that are their campaign's only one.
+ * Snapshots saved from a campaign-level AppsFlyer file hold revenue on the campaign row only.
+ */
+export function withSoleAdsetRevenue(comparisons: SnapshotComparison[], adsets: AdSetRow[]): SnapshotComparison[] {
+  const sole = adsets.filter((a) => a.sole_adset);
+  if (sole.length === 0) return comparisons;
+  return comparisons.map((c) => ({
+    ...c,
+    adsetMap: fillFromCampaign(c.adsetMap, c.campaignMap, sole),
+    prevAdsetMap: c.prevAdsetMap && c.prevCampaignMap ? fillFromCampaign(c.prevAdsetMap, c.prevCampaignMap, sole) : c.prevAdsetMap,
+  }));
 }
 
 /** Tailwind text-color class for a ROAS value */

@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react';
 import type { BudgetTarget, MergedAdSet, SnapshotAdSetRow, SnapshotComparison } from '@/lib/types';
-import { roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
+import { roasColorClass, formatRoas, formatProfit, withSoleAdsetRevenue } from '@/lib/adjust/merge';
 import BudgetModal from './budget-modal';
 
 function fmtUsd(v: number | null) {
@@ -85,7 +85,8 @@ function renderSnapCols(adset: MergedAdSet, comp: SnapshotComparison) {
   );
 }
 
-export default function AdSetRows({ adsets, loading, error, showAccountColumn, colCount, onBudgetUpdate, vndRate, snapshotComparisons }: Props) {
+export default function AdSetRows({ adsets, loading, error, showAccountColumn, colCount, onBudgetUpdate, vndRate, snapshotComparisons: rawComparisons }: Props) {
+  const snapshotComparisons = withSoleAdsetRevenue(rawComparisons, adsets);
   const [budgetTarget, setBudgetTarget] = useState<BudgetTarget | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');

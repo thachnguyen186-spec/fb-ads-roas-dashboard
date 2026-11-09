@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatProfit } from '@/lib/adjust/merge';
+import { formatProfit, withSoleAdsetRevenue } from '@/lib/adjust/merge';
 import type { MergedAdSet, SnapshotComparison } from '@/lib/types';
 
 interface Props {
@@ -67,7 +67,8 @@ function fmtBudgetDisplay(adset: MergedAdSet, vndRate: number): string {
   return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default function AdsetBulkBudgetModal({ adsets, vndRate, snapshotComparisons, onClose, onApplied }: Props) {
+export default function AdsetBulkBudgetModal({ adsets, vndRate, snapshotComparisons: rawComparisons, onClose, onApplied }: Props) {
+  const snapshotComparisons = withSoleAdsetRevenue(rawComparisons, adsets);
   const [newBudgets, setNewBudgets] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const a of adsets) {

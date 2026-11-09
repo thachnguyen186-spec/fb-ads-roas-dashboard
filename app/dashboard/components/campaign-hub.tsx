@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Flame, ChevronLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { mergeCampaigns, mergeAdSets } from '@/lib/adjust/merge';
+import { mergeCampaigns, mergeAdSets, type CampaignRevenueMaps } from '@/lib/adjust/merge';
 import { getInitials } from '@/lib/utils';
 import type { AppsflyerParseResult } from '@/lib/appsflyer/appsflyer-csv-parser';
 import type { AdSetRow, CampaignRow, FbAdAccount, MergedCampaign, SnapshotAdSetRow, SnapshotComparison, SnapshotData, SnapshotMeta, SnapshotRow, StaffMember, UserRole } from '@/lib/types';
@@ -82,6 +82,11 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const mergedCampaigns = useMemo(
     () => mergeCampaigns(rawFbCampaigns, adjustMapState, adjustAllRevMapState, vndRate),
     [rawFbCampaigns, adjustMapState, adjustAllRevMapState, vndRate],
+  );
+  // Campaign revenue for ad sets that are their campaign's only one (campaign-level AppsFlyer file).
+  const campaignRev = useMemo<CampaignRevenueMaps>(
+    () => ({ cohort: adjustMapState, allRev: adjustAllRevMapState }),
+    [adjustMapState, adjustAllRevMapState],
   );
   // Snapshots — multi-compare support
   const [snapshots, setSnapshots] = useState<SnapshotMeta[]>([]);
@@ -219,7 +224,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
               const res = await fetch(url);
               const data = await res.json();
               if (!res.ok) return [] as SnapshotAdSetRow[];
-              return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate).map((a): SnapshotAdSetRow => ({
+              return mergeAdSets(data.adsets as AdSetRow[], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate, campaignRev).map((a): SnapshotAdSetRow => ({
                 adset_id: a.adset_id,
                 campaign_id: c.campaign_id,
                 adset_name: a.adset_name,
@@ -391,10 +396,10 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
   const flatAdsets: FlatAdSet[] = useMemo(() => {
     if (rawFlatAdSets.length === 0) return [];
     return rawFlatAdSets.map((raw) => {
-      const merged = mergeAdSets([raw], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate)[0]!;
+      const merged = mergeAdSets([raw], adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate, campaignRev)[0]!;
       return { ...merged, campaign_name: raw.campaign_name };
     });
-  }, [rawFlatAdSets, adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate]);
+  }, [rawFlatAdSets, adjustAdSetMapState, adjustAllRevAdSetMapState, vndRate, campaignRev]);
 
   const selectedFlatAdsets = useMemo(
     () => flatAdsets.filter((a) => selectedFlatAdsetIds.has(a.adset_id)),
@@ -815,6 +820,7 @@ export default function CampaignHub({ hasToken, selectedAccounts, userRole, staf
                   showAccountColumn={accountOptions.length > 1}
                   adjustAdSetMap={adjustAdSetMapState}
                   adjustAllRevAdSetMap={adjustAllRevAdSetMapState}
+                  campaignRev={campaignRev}
                   vndRate={vndRate}
                   snapshotComparisons={snapshotComparisons}
                   zoom={zoom}

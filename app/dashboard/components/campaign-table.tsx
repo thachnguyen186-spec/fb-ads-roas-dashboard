@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useState } from 'react';
-import { mergeAdSets, roasColorClass, formatRoas, formatProfit } from '@/lib/adjust/merge';
+import { mergeAdSets, roasColorClass, formatRoas, formatProfit, type CampaignRevenueMaps } from '@/lib/adjust/merge';
 import type { AdSetRow, BudgetTarget, MergedCampaign, SnapshotComparison, SnapshotRow } from '@/lib/types';
 import AdSetRows from './adset-rows';
 import BudgetModal from './budget-modal';
@@ -36,6 +36,8 @@ interface Props {
   showAccountColumn?: boolean;
   adjustAdSetMap: Map<string, number>;
   adjustAllRevAdSetMap: Map<string, number>;
+  /** Campaign revenue, shown on an ad set that is its campaign's only one and has none of its own. */
+  campaignRev: CampaignRevenueMaps;
   vndRate: number;
   /** Ordered snapshot comparisons. Empty array = no snapshot selected. */
   snapshotComparisons: SnapshotComparison[];
@@ -44,7 +46,7 @@ interface Props {
 
 export default function CampaignTable({
   campaigns, selectedIds, onSelectionChange, sortCol, sortDir, onSort,
-  showAccountColumn = false, adjustAdSetMap, adjustAllRevAdSetMap, vndRate,
+  showAccountColumn = false, adjustAdSetMap, adjustAllRevAdSetMap, campaignRev, vndRate,
   snapshotComparisons, zoom = 100,
 }: Props) {
   const allSelected = campaigns.length > 0 && campaigns.every((c) => selectedIds.has(c.campaign_id));
@@ -496,7 +498,7 @@ export default function CampaignTable({
 
                   {isExpanded && (
                     <AdSetRows
-                      adsets={mergeAdSets(adSetCache.get(c.campaign_id) ?? [], adjustAdSetMap, adjustAllRevAdSetMap, vndRate)}
+                      adsets={mergeAdSets(adSetCache.get(c.campaign_id) ?? [], adjustAdSetMap, adjustAllRevAdSetMap, vndRate, campaignRev)}
                       loading={loadingAdSets.has(c.campaign_id)}
                       error={adSetErrors.get(c.campaign_id) ?? null}
                       showAccountColumn={showAccountColumn}

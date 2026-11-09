@@ -135,6 +135,7 @@ export async function fetchAdSets(
   const adsets: AdSetRow[] = [];
   const insightFields = `insights.date_preset(today){${INSIGHT_FIELDS}}`;
   let after: string | undefined;
+  const soleIdPromise = findSoleAdSetId(token, campaignId);
 
   do {
     const params: Record<string, string> = {
@@ -154,7 +155,31 @@ export async function fetchAdSets(
     if (!page.paging?.next) break;
   } while (after);
 
+  const soleId = await soleIdPromise;
   // Same rule as the campaign list: running ad sets (their budgets must stay editable even before
   // they spend) plus paused ones that spent today.
-  return adsets.filter((a) => a.effective_status === 'ACTIVE' || a.spend > 0);
+  return adsets
+    .filter((a) => a.effective_status === 'ACTIVE' || a.spend > 0)
+    .map((a) => (a.adset_id === soleId ? { ...a, sole_adset: true } : a));
+}
+
+/** Every ad set status, deleted included: an ad set deleted or archived earlier can still earn revenue today. */
+const ALL_ADSET_STATUSES = ['ACTIVE', 'PAUSED', 'CAMPAIGN_PAUSED', 'ARCHIVED', 'DELETED', 'IN_PROCESS', 'WITH_ISSUES'];
+
+/**
+ * The id of the campaign's only ad set, or null when it has several (or the check fails).
+ * Lets a campaign-level revenue figure count as that ad set's revenue exactly.
+ */
+async function findSoleAdSetId(token: string, campaignId: string): Promise<string | null> {
+  const list = async (params: Record<string, string>) => {
+    const res = await fbGet(`/${campaignId}/adsets`, { fields: 'id', limit: '2', ...params }, token) as { data?: { id: string }[] };
+    const data = res.data ?? [];
+    return data.length === 1 ? data[0].id : null;
+  };
+  try {
+    return await list({ filtering: JSON.stringify([{ field: 'effective_status', operator: 'IN', value: ALL_ADSET_STATUSES }]) });
+  } catch {
+    // Status filter rejected: fall back to the default listing (all but deleted ad sets).
+    try { return await list({}); } catch { return null; }
+  }
 }

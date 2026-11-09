@@ -121,6 +121,9 @@ export interface AdSetRow {
   cpc: number;
   /** Cost per App Install — from FB insights cost_per_action_type (omni/mobile/app install). null if no installs today */
   cpi: number | null;
+  /** True when this is the only ad set its campaign has (any status, deleted included) —
+   * campaign-level revenue (AppsFlyer "by Campaign ID") then belongs to it exactly. */
+  sole_adset?: boolean;
 }
 
 /** Ad Set merged with Adjust revenue data */
